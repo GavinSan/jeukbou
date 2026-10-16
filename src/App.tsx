@@ -28,13 +28,17 @@ function message(err: unknown): string {
   return ERRORS[code] ?? '出咗問題，再試一次';
 }
 
-async function saveProfile(user: User, name?: string) {
+/** 未有名就用 email @ 前面嗰截，唔會成個 email 擺出嚟 */
+function shownName(user: User): string {
+  return user.displayName?.trim() || user.email?.split('@')[0] || '玩家';
+}
+
+/** 寫入玩家資料；冇名就唔寫名，免得將 email 當咗名 */
+async function saveProfile(user: User) {
   if (!db) return;
-  await setDoc(
-    doc(db, 'users', user.uid),
-    { name: name ?? user.displayName ?? user.email ?? '玩家', photoURL: user.photoURL ?? null, updatedAt: serverTimestamp() },
-    { merge: true },
-  );
+  const data: Record<string, unknown> = { photoURL: user.photoURL ?? null, updatedAt: serverTimestamp() };
+  if (user.displayName?.trim()) data.name = user.displayName.trim();
+  await setDoc(doc(db, 'users', user.uid), data, { merge: true });
 }
 
 function Logo() {
@@ -48,7 +52,7 @@ function Logo() {
   );
 }
 
-function Login() {
+function Login({ refresh }: { refresh: () => void }) {
   const [mode, setMode] = useState<'in' | 'up'>('in');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -78,9 +82,11 @@ function Login() {
     try {
       if (mode === 'up') {
         const cred = await createUserWithEmailAndPassword(auth, email.trim(), password);
-        const display = name.trim() || email.trim();
-        await updateProfile(cred.user, { displayName: display });
-        await saveProfile(cred.user, display);
+        if (name.trim()) {
+          await updateProfile(cred.user, { displayName: name.trim() });
+          await saveProfile(cred.user);
+        }
+        refresh();
       } else {
         await signInWithEmailAndPassword(auth, email.trim(), password);
       }
@@ -140,8 +146,48 @@ function Login() {
   );
 }
 
-function Home({ user }: { user: User }) {
-  const name = user.displayName ?? user.email ?? '玩家';
+function NameForm({ user, initial, onDone, onCancel }: { user: User; initial: string; onDone: () => void; onCancel?: () => void }) {
+  const [value, setValue] = useState(initial);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState('');
+
+  async function save(e: FormEvent) {
+    e.preventDefault();
+    const name = value.trim();
+    if (!name) { setError('打個名先'); return; }
+    if (name.length > 20) { setError('名最多 20 個字'); return; }
+    setBusy(true);
+    setError('');
+    try {
+      await updateProfile(user, { displayName: name });
+      await saveProfile(user);
+      onDone();
+    } catch (err) {
+      setError(message(err));
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <form className="stack" onSubmit={save}>
+      <label className="field">
+        <span>顯示名稱（牌友見到嘅名）</span>
+        <input id="display-name" value={value} onChange={(e) => setValue(e.target.value)} maxLength={20} autoComplete="nickname" autoFocus />
+      </label>
+      <div className="row">
+        <button type="submit" className="btn" disabled={busy}>儲存</button>
+        {onCancel && <button type="button" className="btn ghost" onClick={onCancel}>取消</button>}
+      </div>
+      {error && <p className="error" role="alert">{error}</p>}
+    </form>
+  );
+}
+
+function Home({ user, refresh }: { user: User; refresh: () => void }) {
+  const name = shownName(user);
+  const needsName = !user.displayName?.trim();
+  const [editing, setEditing] = useState(false);
   return (
     <main className="page">
       <header className="topbar">
@@ -153,25 +199,40 @@ function Home({ user }: { user: User }) {
           登出
         </button>
       </header>
-      <section className="card stack">
-        <div className="row">
-          {user.photoURL ? (
-            <img className="avatar" src={user.photoURL} alt="" />
-          ) : (
-            <span className="avatar initial" aria-hidden="true">{name.slice(0, 1).toUpperCase()}</span>
-          )}
-          <div>
-            <h2>你好，{name}</h2>
-            <p className="muted">已經登入。開大局、入數同龍虎榜會喺下一個版本加入。</p>
+      {needsName ? (
+        <section className="card stack">
+          <h2>改個名俾牌友認到你</h2>
+          <p className="muted">枱面、龍虎榜同埋數都會用呢個名，之後可以再改。</p>
+          <NameForm user={user} initial="" onDone={refresh} />
+        </section>
+      ) : (
+        <section className="card stack">
+          <div className="row">
+            {user.photoURL ? (
+              <img className="avatar" src={user.photoURL} alt="" />
+            ) : (
+              <span className="avatar initial" aria-hidden="true">{name.slice(0, 1).toUpperCase()}</span>
+            )}
+            <div className="grow">
+              <h2>你好，{name}</h2>
+              <p className="muted">已經登入。開大局、入數同龍虎榜會喺下一個版本加入。</p>
+            </div>
+            {!editing && <button type="button" className="btn ghost" onClick={() => setEditing(true)}>改名</button>}
           </div>
-        </div>
-      </section>
+          {editing && (
+            <NameForm user={user} initial={name} onDone={() => { setEditing(false); refresh(); }} onCancel={() => setEditing(false)} />
+          )}
+        </section>
+      )}
     </main>
   );
 }
 
 export default function App() {
   const [user, setUser] = useState<User | null | undefined>(undefined);
+  // 改名之後 Firebase 嘅 user 係同一個物件，要手動叫畫面再畫一次
+  const [, setTick] = useState(0);
+  const refresh = () => setTick((t) => t + 1);
 
   useEffect(() => {
     if (!auth) return;
@@ -190,5 +251,5 @@ export default function App() {
     );
   }
   if (user === undefined) return <main className="page narrow"><p className="muted">載入緊…</p></main>;
-  return user ? <Home user={user} /> : <Login />;
+  return user ? <Home user={user} refresh={refresh} /> : <Login refresh={refresh} />;
 }

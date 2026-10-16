@@ -42,7 +42,8 @@ p { margin: 0; }
 
 .card { background: var(--surface); border-radius: 20px; padding: 20px; }
 .stack { display: flex; flex-direction: column; gap: 12px; }
-.row { display: flex; align-items: center; gap: 14px; }
+.row { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; }
+.grow { flex: 1; min-width: 0; }
 
 .btn {
   min-height: 48px; border: none; border-radius: 14px; padding: 0 18px; font-weight: 700; cursor: pointer;
