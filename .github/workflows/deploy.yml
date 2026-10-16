@@ -21,8 +21,8 @@ jobs:
     runs-on: ubuntu-latest
     if: ${{ vars.FIREBASE_WEB_CONFIG != '' }}
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
         with:
           node-version: 22
       - run: npm install --no-audit --no-fund
@@ -36,7 +36,8 @@ jobs:
           FIREBASE_SERVICE_ACCOUNT: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
         run: |
           if [ -z "$FIREBASE_SERVICE_ACCOUNT" ]; then
-            echo "未設定 FIREBASE_SERVICE_ACCOUNT secret，跳過部署"; exit 0
+            echo "::error::搵唔到 FIREBASE_SERVICE_ACCOUNT secret。去 Settings → Secrets and variables → Actions → Secrets 加返，名要一模一樣。"
+            exit 1
           fi
           umask 077
           printf '%s' "$FIREBASE_SERVICE_ACCOUNT" > "$RUNNER_TEMP/sa.json"
