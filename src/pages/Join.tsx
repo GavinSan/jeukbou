@@ -24,9 +24,9 @@ export default function Join({ user, groupId, code, sessionId }: { user: User; g
     <main className="page narrow">
       <div className="brand"><Logo /><h1>雀簿</h1></div>
       {error ? (
-        <section className="card stack">
+        <section className="panel">
           <p className="error" role="alert">{error}</p>
-          <button type="button" className="btn ghost" onClick={() => go('/')}>返首頁</button>
+          <button type="button" className="btn plain" onClick={() => go('/')}>返首頁</button>
         </section>
       ) : (
         <p className="muted">加入緊牌友圈…</p>

@@ -85,7 +85,7 @@ export default function NewSession({ user, groupId }: { user: User; groupId: str
     <main className="page">
       <TopBar back={`/g/${groupId}`} title="開大局" />
       <form className="stack" onSubmit={submit}>
-        <section className="card stack">
+        <section className="panel">
           <label className="field">
             <span>大局名</span>
             <input id="session-name" value={name} onChange={(e) => setName(e.target.value)} maxLength={40} />
@@ -93,10 +93,10 @@ export default function NewSession({ user, groupId }: { user: User; groupId: str
         </section>
 
         {tables.map((t, ti) => (
-          <section key={ti} className="card stack">
+          <section key={ti} className="panel">
             <div className="between">
               <h2>第 {ti + 1} 枱</h2>
-              {tables.length > 1 && <button type="button" className="link" onClick={() => removeTable(ti)}>刪除呢張枱</button>}
+              {tables.length > 1 && <button type="button" className="textbtn" onClick={() => removeTable(ti)}>刪除呢張枱</button>}
             </div>
             <div className="seat-grid">
               {t.map((s, si) => (
@@ -126,7 +126,7 @@ export default function NewSession({ user, groupId }: { user: User; groupId: str
         ))}
 
         {tables.length < 6 && (
-          <button type="button" className="btn ghost" onClick={addTable}>＋ 加一張枱</button>
+          <button type="button" className="btn plain" onClick={addTable}>＋ 加一張枱</button>
         )}
         <button type="submit" className="btn big" disabled={busy}>開始</button>
         {error && <p className="error" role="alert">{error}</p>}

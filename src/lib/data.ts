@@ -57,6 +57,8 @@ export interface StoredEvent {
   seq: number;
   by: string;
   event: TableEvent | UndoEvent;
+  /** 幾時入（毫秒），未同步到伺服器時係 null */
+  at: number | null;
 }
 
 export class ConflictError extends Error {
@@ -174,13 +176,13 @@ function clean<T>(value: T): T {
 }
 
 /** 撤咗嘅事件唔計，剩低嘅交俾引擎 */
-export function activeEvents(stored: StoredEvent[]): { seq: number; event: TableEvent }[] {
+export function activeEvents(stored: StoredEvent[]): { seq: number; event: TableEvent; at: number | null }[] {
   const undone = new Set<number>();
   for (const e of stored) if (e.event.type === 'undo') undone.add(e.event.target);
-  const out: { seq: number; event: TableEvent }[] = [];
+  const out: { seq: number; event: TableEvent; at: number | null }[] = [];
   for (const e of stored) {
     if (e.event.type === 'undo' || undone.has(e.seq)) continue;
-    out.push({ seq: e.seq, event: e.event });
+    out.push({ seq: e.seq, event: e.event, at: e.at });
   }
   return out;
 }

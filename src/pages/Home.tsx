@@ -44,16 +44,16 @@ export default function Home({ user, refresh }: { user: User; refresh: () => voi
 
   return (
     <main className="page">
-      <TopBar right={<button type="button" className="btn ghost" onClick={() => auth && signOut(auth)}>登出</button>} />
+      <TopBar right={<button type="button" className="btn plain" onClick={() => auth && signOut(auth)}>登出</button>} />
 
-      <section className="card stack">
+      <section className="panel">
         <div className="row">
           <Avatar name={name} photo={user.photoURL} size="lg" />
           <div className="grow">
             <h2>{name}</h2>
             <p className="muted small">{user.email}</p>
           </div>
-          {!editing && <button type="button" className="btn ghost" onClick={() => setEditing(true)}>改名</button>}
+          {!editing && <button type="button" className="btn plain" onClick={() => setEditing(true)}>改名</button>}
         </div>
         {editing && (
           <NameForm
@@ -66,22 +66,22 @@ export default function Home({ user, refresh }: { user: User; refresh: () => voi
       </section>
 
       <section className="stack">
-        <h2 className="section-title">我嘅牌友圈</h2>
+        <h2 className="section-head">我嘅牌友圈</h2>
         {groups.data.length > 0 ? (
-          <div className="card list">{groups.data.map((g) => <GroupRow key={g} id={g} />)}</div>
+          <div className="list">{groups.data.map((g) => <GroupRow key={g} id={g} />)}</div>
         ) : (
           !groups.loading && <p className="muted">未有牌友圈。開一個，再將邀請連結 send 俾牌友。</p>
         )}
       </section>
 
-      <section className="card stack">
+      <section className="panel">
         <h2>開新牌友圈</h2>
-        <form className="row" onSubmit={create}>
+        <form className="row" style={{ alignItems: 'flex-end' }} onSubmit={create}>
           <label className="field grow">
             <span>名</span>
             <input id="group-name" value={newName} onChange={(e) => setNewName(e.target.value)} placeholder="例如：不打不相識" maxLength={30} />
           </label>
-          <button type="submit" className="btn align-end" disabled={busy || !newName.trim()}>開</button>
+          <button type="submit" className="btn" disabled={busy || !newName.trim()}>開</button>
         </form>
         {error && <p className="error" role="alert">{error}</p>}
       </section>

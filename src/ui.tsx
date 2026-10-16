@@ -1,5 +1,5 @@
 // 共用小元件
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import type { FormEvent, ReactNode } from 'react';
 import { updateProfile } from 'firebase/auth';
 import type { User } from 'firebase/auth';
@@ -8,13 +8,14 @@ import { chipsFor } from './engine/chips.ts';
 import { db } from './firebase.ts';
 import { Link } from './lib/router.tsx';
 
+/** 一隻寫住「雀」嘅牌 */
 export function Logo({ size = 30 }: { size?: number }) {
   return (
-    <svg width={size} height={size} viewBox="0 0 32 32" aria-hidden="true">
-      <rect x="6" y="2" width="20" height="28" rx="5" fill="var(--jade)" />
-      <rect x="9" y="5" width="14" height="22" rx="3" fill="none" stroke="var(--on-jade)" strokeOpacity="0.45" />
-      <circle cx="16" cy="16" r="4.5" fill="none" stroke="var(--on-jade)" strokeWidth="2" />
-      <circle cx="16" cy="16" r="1.5" fill="var(--on-jade)" />
+    <svg width={size * 0.78} height={size} viewBox="0 0 28 36" aria-hidden="true">
+      <rect x="1" y="5" width="26" height="30" rx="5" fill="var(--tile-back-deep)" />
+      <rect x="1" y="3" width="26" height="30" rx="5" fill="var(--tile-back)" />
+      <rect x="1" y="1" width="26" height="29" rx="5" fill="var(--tile)" />
+      <text x="14" y="22" textAnchor="middle" fontSize="18" fontWeight="700" fill="var(--tile-loss)" style={{ fontFamily: 'var(--font-kai)' }}>雀</text>
     </svg>
   );
 }
@@ -26,14 +27,14 @@ export function Avatar({ name, photo, size = 'md' }: { name: string; photo?: str
   let h = 0;
   for (const ch of name) h = (h + ch.charCodeAt(0)) % AVATAR_TONES.length;
   const initial = (name.trim()[0] ?? '?').toUpperCase();
-  return <span className={`avatar ${size} initial ${AVATAR_TONES[h]}`} aria-hidden="true">{initial}</span>;
+  return <span className={`avatar ${size} ${AVATAR_TONES[h]}`} aria-hidden="true">{initial}</span>;
 }
 
 /** 籌碼公仔：位置有限，最多 5 隻，大概數就得 */
-export function Chips({ amount }: { amount: number }) {
+export function Chips({ amount, pop = false }: { amount: number; pop?: boolean }) {
   const chips = chipsFor(amount).flatMap((c) => Array.from({ length: c.count }, (_, i) => ({ key: `${c.value}-${i}`, ...c })));
   return (
-    <span className="chips" aria-hidden="true">
+    <span className={`chips${pop ? ' pop' : ''}`} aria-hidden="true">
       {chips.map((c) => (
         <span key={c.key} className={`chip${c.value === 1 ? ' white' : ''}`} style={{ background: c.color }} />
       ))}
@@ -48,7 +49,31 @@ export function fmt(n: number): string {
   return '0';
 }
 
-export const tone = (n: number) => (n > 0 ? 'pos' : n < 0 ? 'neg' : 'zero');
+export const tone = (n: number) => (n > 0 ? 'gain' : n < 0 ? 'loss' : 'even');
+
+/** 數字由舊值轉去新值（大約半秒） */
+export function RollingNumber({ value, className }: { value: number; className?: string }) {
+  const [shown, setShown] = useState(value);
+  const from = useRef(value);
+  useEffect(() => {
+    const start = from.current;
+    if (start === value) return;
+    const reduce = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
+    if (reduce) { setShown(value); from.current = value; return; }
+    const t0 = performance.now();
+    let raf = 0;
+    const tick = (t: number) => {
+      const p = Math.min(1, (t - t0) / 600);
+      const eased = 1 - Math.pow(1 - p, 3);
+      setShown(Math.round(start + (value - start) * eased));
+      if (p < 1) raf = requestAnimationFrame(tick);
+      else from.current = value;
+    };
+    raf = requestAnimationFrame(tick);
+    return () => { cancelAnimationFrame(raf); from.current = value; };
+  }, [value]);
+  return <span className={className}>{fmt(shown)}</span>;
+}
 
 export function TopBar({ back, title, right }: { back?: string; title?: ReactNode; right?: ReactNode }) {
   return (
@@ -58,11 +83,35 @@ export function TopBar({ back, title, right }: { back?: string; title?: ReactNod
           <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" aria-hidden="true"><path d="M15 6l-6 6 6 6" /></svg>
         </Link>
       ) : (
-        <Link to="/" className="brand small"><Logo /><span>雀簿</span></Link>
+        <Link to="/" className="brand"><Logo /><span className="brand-name">雀簿</span></Link>
       )}
-      <div className="topbar-title">{title}</div>
+      <div className="topbar-title">{typeof title === 'string' ? <h1>{title}</h1> : title}</div>
       <div className="topbar-right">{right}</div>
     </header>
+  );
+}
+
+/** 由底升上嚟嘅面板 */
+export function Sheet({ onClose, label, children }: { onClose: () => void; label: string; children: ReactNode }) {
+  const close = useRef(onClose);
+  close.current = onClose;
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') close.current(); };
+    window.addEventListener('keydown', onKey);
+    const prev = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    return () => { window.removeEventListener('keydown', onKey); document.body.style.overflow = prev; };
+  }, []);
+  return (
+    <>
+      <div className="backdrop" onClick={() => close.current()} aria-hidden="true" />
+      <div className="sheet" role="dialog" aria-modal="true" aria-label={label}>
+        <div className="sheet-inner">
+          <div className="grabber" />
+          {children}
+        </div>
+      </div>
+    </>
   );
 }
 
@@ -118,12 +167,12 @@ export function NameForm({ user, initial, onDone, onCancel }: { user: User; init
   return (
     <form className="stack" onSubmit={save}>
       <label className="field">
-        <span>顯示名稱（牌友見到嘅名）</span>
-        <input id="display-name" value={value} onChange={(e) => setValue(e.target.value)} maxLength={20} autoComplete="nickname" autoFocus />
+        <span>牌友見到嘅名</span>
+        <input id="display-name" value={value} onChange={(e) => setValue(e.target.value)} maxLength={20} autoComplete="nickname" />
       </label>
       <div className="row">
         <button type="submit" className="btn" disabled={busy}>儲存</button>
-        {onCancel && <button type="button" className="btn ghost" onClick={onCancel}>取消</button>}
+        {onCancel && <button type="button" className="btn plain" onClick={onCancel}>取消</button>}
       </div>
       {error && <p className="error" role="alert">{error}</p>}
     </form>
@@ -143,15 +192,22 @@ export function CopyLink({ url, label = '複製邀請連結' }: { url: string; l
   }
   return (
     <div className="stack tight">
-      <button type="button" className="btn soft" onClick={copy}>
-        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" aria-hidden="true"><path d="M10 14a4 4 0 0 0 5.66 0l3-3a4 4 0 0 0-5.66-5.66l-1 1" /><path d="M14 10a4 4 0 0 0-5.66 0l-3 3a4 4 0 0 0 5.66 5.66l1-1" /></svg>
-        {state === 'copied' ? '複製咗' : label}
-      </button>
-      {state === 'manual' && <input className="copybox" readOnly value={url} onFocus={(e) => e.currentTarget.select()} aria-label="邀請連結" />}
+      <button type="button" className="btn plain" onClick={copy}>{state === 'copied' ? '已複製' : label}</button>
+      {state === 'manual' && <input className="input copybox" readOnly value={url} onFocus={(e) => e.currentTarget.select()} aria-label="邀請連結" />}
     </div>
   );
 }
 
 export function Loading() {
-  return <p className="muted center-text">載入緊…</p>;
+  return <p className="muted center-text">載入緊</p>;
+}
+
+/** 每 30 秒更新一次「幾耐之前」 */
+export function useNow(intervalMs = 30000): number {
+  const [now, setNow] = useState(() => Date.now());
+  useEffect(() => {
+    const id = setInterval(() => setNow(Date.now()), intervalMs);
+    return () => clearInterval(id);
+  }, [intervalMs]);
+  return now;
 }

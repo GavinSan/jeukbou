@@ -27,9 +27,9 @@ export default function GroupPage({ user, groupId }: { user: User; groupId: stri
       </section>
 
       <section className="stack">
-        <h2 className="section-title">大局</h2>
+        <h2 className="section-head">大局</h2>
         {list.length ? (
-          <div className="card list">
+          <div className="list">
             {list.map((s) => (
               <Link key={s.id} to={`/g/${groupId}/s/${s.id}`} className="listrow">
                 <span className="grow">{s.name}</span>
@@ -43,9 +43,9 @@ export default function GroupPage({ user, groupId }: { user: User; groupId: stri
         )}
       </section>
 
-      <section className="card stack">
+      <section className="panel">
         <div className="between">
-          <h2>成員 · {members.data.length}</h2>
+          <h2>成員（{members.data.length}）</h2>
           {g.ownerId === user.uid && <span className="muted small">你係局主</span>}
         </div>
         <div className="member-grid">

@@ -1,0 +1,47 @@
+name: Preview
+
+# design/** 分支：用示範模式 build，影手機截圖，放去 previews 分支
+on:
+  push:
+    branches: ['design/**']
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  shots:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 22
+      - run: npm install --no-audit --no-fund
+      - run: npm run typecheck
+      - run: npm run build
+      - run: npm install --no-save --no-audit --no-fund playwright@1.48.2
+      - run: npx playwright install --with-deps chromium
+      - name: 截圖
+        run: |
+          mkdir -p "$RUNNER_TEMP/shots"
+          npx vite preview --port 4173 --strictPort &
+          sleep 3
+          OUT_DIR="$RUNNER_TEMP/shots" node scripts/shots.mjs | tee "$RUNNER_TEMP/shots/log.txt" || true
+          while IFS= read -r line; do echo "::notice::$line"; done < "$RUNNER_TEMP/shots/log.txt"
+      - name: 放上 previews 分支
+        run: |
+          sha=$(git rev-parse --short HEAD)
+          git config user.name "github-actions"
+          git config user.email "github-actions@users.noreply.github.com"
+          git fetch origin previews || true
+          if git rev-parse --verify origin/previews >/dev/null 2>&1; then
+            git worktree add "$RUNNER_TEMP/pv" origin/previews
+            cd "$RUNNER_TEMP/pv" && git checkout -B previews
+          else
+            git worktree add --detach "$RUNNER_TEMP/pv"
+            cd "$RUNNER_TEMP/pv" && git checkout --orphan previews && git rm -rf . >/dev/null
+          fi
+          rm -rf latest && mkdir -p latest && cp "$RUNNER_TEMP"/shots/* latest/
+          echo "$sha" > latest/SHA
+          git add latest && git commit -m "preview $sha" && git push -f origin previews

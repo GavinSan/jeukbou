@@ -11,6 +11,7 @@ import GroupPage from './pages/GroupPage.tsx';
 import NewSession from './pages/NewSession.tsx';
 import SessionPage from './pages/SessionPage.tsx';
 import TablePage from './pages/TablePage.tsx';
+import Demo from './demo.tsx';
 
 function Routes({ user, refresh }: { user: User; refresh: () => void }) {
   const path = usePath();
@@ -40,6 +41,7 @@ export default function App() {
     });
   }, []);
 
+  if (path === '/demo' || path.startsWith('/demo/')) return <Demo />;
   if (configError) {
     return (
       <main className="page narrow">
@@ -54,7 +56,7 @@ export default function App() {
     return (
       <main className="page">
         <TopBar />
-        <section className="card stack">
+        <section className="panel">
           <h2>改個名俾牌友認到你</h2>
           <p className="muted">枱面、龍虎榜同埋數都會用呢個名，之後可以再改。</p>
           <NameForm user={user} initial="" onDone={refresh} />

@@ -57,7 +57,12 @@ const toSession = (id: string, d: DocumentData): Session => ({
 const toTable = (id: string, d: DocumentData): TableDoc => ({
   id, name: String(d.name ?? ''), order: Number(d.order ?? 0), seats: Array.isArray(d.seats) ? d.seats.map(String) : [], names: d.names ?? {},
 });
-const toEvent = (_id: string, d: DocumentData): StoredEvent => ({ seq: Number(d.seq), by: String(d.by ?? ''), event: d.event });
+const toEvent = (_id: string, d: DocumentData): StoredEvent => ({
+  seq: Number(d.seq),
+  by: String(d.by ?? ''),
+  event: d.event,
+  at: d.at && typeof d.at.toMillis === 'function' ? d.at.toMillis() : null,
+});
 
 export function useUserGroups(uid: string | null): Live<string[]> {
   const r = useLiveDoc(uid ? ['users', uid] : null, (_id, d) => (Array.isArray(d.groups) ? d.groups.map(String) : []));
