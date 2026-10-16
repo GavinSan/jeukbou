@@ -42,13 +42,22 @@ jobs:
           umask 077
           printf '%s' "$FIREBASE_SERVICE_ACCOUNT" > "$RUNNER_TEMP/sa.json"
           export GOOGLE_APPLICATION_CREDENTIALS="$RUNNER_TEMP/sa.json"
+          # 顯示用緊邊個服務帳戶（只係 email，唔會顯示金鑰）
+          sa_email=$(node -e "try{console.log(JSON.parse(require('fs').readFileSync(process.argv[1],'utf8')).client_email||'(冇 client_email)')}catch(e){console.log('(JSON 格式唔啱)')}" "$RUNNER_TEMP/sa.json")
+          echo "::notice::部署用緊服務帳戶：${sa_email}"
           set +e
-          npx --yes firebase-tools@13 deploy --only hosting,firestore:rules --project jeukbou-app --non-interactive 2>&1 | tee "$RUNNER_TEMP/deploy.log"
-          code=${PIPESTATUS[0]}
+          fail=0
+          # 網站同資料庫規則分開部署，一樣失敗唔會拖累另一樣
+          for target in hosting firestore:rules; do
+            npx --yes firebase-tools@13 deploy --only "$target" --project jeukbou-app --non-interactive 2>&1 | tee "$RUNNER_TEMP/deploy.log"
+            if [ "${PIPESTATUS[0]}" -ne 0 ]; then
+              fail=1
+              grep -iE "error|denied|permission|not found|not been used|enable|billing|403|404" "$RUNNER_TEMP/deploy.log" \
+                | grep -v -iE "private_key|BEGIN" | sed 's/\x1b\[[0-9;]*m//g' | sort -u | head -6 \
+                | while IFS= read -r line; do echo "::error title=${target}::${line}"; done
+            else
+              echo "::notice title=${target}::部署成功"
+            fi
+          done
           rm -f "$RUNNER_TEMP/sa.json"
-          if [ "$code" -ne 0 ]; then
-            # 將錯誤放入 annotation，喺 Actions 摘要頁一眼見到
-            grep -iE "error|denied|permission|not found|not been used|enable|billing|403|404" "$RUNNER_TEMP/deploy.log" \
-              | grep -v -iE "private_key|BEGIN" | head -8 | while IFS= read -r line; do echo "::error::${line}"; done
-            exit "$code"
-          fi
+          exit "$fail"
