@@ -1,0 +1,90 @@
+import { useState } from 'react';
+import type { FormEvent } from 'react';
+import { signOut } from 'firebase/auth';
+import type { User } from 'firebase/auth';
+import { auth } from '../firebase.ts';
+import { createGroup, displayName, syncMemberName } from '../lib/data.ts';
+import { useGroup, useUserGroups } from '../lib/live.ts';
+import { Link, go } from '../lib/router.tsx';
+import { Avatar, NameForm, TopBar, message } from '../ui.tsx';
+
+function GroupRow({ id }: { id: string }) {
+  const { data } = useGroup(id);
+  if (!data) return null;
+  return (
+    <Link to={`/g/${id}`} className="listrow">
+      <span className="grow">{data.name}</span>
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" aria-hidden="true"><path d="M9 6l6 6-6 6" /></svg>
+    </Link>
+  );
+}
+
+export default function Home({ user, refresh }: { user: User; refresh: () => void }) {
+  const groups = useUserGroups(user.uid);
+  const [editing, setEditing] = useState(false);
+  const [newName, setNewName] = useState('');
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState('');
+  const name = displayName(user);
+
+  async function create(e: FormEvent) {
+    e.preventDefault();
+    if (!newName.trim()) return;
+    setBusy(true);
+    setError('');
+    try {
+      const id = await createGroup(user, newName.trim());
+      go(`/g/${id}`);
+    } catch (err) {
+      setError(message(err));
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <main className="page">
+      <TopBar right={<button type="button" className="btn ghost" onClick={() => auth && signOut(auth)}>登出</button>} />
+
+      <section className="card stack">
+        <div className="row">
+          <Avatar name={name} photo={user.photoURL} size="lg" />
+          <div className="grow">
+            <h2>{name}</h2>
+            <p className="muted small">{user.email}</p>
+          </div>
+          {!editing && <button type="button" className="btn ghost" onClick={() => setEditing(true)}>改名</button>}
+        </div>
+        {editing && (
+          <NameForm
+            user={user}
+            initial={name}
+            onDone={() => { setEditing(false); refresh(); syncMemberName(user, groups.data).catch(() => undefined); }}
+            onCancel={() => setEditing(false)}
+          />
+        )}
+      </section>
+
+      <section className="stack">
+        <h2 className="section-title">我嘅牌友圈</h2>
+        {groups.data.length > 0 ? (
+          <div className="card list">{groups.data.map((g) => <GroupRow key={g} id={g} />)}</div>
+        ) : (
+          !groups.loading && <p className="muted">未有牌友圈。開一個，再將邀請連結 send 俾牌友。</p>
+        )}
+      </section>
+
+      <section className="card stack">
+        <h2>開新牌友圈</h2>
+        <form className="row" onSubmit={create}>
+          <label className="field grow">
+            <span>名</span>
+            <input id="group-name" value={newName} onChange={(e) => setNewName(e.target.value)} placeholder="例如：不打不相識" maxLength={30} />
+          </label>
+          <button type="submit" className="btn align-end" disabled={busy || !newName.trim()}>開</button>
+        </form>
+        {error && <p className="error" role="alert">{error}</p>}
+      </section>
+    </main>
+  );
+}

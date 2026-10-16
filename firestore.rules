@@ -22,7 +22,7 @@ service cloud.firestore {
     match /users/{uid} {
       allow read: if signedIn();
       allow create, update: if signedIn() && request.auth.uid == uid
-        && request.resource.data.keys().hasOnly(['name', 'photoURL', 'updatedAt']);
+        && request.resource.data.keys().hasOnly(['name', 'photoURL', 'updatedAt', 'groups']);
       allow delete: if false;
     }
 
@@ -35,11 +35,13 @@ service cloud.firestore {
 
       // 成員：自己用邀請碼加入，或者由局主加
       match /members/{uid} {
-        allow read: if isMember(g);
+        allow read: if isMember(g) || (signedIn() && request.auth.uid == uid);
         allow create: if signedIn() && request.auth.uid == uid
           && (isOwner(g) || request.resource.data.inviteCode == groupDoc(g).data.inviteCode);
+        // 自己改自己個名同頭像，唔可以改邀請碼
+        allow update: if signedIn() && request.auth.uid == uid
+          && request.resource.data.inviteCode == resource.data.inviteCode;
         allow delete: if isOwner(g) || (signedIn() && request.auth.uid == uid);
-        allow update: if false;
       }
 
       // 大局同枱
@@ -52,11 +54,12 @@ service cloud.firestore {
           allow delete: if isOwner(g);
 
           // 每一鋪：只可以加，唔可以改或者刪。
-          // 文件 id = 序號，同一個序號只有一個人寫得入，兩個人同時入數只會有一個成功。
-          // 撤回 = 加一條「撤回」事件。
+          // 文件 id = 序號；同一個序號第二個人寫會變成「改」，會被拒絕，
+          // 所以兩個人同時入數只會有一個成功。撤回 = 加一條「撤回」事件。
           match /events/{e} {
             allow read: if isMember(g);
-            allow create: if isMember(g) && request.resource.data.by == request.auth.uid;
+            allow create: if isMember(g) && request.resource.data.by == request.auth.uid
+              && request.resource.data.seq is int;
             allow update, delete: if false;
           }
         }
