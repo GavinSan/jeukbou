@@ -1,0 +1,45 @@
+name: Deploy
+
+# push 上 main 就自動部署去 Firebase Hosting，同時更新資料庫規則。
+# 要先喺 GitHub repo 設定：
+#   Variables → FIREBASE_WEB_CONFIG（Firebase 網頁設定，成段 JSON）
+#   Secrets   → FIREBASE_SERVICE_ACCOUNT（服務帳戶 JSON；唔好放落 repo 任何地方）
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: deploy
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    if: ${{ vars.FIREBASE_WEB_CONFIG != '' }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: npm install --no-audit --no-fund
+      - run: npm test
+      - name: Build
+        run: npm run build
+        env:
+          VITE_FIREBASE_CONFIG: ${{ vars.FIREBASE_WEB_CONFIG }}
+      - name: 部署（網站 + 資料庫規則）
+        env:
+          FIREBASE_SERVICE_ACCOUNT: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
+        run: |
+          if [ -z "$FIREBASE_SERVICE_ACCOUNT" ]; then
+            echo "未設定 FIREBASE_SERVICE_ACCOUNT secret，跳過部署"; exit 0
+          fi
+          umask 077
+          printf '%s' "$FIREBASE_SERVICE_ACCOUNT" > "$RUNNER_TEMP/sa.json"
+          export GOOGLE_APPLICATION_CREDENTIALS="$RUNNER_TEMP/sa.json"
+          npx --yes firebase-tools@13 deploy --only hosting,firestore:rules --project jeukbou-app --non-interactive
+          rm -f "$RUNNER_TEMP/sa.json"

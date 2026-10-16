@@ -1,0 +1,66 @@
+rules_version = '2';
+
+// 雀簿資料庫規則：預設乜都唔准，只開放牌友圈成員需要嘅讀寫。
+// 網頁設定（apiKey 嗰啲）係公開嘅，真正保護資料嘅係呢份規則。
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    function signedIn() {
+      return request.auth != null;
+    }
+    function groupDoc(g) {
+      return get(/databases/$(database)/documents/groups/$(g));
+    }
+    function isMember(g) {
+      return signedIn() && exists(/databases/$(database)/documents/groups/$(g)/members/$(request.auth.uid));
+    }
+    function isOwner(g) {
+      return signedIn() && groupDoc(g).data.ownerId == request.auth.uid;
+    }
+
+    // 玩家資料：登入咗就睇到名同頭像；淨係自己改到自己
+    match /users/{uid} {
+      allow read: if signedIn();
+      allow create, update: if signedIn() && request.auth.uid == uid
+        && request.resource.data.keys().hasOnly(['name', 'photoURL', 'updatedAt']);
+      allow delete: if false;
+    }
+
+    // 牌友圈
+    match /groups/{g} {
+      allow read: if isMember(g);
+      allow create: if signedIn() && request.resource.data.ownerId == request.auth.uid;
+      allow update: if isOwner(g);
+      allow delete: if false;
+
+      // 成員：自己用邀請碼加入，或者由局主加
+      match /members/{uid} {
+        allow read: if isMember(g);
+        allow create: if signedIn() && request.auth.uid == uid
+          && (isOwner(g) || request.resource.data.inviteCode == groupDoc(g).data.inviteCode);
+        allow delete: if isOwner(g) || (signedIn() && request.auth.uid == uid);
+        allow update: if false;
+      }
+
+      // 大局同枱
+      match /sessions/{s} {
+        allow read, create, update: if isMember(g);
+        allow delete: if isOwner(g);
+
+        match /tables/{t} {
+          allow read, create, update: if isMember(g);
+          allow delete: if isOwner(g);
+
+          // 每一鋪：只可以加，唔可以改或者刪。
+          // 文件 id = 序號，同一個序號只有一個人寫得入，兩個人同時入數只會有一個成功。
+          // 撤回 = 加一條「撤回」事件。
+          match /events/{e} {
+            allow read: if isMember(g);
+            allow create: if isMember(g) && request.resource.data.by == request.auth.uid;
+            allow update, delete: if false;
+          }
+        }
+      }
+    }
+  }
+}

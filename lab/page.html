@@ -1,0 +1,471 @@
+<title>台牌計分試算</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700&family=IBM+Plex+Mono:wght@500;600&display=swap">
+<style>
+/* 版面：手機一欄；闊屏左邊枱面同結果、右邊記錄同家規。色調跟 app：玉綠 = 收、赭橙 = 欠 */
+:root {
+  --bg: #F3F4F2; --surface: #FFFFFF; --sunk: #F6F7F5; --ink: #15181A; --muted: #5A6266; --line: #E1E4E2;
+  --jade: #0A6B4E; --jade-soft: #E0EFE8; --owe: #A23A0B; --owe-soft: #FBE7D9; --water: #2F5D8A; --water-soft: #E3ECF5;
+  --chip-ring: rgba(21,24,26,.22);
+  --font-body: 'Noto Sans TC', 'PingFang HK', 'Microsoft JhengHei', system-ui, sans-serif;
+  --font-num: 'IBM Plex Mono', ui-monospace, 'SFMono-Regular', Menlo, monospace;
+  --r: 16px;
+}
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) {
+  --bg: #0E1112; --surface: #171B1D; --sunk: #1E2326; --ink: #E8ECEC; --muted: #9BA4A8; --line: #2A3134;
+  --jade: #4CC59B; --jade-soft: #14302A; --owe: #FF9E66; --owe-soft: #3A2416; --water: #8DB7E0; --water-soft: #1A2836;
+  --chip-ring: rgba(255,255,255,.3); color-scheme: dark; } }
+:root[data-theme="dark"] {
+  --bg: #0E1112; --surface: #171B1D; --sunk: #1E2326; --ink: #E8ECEC; --muted: #9BA4A8; --line: #2A3134;
+  --jade: #4CC59B; --jade-soft: #14302A; --owe: #FF9E66; --owe-soft: #3A2416; --water: #8DB7E0; --water-soft: #1A2836;
+  --chip-ring: rgba(255,255,255,.3); color-scheme: dark; }
+
+* { box-sizing: border-box; }
+body { background: var(--bg); color: var(--ink); font-family: var(--font-body); font-size: 15px; line-height: 1.5;
+  padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); padding-block: 20px 40px; }
+.wrap { max-width: 1080px; margin: 0 auto; display: grid; gap: 16px; grid-template-columns: minmax(0, 1fr);
+  grid-template-areas: "head" "table" "form" "result" "chains" "history" "settle" "rules"; }
+@media (min-width: 900px) {
+  .wrap { grid-template-columns: minmax(0, 1.05fr) minmax(0, 1fr); align-items: start;
+    grid-template-areas: "head head" "table form" "result form" "chains history" "settle rules"; }
+}
+header { grid-area: head; display: flex; flex-direction: column; gap: 10px; }
+h1 { margin: 0; font-size: 26px; line-height: 1.2; text-wrap: balance; }
+.sub { margin: 0; color: var(--muted); max-width: 62ch; }
+h2 { margin: 0; font-size: 16px; }
+.card { background: var(--surface); border-radius: var(--r); padding: 16px; display: flex; flex-direction: column; gap: 12px; min-width: 0; }
+.row { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.between { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; }
+.muted { color: var(--muted); }
+.small { font-size: 12.5px; }
+.num { font-family: var(--font-num); font-variant-numeric: tabular-nums; }
+button, select, input { font: inherit; color: inherit; }
+button { cursor: pointer; }
+:focus-visible { outline: 2px solid var(--jade); outline-offset: 2px; }
+
+.pill { border: 1.5px solid var(--line); background: var(--surface); border-radius: 999px; padding: 6px 13px; min-height: 36px; }
+.pill[aria-pressed="true"] { border-color: var(--jade); background: var(--jade-soft); color: var(--jade); font-weight: 700; }
+.btn { border: none; border-radius: 12px; padding: 10px 16px; min-height: 44px; font-weight: 700; background: var(--jade); color: var(--surface); }
+.btn.ghost { background: var(--sunk); color: var(--ink); font-weight: 500; }
+.btn.owe { background: var(--owe-soft); color: var(--owe); }
+.btn:disabled { opacity: .45; cursor: not-allowed; }
+
+/* 枱面 */
+.board { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }
+.seat { background: var(--sunk); border-radius: 14px; padding: 10px; display: flex; flex-direction: column; gap: 4px; border: 1.5px solid transparent; min-width: 0; }
+.seat.owes { border-color: var(--owe-soft); }
+.seat .name { display: flex; align-items: center; gap: 6px; font-weight: 500; min-width: 0; }
+.seat .name span:first-child { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.wind { font-size: 12px; color: var(--muted); margin-left: auto; }
+.badge { font-size: 11px; font-weight: 700; border-radius: 6px; padding: 0 5px; background: var(--ink); color: var(--surface); }
+.score { font-family: var(--font-num); font-size: 22px; font-weight: 600; line-height: 1.1; }
+.pos { color: var(--jade); } .neg { color: var(--owe); } .zero { color: var(--muted); }
+.pend { display: flex; align-items: center; gap: 6px; min-height: 18px; font-size: 12.5px; font-family: var(--font-num); flex-wrap: wrap; }
+.center { background: var(--jade-soft); border-radius: 14px; display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; padding: 8px; gap: 2px; }
+.center .wind-big { font-size: 20px; font-weight: 700; color: var(--jade); }
+
+.chips { display: inline-flex; align-items: center; }
+.chip { width: 15px; height: 15px; border-radius: 50%; border: 2px dashed rgba(255,255,255,.8); box-shadow: 0 0 0 1px var(--chip-ring); }
+.chip + .chip { margin-left: -5px; }
+.chip.white { border-color: rgba(21,24,26,.35); box-shadow: 0 0 0 1px rgba(21,24,26,.5); }
+
+/* 數目明細 */
+.lines { display: flex; flex-direction: column; gap: 6px; margin: 0; padding: 0; list-style: none; }
+.line { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; gap: 8px; align-items: baseline; }
+.kind { font-size: 11px; font-weight: 700; border-radius: 6px; padding: 1px 6px; white-space: nowrap; }
+.k-pending { background: var(--owe-soft); color: var(--owe); }
+.k-settle { background: var(--jade-soft); color: var(--jade); }
+.k-instant { background: var(--sunk); color: var(--ink); }
+.k-water { background: var(--water-soft); color: var(--water); }
+.line .note { font-size: 12.5px; color: var(--muted); }
+.prompt { background: var(--owe-soft); color: var(--owe); border-radius: 12px; padding: 10px 12px; display: flex; align-items: center; gap: 10px; flex-wrap: wrap; justify-content: space-between; }
+.warn { background: var(--owe-soft); color: var(--owe); border-radius: 12px; padding: 8px 12px; font-size: 13px; }
+
+/* 表格 */
+.form-grid { display: grid; gap: 12px; }
+.field { display: flex; flex-direction: column; gap: 6px; }
+.field > label, .field > .label { font-size: 13px; font-weight: 700; color: var(--muted); }
+.fan-row { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+input[type="number"], select { border: 1.5px solid var(--line); background: var(--sunk); border-radius: 10px; padding: 7px 10px; min-height: 40px; }
+input[type="number"] { width: 84px; font-family: var(--font-num); }
+.error { color: var(--owe); font-size: 13px; min-height: 1em; }
+
+details.ev { border-top: 1px solid var(--line); padding-top: 8px; }
+details.ev summary { cursor: pointer; display: flex; gap: 10px; align-items: baseline; list-style: none; }
+details.ev summary::-webkit-details-marker { display: none; }
+details.ev .lines { padding: 8px 0 4px 32px; }
+.idx { font-family: var(--font-num); color: var(--muted); width: 22px; text-align: right; flex: none; }
+
+.rules { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px 16px; }
+@media (max-width: 420px) { .rules { grid-template-columns: minmax(0, 1fr); } }
+.check { display: flex; align-items: center; gap: 8px; min-height: 40px; }
+.check input { width: 20px; height: 20px; accent-color: var(--jade); }
+summary.fold { cursor: pointer; font-weight: 700; }
+.transfer { display: flex; justify-content: space-between; gap: 8px; border-top: 1px solid var(--line); padding-top: 6px; }
+@media (prefers-reduced-motion: no-preference) { .flash { animation: flash .6s ease-out; } @keyframes flash { from { background: var(--jade-soft); } to { background: transparent; } } }
+</style>
+
+<div class="wrap">
+  <header>
+    <h1>台牌計分試算</h1>
+    <p class="sub">入幾鋪，睇吓拉、劈、找數同抽水計得啱唔啱。呢度用嘅計分引擎，就係 app 將來用嗰個。單位：番。</p>
+    <div class="row" id="presets" aria-label="例子"></div>
+  </header>
+
+  <section class="card" style="grid-area: table" aria-labelledby="t-table">
+    <div class="between"><h2 id="t-table">第 1 枱</h2><span class="small muted" id="hand-info"></span></div>
+    <div class="board" id="board"></div>
+  </section>
+
+  <section class="card" style="grid-area: form" aria-labelledby="t-form">
+    <h2 id="t-form">記一鋪</h2>
+    <div class="row" id="types" role="group" aria-label="結果"></div>
+    <div class="form-grid" id="form-body"></div>
+    <div class="row">
+      <button class="btn" id="submit" type="button">記錄</button>
+      <button class="btn ghost" id="undo" type="button">撤回最後一鋪</button>
+      <button class="btn ghost" id="clear" type="button">清空</button>
+    </div>
+    <div class="error" id="error" role="alert"></div>
+  </section>
+
+  <section class="card" style="grid-area: result" aria-labelledby="t-result">
+    <div class="between"><h2 id="t-result">最新一鋪</h2><span class="small muted" id="result-title"></span></div>
+    <div id="result"></div>
+  </section>
+
+  <section class="card" style="grid-area: chains" aria-labelledby="t-chains">
+    <div class="between"><h2 id="t-chains">拉緊</h2><span class="small muted">籌碼擺喺輸家位</span></div>
+    <div id="chains" class="lines"></div>
+  </section>
+
+  <section class="card" style="grid-area: history" aria-labelledby="t-history">
+    <div class="between"><h2 id="t-history">紀錄</h2><span class="small muted" id="count"></span></div>
+    <div id="history"></div>
+  </section>
+
+  <section class="card" style="grid-area: settle" aria-labelledby="t-settle">
+    <div class="between"><h2 id="t-settle">如果而家完場</h2><span class="small muted">拉住嘅數全部找晒</span></div>
+    <div class="row">
+      <label for="per-unit" class="small muted">幾多番 =</label>
+      <input type="number" id="per-unit" min="0.01" step="0.01" value="6">
+      <select id="currency" aria-label="貨幣"><option>CAD</option><option>HKD</option><option>USD</option></select>
+      <span class="small muted">$1</span>
+    </div>
+    <div id="settle"></div>
+  </section>
+
+  <section class="card" style="grid-area: rules" aria-labelledby="t-rules">
+    <details>
+      <summary class="fold" id="t-rules">家規（改咗會由頭再計）</summary>
+      <div class="rules" id="rules" style="margin-top: 12px"></div>
+    </details>
+  </section>
+</div>
+
+<script>/*ENGINE*/</script>
+<script>
+(function () {
+  const E = window.MJEngine;
+  const P = ['Gavin', 'Athena', 'Ivan', 'Viola'];
+  const SPECIALS = [
+    { k: '暗槓', v: 5, dir: 'collect' }, { k: '一台花', v: 5, dir: 'collect' }, { k: '一台草', v: 2, dir: 'collect' }, { k: '圍骰', v: 5, dir: 'collect' },
+    { k: '骰開一二三', v: 5, dir: 'pay' }, { k: '叫碰唔碰', v: 5, dir: 'pay' }, { k: '被追（番子）', v: 5, dir: 'pay' }, { k: '被追（其他）', v: 10, dir: 'pay' }
+  ];
+  const TYPES = ['食出', '自摸', '雙響', '三響', '詐糊', '特別事項', '流局', '完場'];
+  const KIND = { pending: '擺低', settle: '找數', instant: '即時', water: '抽水' };
+  const PURE = { dealer: { enabled: false }, water: { enabled: false }, rounds: 0 };
+  const eat = (w, fan, l) => ({ type: 'win', winners: [{ player: w, fan }], loser: l });
+  const sd = (w, fan) => ({ type: 'win', winners: [{ player: w, fan }], loser: null });
+  const PRESETS = [
+    { label: '連食三鋪 20', rules: PURE, events: [eat('Gavin', 15, 'Ivan'), eat('Gavin', 15, 'Ivan'), eat('Gavin', 15, 'Ivan')] },
+    { label: '20 再食 30', rules: PURE, events: [eat('Gavin', 15, 'Ivan'), eat('Gavin', 25, 'Ivan')] },
+    { label: '劈：未找 100', rules: PURE, events: [eat('Gavin', 35, 'Ivan'), eat('Gavin', 35, 'Ivan'), eat('Ivan', 5, 'Gavin')] },
+    { label: '自摸拉三家，斷拉抽水', rules: { dealer: { enabled: false }, rounds: 0 }, events: [sd('Gavin', 15), eat('Athena', 15, 'Viola')] },
+    { label: '反雙響', rules: PURE, events: [{ type: 'win', winners: [{ player: 'Gavin', fan: 10 }, { player: 'Athena', fan: 10 }], loser: 'Ivan' }, sd('Ivan', 10)] },
+    { label: '莊連莊', rules: { water: { enabled: false }, rounds: 0 }, events: [eat('Gavin', 10, 'Ivan'), eat('Gavin', 10, 'Ivan'), sd('Athena', 10)] }
+  ];
+
+  let events = [];
+  let rules = E.withRules(PRESETS[0].rules);
+  let preset = 0;
+  const form = { type: '食出', winners: ['Gavin'], fans: { Gavin: 15, Athena: 10, Ivan: 10, Viola: 10 }, loser: 'Ivan', special: 0, who: 'Ivan' };
+  events = PRESETS[0].events.slice();
+
+  const KEY = 'mj-lab-v1';
+  try {
+    const saved = JSON.parse(localStorage.getItem(KEY) || 'null');
+    if (saved && Array.isArray(saved.events)) { events = saved.events; rules = E.withRules(saved.rules || {}); preset = -1; }
+    if (saved && saved.perUnit) document.getElementById('per-unit').value = saved.perUnit;
+    if (saved && saved.currency) document.getElementById('currency').value = saved.currency;
+  } catch (e) { /* 冇得存就算 */ }
+  const save = () => {
+    try { localStorage.setItem(KEY, JSON.stringify({ events, rules, perUnit: $('per-unit').value, currency: $('currency').value })); } catch (e) { /* ignore */ }
+  };
+
+  const $ = (id) => document.getElementById(id);
+  const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+  const fmt = (n) => { const v = Math.round(n * 100) / 100; return v > 0 ? '+' + v : v < 0 ? '−' + Math.abs(v) : '0'; };
+  const cls = (n) => n > 0 ? 'pos' : n < 0 ? 'neg' : 'zero';
+  const chipsHtml = (amt) => '<span class="chips" aria-hidden="true">' + E.chipsFor(amt).flatMap((c) =>
+    Array.from({ length: c.count }, () => `<span class="chip${c.value === 1 ? ' white' : ''}" style="background:${c.color}"></span>`)).join('') + '</span>';
+
+  function compute() {
+    let s = E.createTable(P);
+    const steps = [];
+    const skipped = [];
+    events.forEach((ev, i) => {
+      try { const r = E.applyEvent(s, ev, rules); steps.push({ ev, r, i }); s = r.state; }
+      catch (e) { skipped.push({ i, msg: e.message }); }
+    });
+    return { s, steps, skipped };
+  }
+
+  function describe(ev) {
+    if (ev.type === 'win') {
+      const w = ev.winners.map((x) => x.player).join('、');
+      const fans = ev.winners.map((x) => x.fan + ' 番').join(' / ');
+      if (ev.loser === null) return `${w} 自摸 · ${fans}`;
+      const tag = ev.winners.length === 2 ? '（雙響）' : ev.winners.length === 3 ? '（三響）' : '';
+      return `${w} 食 ${ev.loser}${tag} · ${fans}`;
+    }
+    if (ev.type === 'special') return `${ev.player} ${ev.label} · ${ev.direction === 'collect' ? '收' : '俾'}每家 ${ev.amount}`;
+    if (ev.type === 'falseWin') return `${ev.player} 詐糊`;
+    if (ev.type === 'draw') return '流局';
+    if (ev.type === 'settle') return `${ev.pulled} 找數俾 ${ev.puller}`;
+    if (ev.type === 'swap') return `${ev.out} 換 ${ev.in}`;
+    return '完場';
+  }
+
+  function linesHtml(lines) {
+    if (!lines.length) return '<p class="small muted" style="margin:0">冇數要計</p>';
+    return '<ul class="lines">' + lines.map((l) => `<li class="line"><span class="kind k-${l.kind}">${KIND[l.kind]}</span>
+      <span>${esc(l.from)} → ${l.to === null ? '水' : esc(l.to)} <span class="note">${esc(l.note)}</span></span>
+      <span class="num">${Math.round(l.amount * 100) / 100}</span></li>`).join('') + '</ul>';
+  }
+
+  function settleButton(c) {
+    return `<button class="btn owe" type="button" data-settle="${esc(c.puller)}|${esc(c.pulled)}">${esc(c.pulled)} 找數 ${Math.round(c.owed * 100) / 100}</button>`;
+  }
+
+  function render() {
+    const { s, steps, skipped } = compute();
+    const info = E.roundInfo(s);
+    const pend = E.pending(s);
+    const owe = {}; const inc = {};
+    s.chains.forEach((c) => { owe[c.pulled] = (owe[c.pulled] || 0) + c.owed; inc[c.puller] = (inc[c.puller] || 0) + c.owed; });
+
+    $('hand-info').textContent = s.ended ? '已完場' : `${info.roundWind}圈 · 第 ${info.hand} 鋪`;
+    const pos = { 0: 'grid-column:2;grid-row:3', 1: 'grid-column:3;grid-row:2', 2: 'grid-column:2;grid-row:1', 3: 'grid-column:1;grid-row:2' };
+    const seats = s.seats.map((p, i) => {
+      const isDealer = i === s.dealerSeat;
+      const o = owe[p] || 0; const n = inc[p] || 0;
+      return `<div class="seat${o ? ' owes' : ''}" style="${pos[i]}">
+        <div class="name"><span>${esc(p)}</span>${isDealer ? `<span class="badge">莊${s.streak ? ' 連' + s.streak : ''}</span>` : ''}<span class="wind">${E.seatWind(s, p)}</span></div>
+        <div class="score ${cls(s.settled[p])}">${fmt(s.settled[p])}</div>
+        <div class="pend">${o ? chipsHtml(o) + `<span class="neg">${Math.round(o * 100) / 100}</span>` : ''}${n ? `<span class="pos">+${Math.round(n * 100) / 100}</span>` : ''}</div>
+      </div>`;
+    }).join('');
+    const center = `<div class="center" style="grid-column:2;grid-row:2">
+      <div class="wind-big">${s.ended ? '完場' : info.roundWind + '圈'}</div>
+      <div class="small">莊番 ${rules.dealer.enabled ? info.dealerFan : '—'}</div>
+      <div class="small muted">水 <span class="num">${Math.round(s.water * 100) / 100}</span></div></div>`;
+    $('board').innerHTML = seats + center;
+
+    // 最新一鋪
+    const last = steps[steps.length - 1];
+    $('result-title').textContent = last ? describe(last.ev) : '';
+    let html = last ? linesHtml(last.r.lines) : '<p class="small muted" style="margin:0">未記任何一鋪</p>';
+    if (last && last.r.prompts.length) {
+      html += last.r.prompts.map((p) => {
+        const c = s.chains.find((x) => x.puller === p.puller && x.pulled === p.pulled);
+        return `<div class="prompt"><span>第 ${p.count} 拉：${esc(p.pulled)} 可以揀找數（唔找就等第 ${p.count + rules.la.settleEvery} 拉）</span>${c ? settleButton(c) : ''}</div>`;
+      }).join('');
+    }
+    if (skipped.length) html += `<div class="warn">${skipped.map((k) => `第 ${k.i + 1} 項喺而家嘅家規下計唔到：${esc(k.msg)}`).join('<br>')}</div>`;
+    $('result').innerHTML = html;
+
+    // 拉緊
+    $('chains').innerHTML = s.chains.length ? s.chains.map((c) => {
+      const can = rules.la.settleEvery > 0 && c.count % rules.la.settleEvery === 0;
+      return `<div class="line" style="grid-template-columns:minmax(0,1fr) auto"><span>${esc(c.puller)} → ${esc(c.pulled)} <span class="note">第 ${c.count} 拉</span></span>
+        <span class="row">${chipsHtml(c.owed)}<span class="num neg">${Math.round(c.owed * 100) / 100}</span>${can ? settleButton(c) : ''}</span></div>`;
+    }).join('') : '<p class="small muted" style="margin:0">冇人拉緊</p>';
+
+    // 紀錄
+    $('count').textContent = events.length ? `${events.length} 項` : '';
+    $('history').innerHTML = steps.length ? steps.slice().reverse().map((st) => `<details class="ev"><summary><span class="idx">${st.i + 1}</span><span>${esc(describe(st.ev))}</span></summary>${linesHtml(st.r.lines)}</details>`).join('') : '<p class="small muted" style="margin:0">未有紀錄</p>';
+
+    // 埋數
+    let fin = s;
+    if (!s.ended) { try { fin = E.applyEvent(s, { type: 'end' }, rules).state; } catch (e) { fin = s; } }
+    const totals = E.sessionTotals([fin]);
+    const per = parseFloat($('per-unit').value);
+    const cur = $('currency').value;
+    let sh = '';
+    if (per > 0) {
+      const money = E.toMoney(totals, per);
+      sh += '<ul class="lines">' + Object.keys(money).map((k) => `<li class="line" style="grid-template-columns:minmax(0,1fr) auto auto"><span>${esc(k)}</span><span class="num muted">${fmt(totals[k])} 番</span><span class="num ${cls(money[k])}">${money[k] < 0 ? '−' : ''}$${Math.abs(money[k]).toFixed(2)}</span></li>`).join('') + '</ul>';
+      const tr = E.minimalTransfers(money);
+      sh += tr.length ? '<div class="lines" style="margin-top:8px">' + tr.map((t) => `<div class="transfer"><span>${esc(t.from)} → ${esc(t.to)}</span><span class="num">${esc(cur)} $${t.amount.toFixed(2)}</span></div>`).join('') + '</div>' : '<p class="small muted" style="margin:8px 0 0">冇數要過</p>';
+    } else {
+      sh = '<p class="error">換算要大過 0</p>';
+    }
+    $('settle').innerHTML = sh;
+
+    renderPresets();
+    save();
+  }
+
+  function renderPresets() {
+    $('presets').innerHTML = PRESETS.map((p, i) => `<button class="pill" type="button" data-preset="${i}" aria-pressed="${i === preset}">${esc(p.label)}</button>`).join('');
+  }
+
+  function renderForm() {
+    $('types').innerHTML = TYPES.map((t) => `<button class="pill" type="button" data-type="${t}" aria-pressed="${t === form.type}">${t}</button>`).join('');
+    const isWin = ['食出', '自摸', '雙響', '三響'].includes(form.type);
+    const max = form.type === '雙響' ? 2 : form.type === '三響' ? 3 : 1;
+    let h = '';
+    if (isWin) {
+      h += `<div class="field"><span class="label">邊個食糊${max > 1 ? `（揀 ${max} 個）` : ''}</span><div class="row">` +
+        P.map((p) => `<button class="pill" type="button" data-winner="${p}" aria-pressed="${form.winners.includes(p)}">${p}</button>`).join('') + '</div></div>';
+      h += '<div class="field"><span class="label">牌型番（底、莊、雙響會自動加）</span>' + form.winners.map((w) =>
+        `<div class="fan-row"><label for="fan-${w}" style="min-width:64px">${w}</label><input type="number" id="fan-${w}" min="0" step="1" value="${form.fans[w]}" data-fan="${w}"> 番</div>`).join('') + '</div>';
+      if (form.type !== '自摸') {
+        h += `<div class="field"><span class="label">邊個出銃${form.type === '三響' ? '（三響自動）' : ''}</span><div class="row">` +
+          P.map((p) => `<button class="pill" type="button" data-loser="${p}" aria-pressed="${form.loser === p}" ${form.winners.includes(p) || form.type === '三響' ? 'disabled' : ''}>${p}</button>`).join('') + '</div></div>';
+      }
+    } else if (form.type === '詐糊' || form.type === '特別事項') {
+      if (form.type === '特別事項') {
+        h += `<div class="field"><label for="special">邊樣嘢</label><select id="special">` +
+          SPECIALS.map((x, i) => `<option value="${i}" ${i === form.special ? 'selected' : ''}>${x.k} · ${x.dir === 'collect' ? '收' : '俾'}每家 ${x.v}</option>`).join('') + '</select></div>';
+      }
+      h += `<div class="field"><span class="label">邊個</span><div class="row">` +
+        P.map((p) => `<button class="pill" type="button" data-who="${p}" aria-pressed="${form.who === p}">${p}</button>`).join('') + '</div></div>';
+    } else if (form.type === '流局') {
+      h += '<p class="small muted" style="margin:0">冇人輸贏，拉住嘅數留低。莊家冧唔冧跟家規。</p>';
+    } else {
+      h += '<p class="small muted" style="margin:0">所有拉住嘅數即刻找晒，之後唔可以再記。</p>';
+    }
+    $('form-body').innerHTML = h;
+  }
+
+  function buildEvent() {
+    const t = form.type;
+    if (['食出', '自摸', '雙響', '三響'].includes(t)) {
+      const max = t === '雙響' ? 2 : t === '三響' ? 3 : 1;
+      if (form.winners.length !== max) throw new Error(`要揀 ${max} 個食糊`);
+      let loser = t === '自摸' ? null : form.loser;
+      if (t === '三響') loser = P.find((p) => !form.winners.includes(p));
+      if (t !== '自摸' && (!loser || form.winners.includes(loser))) throw new Error('揀邊個出銃');
+      return { type: 'win', winners: form.winners.map((w) => ({ player: w, fan: Number(form.fans[w]) || 0 })), loser };
+    }
+    if (t === '詐糊') return { type: 'falseWin', player: form.who };
+    if (t === '特別事項') { const x = SPECIALS[form.special]; return { type: 'special', player: form.who, label: x.k, amount: x.v, direction: x.dir }; }
+    if (t === '流局') return { type: 'draw' };
+    return { type: 'end' };
+  }
+
+  function push(ev) {
+    $('error').textContent = '';
+    const { s } = compute();
+    try { E.applyEvent(s, ev, rules); } catch (e) { $('error').textContent = e.message; return; }
+    events.push(ev);
+    preset = -1;
+    render();
+    const r = $('result'); r.classList.remove('flash'); void r.offsetWidth; r.classList.add('flash');
+  }
+
+  function renderRules() {
+    const r = rules;
+    const num = (id, label, val, step = 1) => `<div class="field"><label for="${id}">${label}</label><input type="number" id="${id}" value="${val}" min="0" step="${step}"></div>`;
+    const chk = (id, label, val) => `<label class="check"><input type="checkbox" id="${id}" ${val ? 'checked' : ''}> ${label}</label>`;
+    const sel = (id, label, val, opts) => `<div class="field"><label for="${id}">${label}</label><select id="${id}">${opts.map(([v, t]) => `<option value="${v}" ${v === val ? 'selected' : ''}>${t}</option>`).join('')}</select></div>`;
+    $('rules').innerHTML = [
+      num('r-base', '底', r.base),
+      num('r-false', '詐糊俾每家', r.falseWinPenalty),
+      chk('r-la', '拉 / 劈', r.la.enabled),
+      num('r-every', '每幾拉可以找數', r.la.settleEvery),
+      sel('r-round', '÷2 有小數', r.rounding, [['ceil', '進位'], ['round', '四捨五入'], ['none', '保留小數']]),
+      num('r-rounds', '幾多圈完場（0 = 唔限）', r.rounds),
+      num('r-dbl', '雙響加', r.multiWinBonus.double),
+      num('r-tpl', '三響加', r.multiWinBonus.triple),
+      chk('r-rev', '反雙響 / 反三響', r.reverse.enabled),
+      num('r-rdbl', '反雙響加', r.reverse.double),
+      num('r-rtpl', '反三響加', r.reverse.triple),
+      chk('r-dealer', '莊番（2n + 1）', r.dealer.enabled),
+      chk('r-drawkeep', '流局冧莊', r.dealer.drawKeepsDealer),
+      chk('r-drawadd', '流局冧莊都計連莊', r.dealer.drawAddsStreak),
+      chk('r-water', '抽水', r.water.enabled),
+      sel('r-when', '幾時抽', r.water.timing, [['settle', '真正找數嗰陣'], ['win', '食糊嗰陣']]),
+      num('r-per', '每幾多番', r.water.per),
+      num('r-take', '抽幾多', r.water.take)
+    ].join('');
+  }
+
+  function readRules() {
+    const n = (id) => Number($(id).value) || 0;
+    const c = (id) => $(id).checked;
+    rules = E.withRules({
+      base: n('r-base'), falseWinPenalty: n('r-false'), rounding: $('r-round').value, rounds: n('r-rounds'),
+      la: { enabled: c('r-la'), settleEvery: n('r-every') },
+      multiWinBonus: { double: n('r-dbl'), triple: n('r-tpl') },
+      reverse: { enabled: c('r-rev'), double: n('r-rdbl'), triple: n('r-rtpl') },
+      dealer: { enabled: c('r-dealer'), drawKeepsDealer: c('r-drawkeep'), drawAddsStreak: c('r-drawadd') },
+      water: { enabled: c('r-water'), timing: $('r-when').value, per: n('r-per'), take: n('r-take') }
+    });
+    preset = -1;
+    render();
+  }
+
+  document.addEventListener('click', (e) => {
+    const b = e.target.closest('button');
+    if (!b) return;
+    if (b.dataset.preset !== undefined) {
+      const p = PRESETS[+b.dataset.preset];
+      preset = +b.dataset.preset; rules = E.withRules(p.rules); events = p.events.slice();
+      renderRules(); render(); return;
+    }
+    if (b.dataset.type) {
+      form.type = b.dataset.type;
+      if (form.type === '雙響') { form.winners = ['Gavin', 'Athena']; form.loser = 'Ivan'; }
+      else if (form.type === '三響') { form.winners = ['Gavin', 'Athena', 'Viola']; form.loser = 'Ivan'; }
+      else form.winners = form.winners.slice(0, 1).length ? form.winners.slice(0, 1) : ['Gavin'];
+      if (form.winners.includes(form.loser)) form.loser = P.find((p) => !form.winners.includes(p));
+      renderForm(); return;
+    }
+    if (b.dataset.winner) {
+      const w = b.dataset.winner;
+      const max = form.type === '雙響' ? 2 : form.type === '三響' ? 3 : 1;
+      if (max === 1) form.winners = [w];
+      else if (form.winners.includes(w)) form.winners = form.winners.filter((x) => x !== w);
+      else { form.winners = form.winners.concat(w); if (form.winners.length > max) form.winners.shift(); }
+      if (form.winners.includes(form.loser)) form.loser = P.find((p) => !form.winners.includes(p));
+      renderForm(); return;
+    }
+    if (b.dataset.loser) { form.loser = b.dataset.loser; renderForm(); return; }
+    if (b.dataset.who) { form.who = b.dataset.who; renderForm(); return; }
+    if (b.dataset.settle) { const [puller, pulled] = b.dataset.settle.split('|'); push({ type: 'settle', puller, pulled }); return; }
+    if (b.id === 'submit') { try { push(buildEvent()); } catch (err) { $('error').textContent = err.message; } return; }
+    if (b.id === 'undo') { events.pop(); preset = -1; $('error').textContent = ''; render(); return; }
+    if (b.id === 'clear') { events = []; preset = -1; $('error').textContent = ''; render(); }
+  });
+  document.addEventListener('input', (e) => {
+    const t = e.target;
+    if (t.dataset && t.dataset.fan) { form.fans[t.dataset.fan] = t.value; return; }
+    if (t.id === 'special') { form.special = +t.value; return; }
+    if (t.id === 'per-unit' || t.id === 'currency') { render(); return; }
+    if (t.id && t.id.startsWith('r-')) readRules();
+  });
+  document.addEventListener('change', (e) => {
+    const t = e.target;
+    if (t.id === 'currency') render();
+    if (t.id && t.id.startsWith('r-') && (t.type === 'checkbox' || t.tagName === 'SELECT')) readRules();
+  });
+
+  renderForm();
+  renderRules();
+  render();
+})();
+</script>

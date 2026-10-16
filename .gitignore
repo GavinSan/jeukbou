@@ -1,0 +1,14 @@
+node_modules/
+dist/
+lab/dist/
+
+# 本機設定同鎖匙：永遠唔好上 GitHub
+.env
+.env.*
+!.env.example
+*service-account*.json
+*-sa.json
+.firebase/
+firebase-debug.log
+firestore-debug.log
+.DS_Store
