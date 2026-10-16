@@ -42,5 +42,13 @@ jobs:
           umask 077
           printf '%s' "$FIREBASE_SERVICE_ACCOUNT" > "$RUNNER_TEMP/sa.json"
           export GOOGLE_APPLICATION_CREDENTIALS="$RUNNER_TEMP/sa.json"
-          npx --yes firebase-tools@13 deploy --only hosting,firestore:rules --project jeukbou-app --non-interactive
+          set +e
+          npx --yes firebase-tools@13 deploy --only hosting,firestore:rules --project jeukbou-app --non-interactive 2>&1 | tee "$RUNNER_TEMP/deploy.log"
+          code=${PIPESTATUS[0]}
           rm -f "$RUNNER_TEMP/sa.json"
+          if [ "$code" -ne 0 ]; then
+            # 將錯誤放入 annotation，喺 Actions 摘要頁一眼見到
+            grep -iE "error|denied|permission|not found|not been used|enable|billing|403|404" "$RUNNER_TEMP/deploy.log" \
+              | grep -v -iE "private_key|BEGIN" | head -8 | while IFS= read -r line; do echo "::error::${line}"; done
+            exit "$code"
+          fi
