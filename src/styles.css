@@ -467,3 +467,4 @@ button.tile:active { transform: translateY(3px); box-shadow: 0 2px 0 var(--tile-
 }
 .sp-art.side { left: auto; right: -4%; width: 66%; }
 .sp-die, .bloom { transform-origin: center; transform-box: fill-box; }
+.sp-art.side { top: -16%; height: 100%; }
