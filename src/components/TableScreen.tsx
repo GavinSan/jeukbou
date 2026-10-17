@@ -158,8 +158,9 @@ export default function TableScreen(props: TableScreenProps) {
       await task();
       setEntry(null);
       setMore(null);
+      setEditing(null);
       setWho('');
-      flash(done);
+      if (done) flash(done);
     } catch (err) {
       setError(message(err));
     } finally {
