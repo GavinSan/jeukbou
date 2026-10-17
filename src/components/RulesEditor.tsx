@@ -30,7 +30,7 @@ function Row({ title, note, children }: { title: string; note?: string; children
   return (
     <div className="rule-row">
       <span className="grow">{title}{note && <small>{note}</small>}</span>
-      {children}
+      <span className="rule-ctrl">{children}</span>
     </div>
   );
 }

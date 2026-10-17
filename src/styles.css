@@ -375,3 +375,7 @@ button.tile:active { transform: translateY(3px); box-shadow: 0 2px 0 var(--tile-
 .choice.static { cursor: default; background: var(--sunk); border-style: dashed; }
 .big-num { font-size: 18px; }
 .banner.invite { background: var(--gain-soft); color: var(--ink); }
+.rule-row { flex-wrap: wrap; }
+.rule-row .grow { min-width: 50%; }
+.rule-ctrl { display: flex; align-items: center; gap: 8px; margin-left: auto; }
+.mini-num { width: 64px; }
