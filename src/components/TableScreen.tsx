@@ -6,7 +6,7 @@ import type { Line, TableEvent } from '../engine/table.ts';
 import type { Rules } from '../engine/rules.ts';
 import type { SwapRequest, TableDoc, LogEvent } from '../lib/data.ts';
 import type { Computed } from '../lib/score.ts';
-import { ago, describe } from '../lib/score.ts';
+import { ago, describe, netOf } from '../lib/score.ts';
 import { setSoundOn, sfx, soundOn, unlock } from '../lib/sound.ts';
 import { Link } from '../lib/router.tsx';
 import { Chips, RollingNumber, Sheet, TopBar, fmt, message, useNow } from '../ui.tsx';
@@ -362,7 +362,7 @@ export default function TableScreen(props: TableScreenProps) {
             </div>
             <ol className="lg-rows">
               {log.map((st) => {
-                const conversion = st.event.type === 'settle' || st.event.type === 'end' || st.event.type === 'swap';
+                const net = netOf(st.delta, false);
                 return (
                   <li key={st.seq}>
                     <button
@@ -377,12 +377,12 @@ export default function TableScreen(props: TableScreenProps) {
                       </span>
                       <span className="lg-cells">
                         {cols.map((id) => {
-                          const v = st.delta.settled[id] ?? 0;
-                          const p = conversion ? 0 : st.delta.pending[id] ?? 0;
+                          const v = net[id] ?? 0;
+                          const cash = st.delta.settled[id] ?? 0;
                           return (
                             <span key={id} className={`lg-cell${id === me ? ' me' : ''}`}>
-                              {v ? <b className={`num ${tone2(v)}`}>{fmt(v)}</b> : !p ? <span className="lg-dash">·</span> : null}
-                              {p ? <small className={`lg-pend ${tone2(p)}`}>擺 {fmt(p)}</small> : null}
+                              {v ? <b className={`num ${tone2(v)}`}>{fmt(v)}</b> : !cash ? <span className="lg-dash">·</span> : null}
+                              {cash && cash !== v ? <small className={`lg-pend ${tone2(cash)}`}>找 {fmt(cash)}</small> : null}
                             </span>
                           );
                         })}
@@ -400,8 +400,8 @@ export default function TableScreen(props: TableScreenProps) {
                 const p = c.pending[id] ?? 0;
                 return (
                   <span key={id} className={`lg-cell${id === me ? ' me' : ''}`}>
-                    <b className={`num ${tone2(v)}`}>{fmt(v)}</b>
-                    {p ? <small className={`lg-pend ${tone2(p)}`}>擺 {fmt(p)}</small> : null}
+                    <b className={`num ${tone2(v + p)}`}>{fmt(v + p)}</b>
+                    {p ? <><small className={`lg-pend ${tone2(v)}`}>找咗 {fmt(v)}</small><small className={`lg-pend ${tone2(p)}`}>擺 {fmt(p)}</small></> : null}
                   </span>
                 );
               })}
@@ -409,7 +409,7 @@ export default function TableScreen(props: TableScreenProps) {
             </div>
           </div>
         )}
-        {c.steps.length > 0 && !ended && <p className="muted small">粗字係找咗嘅數，「擺」係擺低未找（拉緊）。最底係合計。撳任何一鋪可以改番數或者刪除。</p>}
+        {c.steps.length > 0 && !ended && <p className="muted small">每格係嗰鋪嘅輸贏（連擺低未找嘅）；細字「找」係嗰鋪真係找咗嘅錢。最底合計 = 找咗 + 擺低。撳任何一鋪可以改番數或者刪除。</p>}
         {c.steps.length > 5 && (
           <button type="button" className="textbtn" onClick={() => setShowAll((v) => !v)}>{showAll ? '收埋' : `睇晒 ${c.steps.length} 鋪`}</button>
         )}

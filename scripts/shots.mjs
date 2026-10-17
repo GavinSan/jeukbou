@@ -49,12 +49,15 @@ for (const scheme of ['light', 'dark']) {
       await page.waitForTimeout(400);
     });
     await step('settle', async () => {
-      await page.waitForTimeout(1200);
-      await page.getByRole('button', { name: /^Gavin，/ }).click();
-      await page.getByRole('dialog').getByRole('button', { name: /Ivan/ }).first().click();
-      await page.getByRole('button', { name: '下一步：番數' }).click();
-      await page.getByRole('dialog').getByRole('button', { name: '10', exact: true }).click();
-      await page.getByRole('button', { name: /^入數/ }).click();
+      // 上一鋪 Athena 食咗，Gavin 對 Ivan 嘅拉斷咗；連食三鋪先會問找數
+      for (let k = 0; k < 3; k++) {
+        await page.waitForTimeout(1200);
+        await page.getByRole('button', { name: /^Gavin，/ }).click();
+        await page.getByRole('dialog').getByRole('button', { name: /Ivan/ }).first().click();
+        await page.getByRole('button', { name: '下一步：番數' }).click();
+        await page.getByRole('dialog').getByRole('button', { name: '10', exact: true }).click();
+        await page.getByRole('button', { name: /^入數/ }).click();
+      }
       await page.waitForTimeout(1400);
       await page.getByRole('button', { name: '找數', exact: true }).click();
       await page.waitForTimeout(180);

@@ -72,14 +72,14 @@ function diff(a: TableState, b: TableState): Step['delta'] {
   return { settled, pending: pend };
 }
 
-/** 一鋪嘅淨變化（實數 + 擺低）；淨數全部係 0（例如找數）就用實數 */
-export function netOf(d: Step['delta']): Record<string, number> {
+/** 一鋪嘅淨變化（實數 + 擺低）；淨數全部係 0（例如找數）就用實數，除非 fallback = false */
+export function netOf(d: Step['delta'], fallback = true): Record<string, number> {
   const out: Record<string, number> = {};
   for (const id of new Set([...Object.keys(d.settled), ...Object.keys(d.pending)])) {
     const v = (d.settled[id] ?? 0) + (d.pending[id] ?? 0);
     if (v) out[id] = v;
   }
-  return Object.keys(out).length ? out : { ...d.settled };
+  return Object.keys(out).length || !fallback ? out : { ...d.settled };
 }
 
 function statsOf(steps: Step[]): TableStats {

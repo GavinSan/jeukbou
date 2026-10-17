@@ -507,10 +507,11 @@ button.tile:active { transform: translateY(3px); box-shadow: 0 2px 0 var(--tile-
 .lg-rows { list-style: none; margin: 0; padding: 0; }
 .lg-rows li { border-top: 1px solid var(--line); }
 .lg-rows li:first-child { border-top: none; }
-.lg-row { display: flex; flex-direction: column; gap: 6px; width: 100%; padding: 10px 12px 11px; background: none; border: none; text-align: left; font: inherit; color: inherit; cursor: pointer; }
+.lg-row { display: flex; flex-direction: column; align-items: stretch; gap: 6px; width: 100%; padding: 10px 12px 11px; background: none; border: none; text-align: left; font: inherit; color: inherit; cursor: pointer; }
 .lg-row:disabled { cursor: default; }
 .lg-row:not(:disabled):active { background: var(--sunk); }
 .lg-head { display: flex; align-items: baseline; gap: 10px; width: 100%; font-size: 14px; }
+.ledger .lg-cells { width: 100%; }
 .lg-what { flex: 1; min-width: 0; color: var(--muted); }
 .lg-what .tag { margin-left: 6px; }
 .lg-when { color: var(--muted); font-size: 12px; white-space: nowrap; }
