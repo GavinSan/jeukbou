@@ -379,3 +379,23 @@ button.tile:active { transform: translateY(3px); box-shadow: 0 2px 0 var(--tile-
 .rule-row .grow { min-width: 50%; }
 .rule-ctrl { display: flex; align-items: center; gap: 8px; margin-left: auto; }
 .mini-num { width: 64px; }
+
+/* 枱面左下角：今場嘅骰，淡淡哋 */
+.felt-dice {
+  grid-column: 1; grid-row: 3; align-self: end; justify-self: start; display: flex; align-items: center; gap: 4px;
+  background: none; border: none; padding: 6px; border-radius: 10px; cursor: pointer;
+  opacity: .42; filter: blur(.4px) saturate(.7); transform: rotate(-4deg); transition: opacity .2s, filter .2s;
+}
+.felt-dice:hover, .felt-dice:focus-visible { opacity: .8; filter: none; }
+.felt-dice:disabled { cursor: default; }
+.felt-dice .die:nth-child(2) { transform: rotate(9deg) translateY(-3px); }
+.felt-dice .die:nth-child(3) { transform: rotate(-12deg); }
+.felt-dice-sum { color: var(--felt-ink); font-family: var(--font-kai); font-weight: 700; font-size: 15px; margin-left: 4px; }
+
+/* 紀錄可以撳嚟改 */
+.log li { padding: 0; }
+.logbtn { display: flex; align-items: baseline; gap: 10px; width: 100%; padding: 11px 16px; background: none; border: none; text-align: left; font: inherit; color: inherit; cursor: pointer; }
+.logbtn:disabled { cursor: default; }
+.logbtn:not(:disabled):active { background: var(--sunk); }
+.logbtn .tag { margin-left: 6px; vertical-align: 2px; }
+.big-fan { font-size: 48px; width: 3ch; text-align: center; }

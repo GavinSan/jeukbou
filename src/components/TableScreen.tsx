@@ -1,17 +1,17 @@
 // 一張枱：綠絨布枱面 + 撳人入數。資料由外面傳入，所以示範模式都用到。
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { ReactNode } from 'react';
-import { applyEvent, seatWind } from '../engine/table.ts';
+import { applyEvent, replay, seatWind } from '../engine/table.ts';
 import type { Line, TableEvent } from '../engine/table.ts';
 import type { Rules } from '../engine/rules.ts';
-import type { SwapRequest, TableDoc, UndoEvent } from '../lib/data.ts';
+import type { SwapRequest, TableDoc, LogEvent } from '../lib/data.ts';
 import type { Computed } from '../lib/score.ts';
 import { ago, describe } from '../lib/score.ts';
 import { setSoundOn, sfx, soundOn, unlock } from '../lib/sound.ts';
 import { Link } from '../lib/router.tsx';
 import { Chips, RollingNumber, Sheet, TopBar, message, useNow } from '../ui.tsx';
 import FanWheel from './FanWheel.tsx';
-import DiceRoll from './Dice.tsx';
+import DiceRoll, { Die } from './Dice.tsx';
 import SeatDraw from './SeatDraw.tsx';
 
 const SPOTS = ['s-bottom', 's-right', 's-top', 's-left'];
@@ -57,7 +57,7 @@ export interface TableScreenProps {
   pendingSwaps?: SwapRequest[];
   /** 頂部額外提示（例如有人請你入枱） */
   notice?: ReactNode;
-  onPush: (event: TableEvent | UndoEvent) => Promise<void>;
+  onPush: (event: LogEvent) => Promise<void>;
   onSwap?: (out: string, incoming: Candidate, guest: boolean) => Promise<'done' | 'requested'>;
   onCancelSwap?: (id: string) => Promise<void>;
   onReseat?: (seats: string[]) => Promise<void>;
@@ -93,6 +93,7 @@ export default function TableScreen(props: TableScreenProps) {
   const [sound, setSound] = useState(soundOn);
   const [fx, setFx] = useState<{ up: string[]; down: string[]; key: number }>({ up: [], down: [], key: 0 });
   const [diceShown, setDiceShown] = useState<number | null>(null);
+  const [editing, setEditing] = useState<{ seq: number; event: TableEvent; current: string } | null>(null);
 
   useEffect(() => { const t = setTimeout(() => setDealing(false), 900); return () => clearTimeout(t); }, []);
 
@@ -166,9 +167,9 @@ export default function TableScreen(props: TableScreenProps) {
     }
   }
 
-  const push = (event: TableEvent | UndoEvent, done: string) =>
+  const push = (event: LogEvent, done: string) =>
     run(async () => {
-      if (event.type !== 'undo') applyEvent(c.state, event, rules);
+      if (event.type !== 'undo' && event.type !== 'edit') applyEvent(c.state, event, rules);
       await onPush(event);
     }, done);
 
@@ -204,6 +205,37 @@ export default function TableScreen(props: TableScreenProps) {
   const sum = (lines: Line[]) => lines.filter((l) => l.kind !== 'water').reduce((a, l) => a + l.amount, 0);
   const free = candidates.filter((p) => !seats.includes(p.id));
   const myPending = pendingSwaps.filter((r) => r.status === 'pending' && r.tableId === table.id);
+
+  // 改數預覽：用新內容由頭計一次，睇邊個嘅數有變
+  const editPreview = useMemo((): { rows: { id: string; before: number; after: number }[]; error: string; changed: boolean } => {
+    if (!editing) return { rows: [], error: '', changed: false };
+    const original = c.steps.find((x) => x.seq === editing.seq)?.event;
+    const changed = JSON.stringify(original) !== JSON.stringify(editing.event);
+    try {
+      const after = replay(table.seats, c.steps.map((x) => (x.seq === editing.seq ? editing.event : x.event)), rules).state;
+      const afterPending: Record<string, number> = {};
+      for (const ch of after.chains) {
+        afterPending[ch.puller] = (afterPending[ch.puller] ?? 0) + ch.owed;
+        afterPending[ch.pulled] = (afterPending[ch.pulled] ?? 0) - ch.owed;
+      }
+      const rows = Object.keys(after.settled)
+        .map((id) => ({ id, before: totalOf(c, id), after: (after.settled[id] ?? 0) + (afterPending[id] ?? 0) }))
+        .filter((r) => r.before !== r.after);
+      return { rows, error: '', changed };
+    } catch (err) {
+      return { rows: [], error: message(err), changed };
+    }
+  }, [editing, c, rules, table.seats]);
+
+  const deletePreview = useMemo((): string => {
+    if (!editing) return '';
+    try {
+      replay(table.seats, c.steps.filter((x) => x.seq !== editing.seq).map((x) => x.event), rules);
+      return '';
+    } catch (err) {
+      return `刪除唔到：${message(err)}`;
+    }
+  }, [editing, c, rules, table.seats]);
 
   const menuButton = (
     <button type="button" className="iconbtn" aria-label="其他：換人、擲骰、詐糊、特別事項、流局、完場" onClick={() => { unlock(); setError(''); setMore('menu'); }}>
@@ -252,6 +284,16 @@ export default function TableScreen(props: TableScreenProps) {
             </button>
           );
         })}
+        <button
+          type="button"
+          className="felt-dice"
+          disabled={!props.onDice || ended || busy}
+          onClick={() => props.onDice && run(() => props.onDice!(), '')}
+          aria-label={dice ? `今場骰：${dice.values.join('、')}，撳嚟再擲` : '擲骰'}
+        >
+          {(dice?.values ?? idleDice(table.id)).map((v, i) => <Die key={i} value={v} rolling={false} size={24} />)}
+          {dice && <span className="felt-dice-sum">{dice.values.reduce((a, b) => a + b, 0)}</span>}
+        </button>
         <div className="felt-center">
           <span className="wind-tile">{ended ? '完' : c.info.roundWind}</span>
           <span className="small">{ended ? '已完場' : `第 ${c.info.hand} 鋪`}</span>
@@ -286,15 +328,24 @@ export default function TableScreen(props: TableScreenProps) {
           <ul className="log list">
             {log.map((st) => (
               <li key={st.seq}>
-                <span className="who">
-                  {describe(st.event, name)}
-                  {st.result.lines.length > 0 && <span className="detail"><br />{st.result.lines.filter((l) => l.kind !== 'water').map((l) => `${name(l.from)}→${l.to ? name(l.to) : '水'} ${l.amount}`).join('，')}</span>}
-                </span>
-                <span className="when">{ago(st.at, now)}</span>
+                <button
+                  type="button"
+                  className="logbtn"
+                  disabled={ended || !editable(st.event)}
+                  onClick={() => { unlock(); setError(''); setEditing({ seq: st.seq, event: st.event, current: st.event.type === 'win' ? st.event.winners[0].player : '' }); }}
+                >
+                  <span className="who">
+                    {describe(st.event, name)}
+                    {st.edited && <span className="tag instant">改過</span>}
+                    {st.result.lines.length > 0 && <span className="detail"><br />{st.result.lines.filter((l) => l.kind !== 'water').map((l) => `${name(l.from)}→${l.to ? name(l.to) : '水'} ${l.amount}`).join('，')}</span>}
+                  </span>
+                  <span className="when">{ago(st.at, now)}</span>
+                </button>
               </li>
             ))}
           </ul>
         )}
+        {c.steps.length > 0 && !ended && <p className="muted small">撳任何一鋪可以改番數或者刪除，之後嘅鋪會自動重新計。</p>}
         {c.steps.length > 4 && (
           <button type="button" className="textbtn" onClick={() => setShowAll((v) => !v)}>{showAll ? '收埋' : `睇晒 ${c.steps.length} 鋪`}</button>
         )}
@@ -513,12 +564,85 @@ export default function TableScreen(props: TableScreenProps) {
         </Sheet>
       )}
 
+      {editing && (
+        <Sheet onClose={() => setEditing(null)} label="改呢鋪">
+          <div className="between">
+            <h2>改呢鋪</h2>
+            <span className="muted small">{describe(c.steps.find((x) => x.seq === editing.seq)?.event ?? editing.event, name)}</span>
+          </div>
+          {editing.event.type === 'win' && (() => {
+            const ev = editing.event;
+            if (ev.type !== 'win') return null;
+            const cur = editing.current;
+            const fanOf = (p: string) => ev.winners.find((w) => w.player === p)?.fan ?? 0;
+            const setF = (v: number) => setEditing({ ...editing, event: { ...ev, winners: ev.winners.map((w) => (w.player === cur ? { ...w, fan: Math.max(0, Math.min(500, v)) } : w)) } });
+            return (
+              <>
+                {ev.winners.length > 1 && (
+                  <div className="choices">
+                    {ev.winners.map((w) => (
+                      <button key={w.player} type="button" className="choice" aria-pressed={cur === w.player} onClick={() => setEditing({ ...editing, current: w.player })}>
+                        <span className="ellipsis">{name(w.player)}</span><small>{w.fan} 番</small>
+                      </button>
+                    ))}
+                  </div>
+                )}
+                <div className="fan-row">
+                  <button type="button" className="stepper" aria-label="減一番" onClick={() => setF(fanOf(cur) - 1)}>−</button>
+                  <FanWheel key={`e-${cur}`} value={fanOf(cur)} onChange={setF} label={`${name(cur)} 番數`} />
+                  <button type="button" className="stepper" aria-label="加一番" onClick={() => setF(fanOf(cur) + 1)}>+</button>
+                </div>
+              </>
+            );
+          })()}
+          {editing.event.type === 'special' && (() => {
+            const ev = editing.event;
+            if (ev.type !== 'special') return null;
+            return (
+              <div className="fan-row">
+                <button type="button" className="stepper" aria-label="減一" onClick={() => setEditing({ ...editing, event: { ...ev, amount: Math.max(1, ev.amount - 1) } })}>−</button>
+                <span className="num big-fan">{ev.amount}</span>
+                <button type="button" className="stepper" aria-label="加一" onClick={() => setEditing({ ...editing, event: { ...ev, amount: ev.amount + 1 } })}>+</button>
+              </div>
+            );
+          })()}
+          {editPreview.rows.length > 0 && (
+            <div className="preview" aria-live="polite">
+              {editPreview.rows.map((r) => (
+                <div key={r.id} className="pv">
+                  <span>{name(r.id)}</span>
+                  <span className="pv-note">{r.before} → </span>
+                  <span className={`num ${r.after > r.before ? 'gain' : 'loss'}`}>{r.after}</span>
+                </div>
+              ))}
+            </div>
+          )}
+          {editPreview.error && <p className="error">{editPreview.error}</p>}
+          <button type="button" className="btn big" disabled={busy || !editPreview.changed || !!editPreview.error} onClick={() => push({ type: 'edit', target: editing.seq, event: editing.event }, '已改')}>
+            {editPreview.changed ? '儲存修改' : '未改'}
+          </button>
+          <button type="button" className="btn plain" disabled={busy || !!deletePreview} onClick={() => push({ type: 'undo', target: editing.seq }, '已刪除')}>刪除呢鋪</button>
+          {deletePreview && <p className="muted small">{deletePreview}</p>}
+          {error && <p className="error" role="alert">{error}</p>}
+        </Sheet>
+      )}
+
       {toast && <div className="toast" role="status">{toast}</div>}
     </main>
   );
 }
 
 const tone2 = (n: number) => (n > 0 ? 'gain' : n < 0 ? 'loss' : 'even');
+
+/** 可以改嘅鋪：食糊、特別事項、詐糊、流局（後兩樣只可以刪） */
+const editable = (e: TableEvent) => e.type === 'win' || e.type === 'special' || e.type === 'falseWin' || e.type === 'draw';
+
+/** 未擲過骰就用枱嘅 id 砌三個固定點數做裝飾 */
+function idleDice(id: string): number[] {
+  let h = 7;
+  for (const ch of id) h = (h * 31 + ch.charCodeAt(0)) % 9973;
+  return [h % 6 + 1, Math.floor(h / 6) % 6 + 1, Math.floor(h / 36) % 6 + 1];
+}
 
 function autoNote(r: Rules): string {
   const parts: string[] = [];

@@ -37,6 +37,17 @@ for (const scheme of ['light', 'dark']) {
       await page.waitForTimeout(300);
       await page.screenshot({ path: `${out}/after-win.png` });
     });
+    await step('edit', async () => {
+      await page.waitForTimeout(1000);
+      await page.getByRole('button', { name: /Gavin 食 Ivan（15 番）/ }).click();
+      await page.waitForTimeout(400);
+      await page.getByRole('dialog').getByRole('button', { name: '加一番' }).click();
+      await page.getByRole('dialog').getByRole('button', { name: '加一番' }).click();
+      await page.waitForTimeout(700);
+      await page.screenshot({ path: `${out}/edit.png` });
+      await page.getByRole('button', { name: '儲存修改' }).click();
+      await page.waitForTimeout(400);
+    });
     await step('dice', async () => {
       await page.waitForTimeout(1200);
       await page.getByRole('button', { name: '擲骰', exact: true }).click();

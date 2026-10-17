@@ -77,10 +77,20 @@ export interface UndoEvent {
   target: number;
 }
 
+/** 改返之前某一鋪：用新嘅內容代替；之後嘅鋪會自動重新計 */
+export interface EditEvent {
+  type: 'edit';
+  target: number;
+  event: TableEvent;
+}
+
+/** 寫入紀錄嘅任何一項 */
+export type LogEvent = TableEvent | UndoEvent | EditEvent;
+
 export interface StoredEvent {
   seq: number;
   by: string;
-  event: TableEvent | UndoEvent;
+  event: LogEvent;
   /** 幾時入（毫秒），未同步到伺服器時係 null */
   at: number | null;
 }
@@ -182,7 +192,7 @@ export async function appendEvent(
   tableId: string,
   seq: number,
   by: string,
-  event: TableEvent | UndoEvent,
+  event: LogEvent,
 ): Promise<void> {
   const ref = doc(fs(), 'groups', groupId, 'sessions', sessionId, 'tables', tableId, 'events', pad(seq));
   try {
@@ -200,13 +210,18 @@ function clean<T>(value: T): T {
 }
 
 /** 撤咗嘅事件唔計，剩低嘅交俾引擎 */
-export function activeEvents(stored: StoredEvent[]): { seq: number; event: TableEvent; at: number | null }[] {
+export function activeEvents(stored: StoredEvent[]): { seq: number; event: TableEvent; at: number | null; edited: boolean }[] {
   const undone = new Set<number>();
-  for (const e of stored) if (e.event.type === 'undo') undone.add(e.event.target);
-  const out: { seq: number; event: TableEvent; at: number | null }[] = [];
+  const edits = new Map<number, TableEvent>();
   for (const e of stored) {
-    if (e.event.type === 'undo' || undone.has(e.seq)) continue;
-    out.push({ seq: e.seq, event: e.event, at: e.at });
+    if (e.event.type === 'undo') undone.add(e.event.target);
+    else if (e.event.type === 'edit') edits.set(e.event.target, e.event.event);
+  }
+  const out: { seq: number; event: TableEvent; at: number | null; edited: boolean }[] = [];
+  for (const e of stored) {
+    if (e.event.type === 'undo' || e.event.type === 'edit' || undone.has(e.seq)) continue;
+    const edit = edits.get(e.seq);
+    out.push({ seq: e.seq, event: edit ?? e.event, at: e.at, edited: !!edit });
   }
   return out;
 }

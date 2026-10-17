@@ -10,10 +10,10 @@ const PIPS: Record<number, [number, number][]> = {
   6: [[28, 24], [72, 24], [28, 50], [72, 50], [28, 76], [72, 76]],
 };
 
-export function Die({ value, rolling, delay = 0 }: { value: number; rolling: boolean; delay?: number }) {
+export function Die({ value, rolling, delay = 0, size = 64 }: { value: number; rolling: boolean; delay?: number; size?: number }) {
   const red = value === 1 || value === 4;
   return (
-    <svg className={`die${rolling ? ' rolling' : ''}`} style={{ animationDelay: `${delay}ms` }} viewBox="0 0 100 100" width="64" height="64" aria-hidden="true">
+    <svg className={`die${rolling ? ' rolling' : ''}`} style={{ animationDelay: `${delay}ms` }} viewBox="0 0 100 100" width={size} height={size} aria-hidden="true">
       <rect x="4" y="4" width="92" height="92" rx="18" fill="#FBF8EE" stroke="#C9C2AE" strokeWidth="3" />
       {PIPS[value].map(([x, y], i) => (
         <circle key={i} cx={x} cy={y} r={value === 1 ? 13 : 9} fill={red ? '#B02E26' : '#1C1F1D'} />

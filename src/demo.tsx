@@ -3,7 +3,7 @@
 import { useMemo, useState } from 'react';
 import type { TableEvent } from './engine/table.ts';
 import { withRules } from './engine/rules.ts';
-import type { Dice, StoredEvent, TableDoc, UndoEvent } from './lib/data.ts';
+import type { Dice, StoredEvent, TableDoc, LogEvent } from './lib/data.ts';
 import { computeTable } from './lib/score.ts';
 import type { Computed } from './lib/score.ts';
 import { match, usePath } from './lib/router.tsx';
@@ -70,7 +70,7 @@ export default function Demo() {
   if (table) {
     const c = computed[table.id];
     if (!c) return null;
-    const push = async (event: TableEvent | UndoEvent) => {
+    const push = async (event: LogEvent) => {
       setEvents((prev) => {
         const list = prev[table.id] ?? [];
         return { ...prev, [table.id]: [...list, { seq: list.length + 1, by: 'demo', event, at: Date.now() }] };

@@ -11,6 +11,7 @@ export interface Step {
   event: TableEvent;
   result: StepResult;
   at: number | null;
+  edited: boolean;
 }
 
 export interface TableStats {
@@ -43,10 +44,10 @@ export function computeTable(table: TableDoc, stored: StoredEvent[], rules: Rule
   }
   const steps: Step[] = [];
   const skipped: { seq: number; message: string }[] = [];
-  for (const { seq, event, at } of activeEvents(stored)) {
+  for (const { seq, event, at, edited } of activeEvents(stored)) {
     try {
       const result = applyEvent(state, event, rules);
-      steps.push({ seq, event, result, at });
+      steps.push({ seq, event, result, at, edited });
       state = result.state;
     } catch (err) {
       skipped.push({ seq, message: err instanceof Error ? err.message : String(err) });
