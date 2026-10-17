@@ -39,13 +39,13 @@ for (const scheme of ['light', 'dark']) {
     });
     await step('dice', async () => {
       await page.waitForTimeout(1200);
-      await page.getByRole('button', { name: '擲骰' }).first().click();
+      await page.getByRole('button', { name: '擲骰', exact: true }).click();
       await page.waitForTimeout(1300);
       await page.screenshot({ path: `${out}/dice.png` });
       await page.getByRole('button', { name: '好' }).click();
     });
     await step('swap', async () => {
-      await page.getByRole('button', { name: '換人' }).first().click();
+      await page.getByRole('button', { name: '換人', exact: true }).click();
       await page.waitForTimeout(300);
       await page.getByRole('dialog').getByRole('button', { name: /Ivan/ }).click();
       await page.getByRole('dialog').getByRole('button', { name: /Kit/ }).click();
@@ -54,7 +54,7 @@ for (const scheme of ['light', 'dark']) {
     await step('reseat', async () => {
       await page.goto(`${base}/demo/t/3`, { waitUntil: 'networkidle' });
       await page.waitForTimeout(1000);
-      await page.getByRole('button', { name: '掉位' }).first().click();
+      await page.getByRole('button', { name: '掉位', exact: true }).click();
       await page.getByRole('button', { name: '抽風牌' }).click();
       await page.waitForTimeout(2200);
       await page.screenshot({ path: `${out}/reseat.png` });
