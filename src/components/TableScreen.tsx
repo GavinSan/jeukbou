@@ -289,7 +289,7 @@ export default function TableScreen(props: TableScreenProps) {
           className="felt-dice"
           disabled={!props.onDice || ended || busy}
           onClick={() => props.onDice && run(() => props.onDice!(), '')}
-          aria-label={dice ? `今場骰：${dice.values.join('、')}，撳嚟再擲` : '擲骰'}
+          aria-label={dice ? `今場骰：${dice.values.join('、')}，撳嚟再擲` : '今場未擲骰，撳嚟擲'}
         >
           {(dice?.values ?? idleDice(table.id)).map((v, i) => <Die key={i} value={v} rolling={false} size={24} />)}
           {dice && <span className="felt-dice-sum">{dice.values.reduce((a, b) => a + b, 0)}</span>}
