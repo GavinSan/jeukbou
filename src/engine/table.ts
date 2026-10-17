@@ -44,7 +44,11 @@ export type TableEvent =
   /** 食出：1 個 winner + loser；雙響 / 三響：2–3 個 winner + loser；自摸：1 個 winner，loser = null */
   | { type: 'win'; winners: WinnerHand[]; loser: PlayerId | null }
   /** 特別事項（花、槓、骰…）：即時找數，唔影響拉，唔抽水 */
-  | { type: 'special'; player: PlayerId; label: string; amount: number; direction: 'collect' | 'pay' }
+  | {
+      type: 'special'; player: PlayerId; label: string; amount: number; direction: 'collect' | 'pay';
+      /** 介面用：邊款特別事項、追牌係番子定非番子、同一隻追咗幾多次 */
+      meta?: { art?: string; chase?: 'fan' | 'other'; repeat?: number };
+    }
   | { type: 'falseWin'; player: PlayerId }
   | { type: 'draw' }
   /** 輸家喺第 3、6、9… 拉揀找數 */

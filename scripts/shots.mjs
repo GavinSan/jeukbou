@@ -55,6 +55,23 @@ for (const scheme of ['light', 'dark']) {
       await page.screenshot({ path: `${out}/dice.png` });
       await page.getByRole('button', { name: '好' }).click();
     });
+    await step('special', async () => {
+      await page.getByRole('button', { name: /^其他/ }).click();
+      await page.getByRole('dialog').getByRole('button', { name: /特別事項/ }).click();
+      await page.waitForTimeout(300);
+      await page.getByRole('dialog').getByRole('button', { name: /一台花/ }).click();
+      await page.waitForTimeout(250);
+      await page.screenshot({ path: `${out}/special-flower.png` });
+      await page.getByRole('dialog').getByRole('button', { name: /被追/ }).click();
+      await page.getByRole('dialog').getByRole('button', { name: '+2' }).click();
+      await page.getByRole('dialog').getByRole('button', { name: 'Ivan', exact: true }).click();
+      await page.waitForTimeout(400);
+      await page.screenshot({ path: `${out}/special-chase.png` });
+      await page.getByRole('button', { name: /^入數，俾每家/ }).click();
+      await page.waitForTimeout(350);
+      await page.screenshot({ path: `${out}/chase-stamp.png` });
+      await page.waitForTimeout(1600);
+    });
     await step('swap', async () => {
       await page.getByRole('button', { name: '換人', exact: true }).click();
       await page.waitForTimeout(300);

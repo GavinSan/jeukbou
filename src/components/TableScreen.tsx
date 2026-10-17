@@ -13,19 +13,11 @@ import { Chips, RollingNumber, Sheet, TopBar, message, useNow } from '../ui.tsx'
 import FanWheel from './FanWheel.tsx';
 import DiceRoll, { Die } from './Dice.tsx';
 import SeatDraw from './SeatDraw.tsx';
+import { CHASE_MAX_REPEAT, SPECIAL_ITEMS, SpecialArt, SpecialBurst, artOf, chaseAmount, suggestRepeat } from './Specials.tsx';
+import type { Art } from './Specials.tsx';
 
 const SPOTS = ['s-bottom', 's-right', 's-top', 's-left'];
 const QUICK_FANS = [5, 8, 10, 13, 15, 20, 25, 30, 40, 50];
-const SPECIALS = [
-  { k: '暗槓', v: 5, dir: 'collect' as const },
-  { k: '一台花', v: 5, dir: 'collect' as const },
-  { k: '一台草', v: 2, dir: 'collect' as const },
-  { k: '圍骰', v: 5, dir: 'collect' as const },
-  { k: '骰開一二三', v: 5, dir: 'pay' as const },
-  { k: '叫碰唔碰', v: 5, dir: 'pay' as const },
-  { k: '被追（番子）', v: 5, dir: 'pay' as const },
-  { k: '被追（其他）', v: 10, dir: 'pay' as const },
-];
 const KIND: Record<Line['kind'], string> = { pending: '擺低', settle: '找數', instant: '即時', water: '抽水' };
 
 interface Entry {
@@ -80,7 +72,11 @@ export default function TableScreen(props: TableScreenProps) {
   const [entry, setEntry] = useState<Entry | null>(null);
   const [more, setMore] = useState<More>(null);
   const [who, setWho] = useState('');
-  const [special, setSpecial] = useState(0);
+  const [spArt, setSpArt] = useState<Art | ''>('');
+  const [spPlay, setSpPlay] = useState(0);
+  const [chaseKind, setChaseKind] = useState<'fan' | 'other'>('fan');
+  const [repeat, setRepeat] = useState(0);
+  const [burst, setBurst] = useState<{ art: Art; text?: string; key: number } | null>(null);
   const [swapOut, setSwapOut] = useState('');
   const [swapIn, setSwapIn] = useState('');
   const [guestName, setGuestName] = useState('');
@@ -117,6 +113,11 @@ export default function TableScreen(props: TableScreenProps) {
     if (!up.length && !down.length) return;
     setFx((f) => ({ up, down, key: f.key + 1 }));
     const last = c.steps[c.steps.length - 1]?.event;
+    const art = last ? artOf(last) : null;
+    if (art && last?.type === 'special') {
+      const rep = last.meta?.repeat ?? 0;
+      setBurst((b) => ({ art, text: art === 'chase' ? (rep > 0 ? `追 ×${rep + 1}` : '追') : undefined, key: (b?.key ?? 0) + 1 }));
+    }
     if (last?.type === 'win') sfx.win();
     else if (last?.type === 'settle' || last?.type === 'special' || last?.type === 'falseWin' || last?.type === 'end') sfx.chips();
     else sfx.tap();
@@ -285,6 +286,7 @@ export default function TableScreen(props: TableScreenProps) {
             </button>
           );
         })}
+        {burst && <SpecialBurst key={burst.key} art={burst.art} text={burst.text} />}
         <button
           type="button"
           className="felt-dice"
@@ -451,44 +453,110 @@ export default function TableScreen(props: TableScreenProps) {
                 {props.onDice && !ended && <button type="button" className="choice" onClick={() => run(() => props.onDice!(), '')}>擲骰<small>三粒</small></button>}
                 {props.onReseat && !ended && c.steps.length === 0 && <button type="button" className="choice" onClick={() => setMore('reseat')}>掉位<small>抽風牌</small></button>}
                 {!ended && <button type="button" className="choice" onClick={() => setMore('falseWin')}>詐糊<small>俾每家 {rules.falseWinPenalty}</small></button>}
-                {!ended && <button type="button" className="choice" onClick={() => setMore('special')}>特別事項<small>花、槓、骰</small></button>}
+                {!ended && <button type="button" className="choice" onClick={() => { setSpArt(''); setWho(''); setRepeat(0); setMore('special'); }}>特別事項<small>花、草、槓、骰、追</small></button>}
                 {!ended && <button type="button" className="choice" onClick={() => setMore('draw')}>流局<small>冇人食</small></button>}
                 {!ended && <button type="button" className="choice loser" onClick={() => setMore('end')}>完場<small>全部找數</small></button>}
               </div>
               {rulesHref && <Link to={rulesHref} className="textbtn center-text">睇呢個大局嘅家規</Link>}
             </>
           )}
-          {(more === 'falseWin' || more === 'special') && (
+          {more === 'falseWin' && (
             <>
-              <h2>{more === 'falseWin' ? '邊個詐糊？' : '特別事項'}</h2>
-              {more === 'special' && (
-                <label className="field">
-                  <span>邊樣嘢（即時找，唔影響拉）</span>
-                  <select id="special" value={special} onChange={(e) => setSpecial(Number(e.target.value))}>
-                    {SPECIALS.map((s, i) => <option key={s.k} value={i}>{s.k}，{s.dir === 'collect' ? '收' : '俾'}每家 {s.v}</option>)}
-                  </select>
-                </label>
-              )}
+              <h2>邊個詐糊？</h2>
               <div className="choices">
                 {seats.map((s) => (
-                  <button key={s} type="button" className={`choice${more === 'falseWin' ? ' loser' : ''}`} aria-pressed={who === s} onClick={() => setWho(s)}>
+                  <button key={s} type="button" className="choice loser" aria-pressed={who === s} onClick={() => setWho(s)}>
                     <span className="ellipsis">{name(s)}</span>
                   </button>
                 ))}
               </div>
-              <button
-                type="button"
-                className="btn big"
-                disabled={busy || !who}
-                onClick={() => {
-                  if (more === 'falseWin') push({ type: 'falseWin', player: who }, '已入數');
-                  else { const s = SPECIALS[special]; push({ type: 'special', player: who, label: s.k, amount: s.v, direction: s.dir }, '已入數'); }
-                }}
-              >
-                入數
-              </button>
+              <button type="button" className="btn big" disabled={busy || !who} onClick={() => push({ type: 'falseWin', player: who }, '已入數')}>入數</button>
             </>
           )}
+          {more === 'special' && (() => {
+            const item = SPECIAL_ITEMS.find((x) => x.art === spArt);
+            const isChase = spArt === 'chase';
+            const amount = isChase ? chaseAmount(chaseKind, repeat) : item?.amount ?? 0;
+            const pick = (art: Art) => {
+              unlock();
+              setSpArt(art);
+              setSpPlay((n) => n + 1);
+              if (art === 'chase') { setRepeat(suggestRepeat(lastStep?.event, chaseKind)); sfx.tap(); }
+              else if (art === 'triple' || art === 'dice123') sfx.dice();
+              else sfx.chips();
+            };
+            return (
+              <>
+                <h2>特別事項</h2>
+                <p className="muted small">即時找數，唔影響拉，唔抽水。</p>
+                <div className="sp-grid">
+                  {SPECIAL_ITEMS.map((it) => (
+                    <button
+                      key={it.art + (spArt === it.art ? spPlay : 0)}
+                      type="button"
+                      className={`sp-card sp-${it.art}${spArt === it.art ? ' on play' : ''}`}
+                      aria-pressed={spArt === it.art}
+                      onClick={() => pick(it.art)}
+                    >
+                      <SpecialArt art={it.art} heat={it.art === 'chase' && spArt === 'chase' ? repeat : 0} />
+                      <span className="sp-label">{it.label}</span>
+                      <span className="sp-note">{it.art === 'chase' && spArt === 'chase' ? `俾每家 ${amount}` : it.note}</span>
+                    </button>
+                  ))}
+                </div>
+                {isChase && (
+                  <div className="stack tight">
+                    <div className="row">
+                      <span className="grow small muted">追咗咩牌</span>
+                      <div className="seg" role="group" aria-label="番子定非番子">
+                        {([['fan', '番子（5 起）'], ['other', '非番子（10 起）']] as const).map(([k, t]) => (
+                          <button key={k} type="button" aria-pressed={chaseKind === k} onClick={() => { setChaseKind(k); setRepeat(suggestRepeat(lastStep?.event, k)); }}>{t}</button>
+                        ))}
+                      </div>
+                    </div>
+                    <div className="row">
+                      <span className="grow small muted">同一隻追咗幾次{suggestRepeat(lastStep?.event, chaseKind) > 0 ? '（上一鋪都係被追）' : ''}</span>
+                      <div className="seg" role="group" aria-label="同一隻追咗幾次">
+                        {Array.from({ length: CHASE_MAX_REPEAT + 1 }, (_, r) => (
+                          <button key={r} type="button" aria-pressed={repeat === r} onClick={() => { setRepeat(r); if (r > 0) sfx.chips(); }}>
+                            {r === 0 ? '第 1 次' : `+${r}`}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                    {repeat > 0 && <p className={`chase-note heat-${repeat}`}>同一隻再追 {repeat} 次：{chaseAmount(chaseKind, 0)} + {5 * repeat} = 每家 {amount}{repeat === CHASE_MAX_REPEAT ? '，追到盡' : ''}</p>}
+                  </div>
+                )}
+                {spArt && (
+                  <div className="field">
+                    <span>{item?.dir === 'collect' ? '邊個收？' : isChase ? '邊個被追？' : '邊個俾？'}</span>
+                    <div className="choices">
+                      {seats.map((s) => (
+                        <button key={s} type="button" className={`choice${item?.dir === 'pay' ? ' loser' : ''}`} aria-pressed={who === s} onClick={() => setWho(s)}>
+                          <span className="ellipsis">{name(s)}</span>
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                )}
+                <button
+                  type="button"
+                  className="btn big"
+                  disabled={busy || !who || !item}
+                  onClick={() => {
+                    if (!item) return;
+                    const label = isChase ? `被追（${chaseKind === 'fan' ? '番子' : '非番子'}）${repeat > 0 ? `同一隻第 ${repeat + 1} 次` : ''}` : item.label;
+                    push({
+                      type: 'special', player: who, label, amount, direction: item.dir,
+                      meta: isChase ? { art: 'chase', chase: chaseKind, repeat } : { art: item.art },
+                    }, '已入數');
+                  }}
+                >
+                  {item ? `入數，${item.dir === 'collect' ? '收' : '俾'}每家 ${amount}` : '揀一樣'}
+                </button>
+              </>
+            );
+          })()}
           {more === 'draw' && (
             <>
               <h2>流局</h2>
