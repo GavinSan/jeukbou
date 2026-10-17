@@ -4,8 +4,8 @@ import type { ReactNode } from 'react';
 import type { TableDoc } from '../lib/data.ts';
 import { Link } from '../lib/router.tsx';
 import type { Computed } from '../lib/score.ts';
-import { ago, describe } from '../lib/score.ts';
-import { Avatar, Chips, CopyLink, RollingNumber, Sheet, TopBar, message, tone, useNow } from '../ui.tsx';
+import { ago, describe, netOf } from '../lib/score.ts';
+import { Avatar, Chips, CopyLink, RollingNumber, fmt, Sheet, TopBar, message, tone, useNow } from '../ui.tsx';
 import type { Candidate } from './TableScreen.tsx';
 import { shuffle } from './SeatDraw.tsx';
 
@@ -45,12 +45,15 @@ export default function SessionScreen({ title, back, tables, computed, tableHref
   }, [tables, computed]);
 
   const feed = useMemo(() => {
-    const items: { key: string; table: string; text: string; at: number | null; seq: number }[] = [];
+    const items: { key: string; no: number; text: string; moves: { name: string; v: number }[]; at: number | null; seq: number }[] = [];
     for (const t of tables) {
       const c = computed[t.id];
       if (!c) continue;
       const name = (id: string) => t.names[id] ?? '玩家';
-      for (const st of c.steps) items.push({ key: `${t.id}-${st.seq}`, table: t.name, text: describe(st.event, name), at: st.at, seq: st.seq });
+      for (const st of c.steps) {
+        const moves = Object.entries(netOf(st.delta)).sort((a, b) => b[1] - a[1]).map(([id, v]) => ({ name: name(id), v }));
+        items.push({ key: `${t.id}-${st.seq}`, no: t.order + 1, text: describe(st.event, name), moves, at: st.at, seq: st.seq });
+      }
     }
     return items.sort((a, b) => (b.at ?? Infinity) - (a.at ?? Infinity) || b.seq - a.seq).slice(0, 6);
   }, [tables, computed]);
@@ -159,12 +162,19 @@ export default function SessionScreen({ title, back, tables, computed, tableHref
       {feed.length > 0 && (
         <section className="stack">
           <h2>最新</h2>
-          <ul className="log list feed">
+          <ul className="feed list">
             {feed.map((f) => (
               <li key={f.key}>
-                <span className="where">{f.table.replace('第 ', '').replace(' 枱', '枱')}</span>
-                <span className="who">{f.text}</span>
-                <span className="when">{ago(f.at, now)}</span>
+                <span className="feed-no" aria-label={`第 ${f.no} 枱`}>{f.no}</span>
+                <span className="feed-body">
+                  <span className="feed-text">{f.text}</span>
+                  {f.moves.length > 0 && (
+                    <span className="feed-moves">
+                      {f.moves.map((m) => <span key={m.name} className={tone(m.v)}>{m.name} <b className="num">{fmt(m.v)}</b></span>)}
+                    </span>
+                  )}
+                </span>
+                <span className="feed-when">{ago(f.at, now)}</span>
               </li>
             ))}
           </ul>

@@ -19,18 +19,19 @@ export const SPECIAL_ITEMS: SpecialItem[] = [
   { art: 'triple', label: '圍骰', amount: 5, dir: 'collect', note: '收每家 5' },
   { art: 'dice123', label: '骰開一二三', amount: 5, dir: 'pay', note: '俾每家 5' },
   { art: 'pong', label: '叫碰唔碰', amount: 5, dir: 'pay', note: '俾每家 5' },
-  { art: 'chase', label: '被追', amount: 5, dir: 'pay', note: '番子 5 起，非番子 10 起' },
+  { art: 'chase', label: '被追', amount: 5, dir: 'pay', note: '番子 5、非番子 10' },
 ];
 
-/** 追牌：番子 5 起、非番子 10 起；同一隻再追每次加 5，最多加 3 次 */
+/** 追牌：番子 5、非番子 10；即摸先會「同一隻再追」每次加 5，最多加 3 次 */
 export const CHASE_MAX_REPEAT = 3;
-export function chaseAmount(kind: 'fan' | 'other', repeat: number): number {
-  return (kind === 'fan' ? 5 : 10) + 5 * Math.max(0, Math.min(CHASE_MAX_REPEAT, repeat));
+export function chaseAmount(kind: 'fan' | 'other', repeat: number, instant = true): number {
+  const extra = instant ? Math.max(0, Math.min(CHASE_MAX_REPEAT, repeat)) : 0;
+  return (kind === 'fan' ? 5 : 10) + 5 * extra;
 }
 
-/** 上一鋪都係同一類被追，就建議「同一隻」再加一次 */
+/** 上一鋪都係同一類、即摸嘅被追，就建議「同一隻」再加一次 */
 export function suggestRepeat(last: TableEvent | undefined, kind: 'fan' | 'other'): number {
-  if (!last || last.type !== 'special' || last.meta?.art !== 'chase' || last.meta.chase !== kind) return 0;
+  if (!last || last.type !== 'special' || last.meta?.art !== 'chase' || last.meta.chase !== kind || last.meta.instant === false) return 0;
   return Math.min(CHASE_MAX_REPEAT, (last.meta.repeat ?? 0) + 1);
 }
 

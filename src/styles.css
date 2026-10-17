@@ -468,3 +468,76 @@ button.tile:active { transform: translateY(3px); box-shadow: 0 2px 0 var(--tile-
 .sp-art.side { left: auto; right: -4%; width: 66%; }
 .sp-die, .bloom { transform-origin: center; transform-box: fill-box; }
 .sp-art.side { top: -16%; height: 100%; }
+
+/* ---------- 第五輪 ---------- */
+
+/* 數字飄字：+36 / −36，找數時似打機扣血 */
+.float { left: 50%; right: auto; top: -6px; font-family: var(--font-num); font-size: 19px; font-weight: 700; transform: none; translate: -50% 0; white-space: nowrap; text-shadow: 0 1px 0 rgba(255,255,255,.7); animation: dmgFloat 1s ease-out both; }
+.float.loss { color: var(--tile-loss); }
+.float.hp { font-size: 26px; animation: dmgHit 1.25s cubic-bezier(.2,.8,.3,1) both; }
+@keyframes dmgFloat { 0% { opacity: 0; translate: -50% 8px; } 20% { opacity: 1; translate: -50% -4px; } 75% { opacity: 1; } 100% { opacity: 0; translate: -50% -18px; } }
+@keyframes dmgHit { 0% { opacity: 0; scale: 1.8; translate: -50% 0; } 12% { opacity: 1; scale: 1; } 22% { translate: -50% -10px; } 40% { translate: -50% -2px; } 80% { opacity: 1; } 100% { opacity: 0; translate: -50% 10px; } }
+.tile.hp { animation: hpShake .5s ease-out; }
+.tile.hp::after { content: ''; position: absolute; inset: 0; border-radius: inherit; background: var(--tile-loss); opacity: 0; pointer-events: none; animation: hpFlash .5s ease-out; }
+@keyframes hpShake { 10% { transform: translate(-6px, 2px) rotate(-1.5deg); } 25% { transform: translate(6px, -2px) rotate(1.5deg); } 40% { transform: translate(-4px, 1px); } 60% { transform: translate(3px, 0); } 80% { transform: translate(-1px, 0); } }
+@keyframes hpFlash { 0% { opacity: .55; } 15% { opacity: 0; } 30% { opacity: .35; } 100% { opacity: 0; } }
+
+/* 角落嘅骰：一層 blur 就夠，唔要影 */
+.felt-dice { opacity: .5; filter: blur(.8px); }
+.felt-dice .die { filter: none; }
+
+/* 枱面下面三個常用掣 */
+.acts { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; }
+.act {
+  display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 1px; min-height: 58px; min-width: 0;
+  background: var(--surface); color: var(--ink); border: 1px solid var(--line); border-radius: 12px; box-shadow: 0 3px 0 var(--line);
+  font: inherit; cursor: pointer; transition: transform .08s, box-shadow .08s;
+}
+.act span { font-family: var(--font-kai); font-weight: 700; font-size: 17px; }
+.act small { color: var(--muted); font-size: 12px; }
+.act.end span { color: var(--loss); }
+.act:active { transform: translateY(3px); box-shadow: 0 0 0 var(--line); }
+
+/* 紀錄表：每鋪一行，每人一欄 */
+.ledger { background: var(--surface); border-radius: 16px; overflow: hidden; }
+.ledger .lg-names, .ledger .lg-cells { display: grid; grid-template-columns: repeat(var(--cols), minmax(0, 1fr)); }
+.lg-names { padding: 10px 12px 8px; background: var(--sunk); font-family: var(--font-kai); font-weight: 700; font-size: 15px; position: sticky; top: 0; z-index: 1; }
+.lg-names span { text-align: center; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; padding: 0 2px; }
+.lg-names .me { color: var(--gain); }
+.lg-rows { list-style: none; margin: 0; padding: 0; }
+.lg-rows li { border-top: 1px solid var(--line); }
+.lg-rows li:first-child { border-top: none; }
+.lg-row { display: flex; flex-direction: column; gap: 6px; width: 100%; padding: 10px 12px 11px; background: none; border: none; text-align: left; font: inherit; color: inherit; cursor: pointer; }
+.lg-row:disabled { cursor: default; }
+.lg-row:not(:disabled):active { background: var(--sunk); }
+.lg-head { display: flex; align-items: baseline; gap: 10px; width: 100%; font-size: 14px; }
+.lg-what { flex: 1; min-width: 0; color: var(--muted); }
+.lg-what .tag { margin-left: 6px; }
+.lg-when { color: var(--muted); font-size: 12px; white-space: nowrap; }
+.lg-cell { display: flex; flex-direction: column; align-items: center; justify-content: center; min-height: 24px; min-width: 0; line-height: 1.15; }
+.lg-cell.me { background: color-mix(in srgb, var(--gain) 7%, transparent); border-radius: 6px; }
+.lg-cell .num { font-size: 18px; }
+.lg-pend { font-family: var(--font-num); font-size: 12px; opacity: .8; white-space: nowrap; }
+.lg-dash { color: var(--line); font-weight: 700; }
+.lg-total { display: flex; flex-direction: column; gap: 6px; padding: 10px 12px 12px; border-top: 2px solid var(--ink); background: var(--sunk); }
+.lg-total .lg-what { color: var(--ink); font-family: var(--font-kai); font-weight: 700; font-size: 15px; }
+.lg-total .num { font-size: 20px; }
+
+/* 大局「最新」 */
+.feed { list-style: none; margin: 0; padding: 0; }
+.feed li { display: grid; grid-template-columns: 30px minmax(0, 1fr) auto; align-items: start; gap: 12px; padding: 12px 16px; border-top: 1px solid var(--line); }
+.feed li:first-child { border-top: none; }
+.feed-no {
+  width: 28px; height: 36px; border-radius: 6px; display: flex; align-items: center; justify-content: center;
+  background: var(--tile); color: var(--tile-ink); font-family: var(--font-num); font-weight: 700; font-size: 17px;
+  box-shadow: 0 3px 0 var(--tile-back), 0 4px 4px rgba(0,0,0,.15);
+}
+.feed-body { display: flex; flex-direction: column; gap: 3px; min-width: 0; }
+.feed-text { font-size: 15px; }
+.feed-moves { display: flex; flex-wrap: wrap; gap: 2px 12px; font-size: 13px; }
+.feed-moves .num { font-weight: 700; }
+.feed-when { color: var(--muted); font-size: 12px; white-space: nowrap; padding-top: 2px; }
+
+@media (prefers-reduced-motion: reduce) {
+  .float, .tile.hp, .tile.hp::after { animation: none !important; }
+}

@@ -12,6 +12,8 @@ export interface Step {
   result: StepResult;
   at: number | null;
   edited: boolean;
+  /** 呢鋪令每個人嘅數變幾多：settled = 實數（找咗），pending = 擺低未找 */
+  delta: { settled: Record<string, number>; pending: Record<string, number> };
 }
 
 export interface TableStats {
@@ -47,13 +49,37 @@ export function computeTable(table: TableDoc, stored: StoredEvent[], rules: Rule
   for (const { seq, event, at, edited } of activeEvents(stored)) {
     try {
       const result = applyEvent(state, event, rules);
-      steps.push({ seq, event, result, at, edited });
+      steps.push({ seq, event, result, at, edited, delta: diff(state, result.state) });
       state = result.state;
     } catch (err) {
       skipped.push({ seq, message: err instanceof Error ? err.message : String(err) });
     }
   }
   return { state, steps, skipped, pending: pending(state), info: roundInfo(state), stats: statsOf(steps) };
+}
+
+function diff(a: TableState, b: TableState): Step['delta'] {
+  const pa = pending(a);
+  const pb = pending(b);
+  const settled: Record<string, number> = {};
+  const pend: Record<string, number> = {};
+  for (const id of new Set([...Object.keys(a.settled), ...Object.keys(b.settled), ...Object.keys(pa), ...Object.keys(pb)])) {
+    const ds = (b.settled[id] ?? 0) - (a.settled[id] ?? 0);
+    const dp = (pb[id] ?? 0) - (pa[id] ?? 0);
+    if (ds) settled[id] = ds;
+    if (dp) pend[id] = dp;
+  }
+  return { settled, pending: pend };
+}
+
+/** 一鋪嘅淨變化（實數 + 擺低）；淨數全部係 0（例如找數）就用實數 */
+export function netOf(d: Step['delta']): Record<string, number> {
+  const out: Record<string, number> = {};
+  for (const id of new Set([...Object.keys(d.settled), ...Object.keys(d.pending)])) {
+    const v = (d.settled[id] ?? 0) + (d.pending[id] ?? 0);
+    if (v) out[id] = v;
+  }
+  return Object.keys(out).length ? out : { ...d.settled };
 }
 
 function statsOf(steps: Step[]): TableStats {

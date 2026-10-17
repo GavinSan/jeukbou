@@ -1,6 +1,6 @@
 // 一張枱：綠絨布枱面 + 撳人入數。資料由外面傳入，所以示範模式都用到。
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import type { ReactNode } from 'react';
+import type { CSSProperties, ReactNode } from 'react';
 import { applyEvent, replay, seatWind } from '../engine/table.ts';
 import type { Line, TableEvent } from '../engine/table.ts';
 import type { Rules } from '../engine/rules.ts';
@@ -9,7 +9,7 @@ import type { Computed } from '../lib/score.ts';
 import { ago, describe } from '../lib/score.ts';
 import { setSoundOn, sfx, soundOn, unlock } from '../lib/sound.ts';
 import { Link } from '../lib/router.tsx';
-import { Chips, RollingNumber, Sheet, TopBar, message, useNow } from '../ui.tsx';
+import { Chips, RollingNumber, Sheet, TopBar, fmt, message, useNow } from '../ui.tsx';
 import FanWheel from './FanWheel.tsx';
 import DiceRoll, { Die } from './Dice.tsx';
 import SeatDraw from './SeatDraw.tsx';
@@ -76,6 +76,7 @@ export default function TableScreen(props: TableScreenProps) {
   const [spPlay, setSpPlay] = useState(0);
   const [chaseKind, setChaseKind] = useState<'fan' | 'other'>('fan');
   const [repeat, setRepeat] = useState(0);
+  const [instant, setInstant] = useState(false);
   const [burst, setBurst] = useState<{ art: Art; text?: string; key: number } | null>(null);
   const [swapOut, setSwapOut] = useState('');
   const [swapIn, setSwapIn] = useState('');
@@ -87,7 +88,7 @@ export default function TableScreen(props: TableScreenProps) {
   const [dismissed, setDismissed] = useState<string[]>([]);
   const [dealing, setDealing] = useState(true);
   const [sound, setSound] = useState(soundOn);
-  const [fx, setFx] = useState<{ up: string[]; down: string[]; key: number }>({ up: [], down: [], key: 0 });
+  const [fx, setFx] = useState<{ up: string[]; down: string[]; delta: Record<string, number>; hp: boolean; key: number }>({ up: [], down: [], delta: {}, hp: false, key: 0 });
   const [diceShown, setDiceShown] = useState<number | null>(null);
   const [editing, setEditing] = useState<{ seq: number; event: TableEvent; current: string } | null>(null);
 
@@ -95,44 +96,56 @@ export default function TableScreen(props: TableScreenProps) {
 
   // 任何人嘅數有變（包括其他手機入嘅）就郁：升嘅推牌，跌嘅震
   const snapshot = seats.map((id) => `${id}:${totalOf(c, id)}:${c.state.settled[id] ?? 0}`).join('|') + `#${c.steps.length}`;
-  const prev = useRef<{ snap: string; totals: Record<string, number> } | null>(null);
+  const prev = useRef<{ snap: string; settled: Record<string, number>; total: Record<string, number> } | null>(null);
   useEffect(() => {
-    const totals: Record<string, number> = {};
-    for (const id of seats) totals[id] = totalOf(c, id) * 1000 + (c.state.settled[id] ?? 0);
+    const settledNow: Record<string, number> = {};
+    const totalNow: Record<string, number> = {};
+    for (const id of seats) { settledNow[id] = c.state.settled[id] ?? 0; totalNow[id] = totalOf(c, id); }
     const before = prev.current;
-    prev.current = { snap: snapshot, totals };
+    prev.current = { snap: snapshot, settled: settledNow, total: totalNow };
     if (!before || before.snap === snapshot) return;
     const up: string[] = [];
     const down: string[] = [];
+    const delta: Record<string, number> = {};
     for (const id of seats) {
-      const was = before.totals[id];
-      if (was === undefined) continue;
-      if (totals[id] > was) up.push(id);
-      else if (totals[id] < was) down.push(id);
+      if (before.settled[id] === undefined) continue;
+      // 大數字（實數）有變就用佢；冇就睇擺低咗幾多
+      const d = settledNow[id] - before.settled[id] || totalNow[id] - before.total[id];
+      if (d > 0) up.push(id);
+      else if (d < 0) down.push(id);
+      if (d) delta[id] = d;
     }
     if (!up.length && !down.length) return;
-    setFx((f) => ({ up, down, key: f.key + 1 }));
-    const last = c.steps[c.steps.length - 1]?.event;
+    const lastStep = c.steps[c.steps.length - 1];
+    const last = lastStep?.event;
+    const hp = !!lastStep && last?.type !== 'win' && lastStep.result.lines.some((l) => l.kind === 'settle');
+    setFx((f) => ({ up, down, delta, hp, key: f.key + 1 }));
     const art = last ? artOf(last) : null;
     if (art && last?.type === 'special') {
       const rep = last.meta?.repeat ?? 0;
       setBurst((b) => ({ art, text: art === 'chase' ? (rep > 0 ? `追 ×${rep + 1}` : '追') : undefined, key: (b?.key ?? 0) + 1 }));
     }
     if (last?.type === 'win') sfx.win();
-    else if (last?.type === 'settle' || last?.type === 'special' || last?.type === 'falseWin' || last?.type === 'end') sfx.chips();
+    else if (hp) sfx.settle();
+    else if (last?.type === 'special' || last?.type === 'falseWin' || last?.type === 'end') sfx.chips();
     else sfx.tap();
-    const t = setTimeout(() => setFx((f) => ({ ...f, up: [], down: [] })), 900);
+    const t = setTimeout(() => setFx((f) => ({ ...f, up: [], down: [], delta: {} })), hp ? 1300 : 1000);
     return () => clearTimeout(t);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [snapshot]);
 
   // 擲骰：全枱同步，啱啱擲（20 秒內）先播
+  // 角落嗰三粒要等動畫播完先換，唔好劇透
   const dice = table.dice;
+  const fresh = (d: typeof dice) => !!d && Date.now() - d.at <= 20000;
+  const [corner, setCorner] = useState(() => (fresh(dice) ? null : dice ?? null));
   useEffect(() => {
-    if (!dice || Date.now() - dice.at > 20000) return;
+    if (!dice) return;
+    if (!fresh(dice)) { setCorner(dice); return; }
     setDiceShown(dice.n);
     sfx.dice();
   }, [dice?.n]); // eslint-disable-line react-hooks/exhaustive-deps
+  const revealDice = () => { if (dice) setCorner(dice); };
 
   const owe: Record<string, number> = {};
   const collect: Record<string, number> = {};
@@ -203,7 +216,13 @@ export default function TableScreen(props: TableScreenProps) {
   }
 
   const lastStep = c.steps[c.steps.length - 1];
-  const log = [...c.steps].reverse().slice(0, showAll ? undefined : 4);
+  const log = [...c.steps].reverse().slice(0, showAll ? undefined : 5);
+  // 紀錄表嘅欄：開枱嗰四個，之後換入嚟嘅排後面
+  const cols = useMemo(() => {
+    const out = [...table.seats];
+    for (const st of c.steps) for (const id of st.result.state.seats) if (!out.includes(id)) out.push(id);
+    return out;
+  }, [table.seats, c.steps]);
   const sum = (lines: Line[]) => lines.filter((l) => l.kind !== 'water').reduce((a, l) => a + l.amount, 0);
   const free = candidates.filter((p) => !seats.includes(p.id));
   const myPending = pendingSwaps.filter((r) => r.status === 'pending' && r.tableId === table.id);
@@ -239,8 +258,18 @@ export default function TableScreen(props: TableScreenProps) {
     }
   }, [editing, c, rules, table.seats]);
 
+  function openSpecial() {
+    unlock();
+    setError('');
+    setSpArt('');
+    setWho('');
+    setRepeat(0);
+    setInstant(false);
+    setMore('special');
+  }
+
   const menuButton = (
-    <button type="button" className="iconbtn" aria-label="其他：換人、擲骰、詐糊、特別事項、流局、完場" onClick={() => { unlock(); setError(''); setMore('menu'); }}>
+    <button type="button" className="iconbtn" aria-label="其他：換人、擲骰、掉位、詐糊、聲效" onClick={() => { unlock(); setError(''); setMore('menu'); }}>
       <svg width="22" height="22" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><circle cx="5" cy="12" r="1.9" /><circle cx="12" cy="12" r="1.9" /><circle cx="19" cy="12" r="1.9" /></svg>
     </button>
   );
@@ -272,7 +301,7 @@ export default function TableScreen(props: TableScreenProps) {
           const isDealer = c.info.dealer === id && !ended;
           const up = fx.up.includes(id);
           const down = fx.down.includes(id);
-          const cls = ['tile', spotOf(i), up ? 'won' : '', down ? 'hit' : ''].filter(Boolean).join(' ');
+          const cls = ['tile', spotOf(i), up ? 'won' : '', down ? 'hit' : '', down && fx.hp ? 'hp' : ''].filter(Boolean).join(' ');
           return (
             <button key={id} type="button" className={cls} onClick={() => startWin(id)} disabled={ended} aria-label={`${name(id)}，${settled} 番，撳嚟入佢食糊`}>
               <span className="t-name"><span className="ellipsis">{name(id)}</span>{isDealer && <span className="dealer-mark">莊{c.state.streak ? c.state.streak : ''}</span>}</span>
@@ -282,7 +311,7 @@ export default function TableScreen(props: TableScreenProps) {
                 {collect[id] ? <RollingNumber value={collect[id]} className="t-gain" /> : null}
                 <span className="t-wind">{seatWind(c.state, id)}</span>
               </span>
-              {up && <span className="float gain" key={`u${fx.key}`}>＋</span>}
+              {fx.delta[id] ? <span className={`float ${fx.delta[id] > 0 ? 'gain' : 'loss'}${fx.hp ? ' hp' : ''}`} key={`f${fx.key}`}>{fmt(fx.delta[id])}</span> : null}
             </button>
           );
         })}
@@ -292,10 +321,10 @@ export default function TableScreen(props: TableScreenProps) {
           className="felt-dice"
           disabled={!props.onDice || ended || busy}
           onClick={() => props.onDice && run(() => props.onDice!(), '')}
-          aria-label={dice ? `今場骰：${dice.values.join('、')}，撳嚟再擲` : '今場未擲骰，撳嚟擲'}
+          aria-label={corner ? `今場骰：${corner.values.join('、')}，撳嚟再擲` : '今場未擲骰，撳嚟擲'}
         >
-          {(dice?.values ?? idleDice(table.id)).map((v, i) => <Die key={i} value={v} rolling={false} size={24} />)}
-          {dice && <span className="felt-dice-sum">{dice.values.reduce((a, b) => a + b, 0)}</span>}
+          {(corner?.values ?? idleDice(table.id)).map((v, i) => <Die key={i} value={v} rolling={false} size={24} />)}
+          {corner && <span className="felt-dice-sum">{corner.values.reduce((a, b) => a + b, 0)}</span>}
         </button>
         <div className="felt-center">
           <span className="wind-tile">{ended ? '完' : c.info.roundWind}</span>
@@ -309,11 +338,10 @@ export default function TableScreen(props: TableScreenProps) {
         </div>
       )}
       {!ended && (
-        <div className="actions">
-          {props.onDice && <button type="button" className="textbtn" disabled={busy} onClick={() => run(() => props.onDice!(), '')}>擲骰</button>}
-          {props.onReseat && c.steps.length === 0 && <button type="button" className="textbtn" onClick={() => { unlock(); setMore('reseat'); }}>掉位</button>}
-          {props.onSwap && <button type="button" className="textbtn" onClick={() => { unlock(); setSwapOut(''); setSwapIn(''); setGuestName(''); setMore('swap'); }}>換人</button>}
-          <button type="button" className="textbtn" aria-pressed={sound} onClick={() => { unlock(); setSoundOn(!sound); setSound(!sound); }}>{sound ? '聲效：開' : '聲效：關'}</button>
+        <div className="acts">
+          <button type="button" className="act" onClick={openSpecial}><span>特別事項</span><small>花草槓骰追</small></button>
+          <button type="button" className="act" onClick={() => { unlock(); setError(''); setMore('draw'); }}><span>流局</span><small>冇人食</small></button>
+          <button type="button" className="act end" onClick={() => { unlock(); setError(''); setMore('end'); }}><span>完場</span><small>全部找數</small></button>
         </div>
       )}
 
@@ -328,28 +356,61 @@ export default function TableScreen(props: TableScreenProps) {
         {c.steps.length === 0 ? (
           <p className="muted">未有紀錄。開始之前可以擲骰或者掉位；開咗就撳上面食糊嗰個人。</p>
         ) : (
-          <ul className="log list">
-            {log.map((st) => (
-              <li key={st.seq}>
-                <button
-                  type="button"
-                  className="logbtn"
-                  disabled={ended || !editable(st.event)}
-                  onClick={() => { unlock(); setError(''); setEditing({ seq: st.seq, event: st.event, current: st.event.type === 'win' ? st.event.winners[0].player : '' }); }}
-                >
-                  <span className="who">
-                    {describe(st.event, name)}
-                    {st.edited && <span className="tag instant">改過</span>}
-                    {st.result.lines.length > 0 && <span className="detail"><br />{st.result.lines.filter((l) => l.kind !== 'water').map((l) => `${name(l.from)}→${l.to ? name(l.to) : '水'} ${l.amount}`).join('，')}</span>}
+          <div className="ledger" style={{ '--cols': cols.length } as CSSProperties}>
+            <div className="lg-names" aria-hidden="true">
+              {cols.map((id) => <span key={id} className={id === me ? 'me' : ''}>{name(id)}</span>)}
+            </div>
+            <ol className="lg-rows">
+              {log.map((st) => {
+                const conversion = st.event.type === 'settle' || st.event.type === 'end' || st.event.type === 'swap';
+                return (
+                  <li key={st.seq}>
+                    <button
+                      type="button"
+                      className="lg-row"
+                      disabled={ended || !editable(st.event)}
+                      onClick={() => { unlock(); setError(''); setEditing({ seq: st.seq, event: st.event, current: st.event.type === 'win' ? st.event.winners[0].player : '' }); }}
+                    >
+                      <span className="lg-head">
+                        <span className="lg-what">{describe(st.event, name)}{st.edited && <span className="tag instant">改過</span>}</span>
+                        <span className="lg-when">{ago(st.at, now)}</span>
+                      </span>
+                      <span className="lg-cells">
+                        {cols.map((id) => {
+                          const v = st.delta.settled[id] ?? 0;
+                          const p = conversion ? 0 : st.delta.pending[id] ?? 0;
+                          return (
+                            <span key={id} className={`lg-cell${id === me ? ' me' : ''}`}>
+                              {v ? <b className={`num ${tone2(v)}`}>{fmt(v)}</b> : !p ? <span className="lg-dash">·</span> : null}
+                              {p ? <small className={`lg-pend ${tone2(p)}`}>擺 {fmt(p)}</small> : null}
+                            </span>
+                          );
+                        })}
+                      </span>
+                    </button>
+                  </li>
+                );
+              })}
+            </ol>
+            <div className="lg-total">
+              <span className="lg-head"><span className="lg-what">合計</span>{c.state.water ? <span className="lg-when">抽水 {c.state.water}</span> : null}</span>
+              <span className="lg-cells">
+              {cols.map((id) => {
+                const v = c.state.settled[id] ?? 0;
+                const p = c.pending[id] ?? 0;
+                return (
+                  <span key={id} className={`lg-cell${id === me ? ' me' : ''}`}>
+                    <b className={`num ${tone2(v)}`}>{fmt(v)}</b>
+                    {p ? <small className={`lg-pend ${tone2(p)}`}>擺 {fmt(p)}</small> : null}
                   </span>
-                  <span className="when">{ago(st.at, now)}</span>
-                </button>
-              </li>
-            ))}
-          </ul>
+                );
+              })}
+              </span>
+            </div>
+          </div>
         )}
-        {c.steps.length > 0 && !ended && <p className="muted small">撳任何一鋪可以改番數或者刪除，之後嘅鋪會自動重新計。</p>}
-        {c.steps.length > 4 && (
+        {c.steps.length > 0 && !ended && <p className="muted small">粗字係找咗嘅數，「擺」係擺低未找（拉緊）。最底係合計。撳任何一鋪可以改番數或者刪除。</p>}
+        {c.steps.length > 5 && (
           <button type="button" className="textbtn" onClick={() => setShowAll((v) => !v)}>{showAll ? '收埋' : `睇晒 ${c.steps.length} 鋪`}</button>
         )}
       </section>
@@ -453,9 +514,9 @@ export default function TableScreen(props: TableScreenProps) {
                 {props.onDice && !ended && <button type="button" className="choice" onClick={() => run(() => props.onDice!(), '')}>擲骰<small>三粒</small></button>}
                 {props.onReseat && !ended && c.steps.length === 0 && <button type="button" className="choice" onClick={() => setMore('reseat')}>掉位<small>抽風牌</small></button>}
                 {!ended && <button type="button" className="choice" onClick={() => setMore('falseWin')}>詐糊<small>俾每家 {rules.falseWinPenalty}</small></button>}
-                {!ended && <button type="button" className="choice" onClick={() => { setSpArt(''); setWho(''); setRepeat(0); setMore('special'); }}>特別事項<small>花、草、槓、骰、追</small></button>}
-                {!ended && <button type="button" className="choice" onClick={() => setMore('draw')}>流局<small>冇人食</small></button>}
-                {!ended && <button type="button" className="choice loser" onClick={() => setMore('end')}>完場<small>全部找數</small></button>}
+                <button type="button" className="choice" aria-pressed={sound} onClick={() => { unlock(); setSoundOn(!sound); setSound(!sound); if (!sound) setTimeout(() => sfx.tap(), 30); }}>
+                  聲效<small>{sound ? '開緊' : '閂咗'}</small>
+                </button>
               </div>
               {rulesHref && <Link to={rulesHref} className="textbtn center-text">睇呢個大局嘅家規</Link>}
             </>
@@ -476,12 +537,12 @@ export default function TableScreen(props: TableScreenProps) {
           {more === 'special' && (() => {
             const item = SPECIAL_ITEMS.find((x) => x.art === spArt);
             const isChase = spArt === 'chase';
-            const amount = isChase ? chaseAmount(chaseKind, repeat) : item?.amount ?? 0;
+            const amount = isChase ? chaseAmount(chaseKind, repeat, instant) : item?.amount ?? 0;
             const pick = (art: Art) => {
               unlock();
               setSpArt(art);
               setSpPlay((n) => n + 1);
-              if (art === 'chase') { setRepeat(suggestRepeat(lastStep?.event, chaseKind)); sfx.tap(); }
+              if (art === 'chase') { const r = suggestRepeat(lastStep?.event, chaseKind); setRepeat(r); setInstant(r > 0); sfx.tap(); }
               else if (art === 'triple' || art === 'dice123') sfx.dice();
               else sfx.chips();
             };
@@ -498,7 +559,7 @@ export default function TableScreen(props: TableScreenProps) {
                       aria-pressed={spArt === it.art}
                       onClick={() => pick(it.art)}
                     >
-                      <SpecialArt art={it.art} heat={it.art === 'chase' && spArt === 'chase' ? repeat : 0} />
+                      <SpecialArt art={it.art} heat={it.art === 'chase' && spArt === 'chase' && instant ? repeat : 0} />
                       <span className="sp-label">{it.label}</span>
                       <span className="sp-note">{it.art === 'chase' && spArt === 'chase' ? `俾每家 ${amount}` : it.note}</span>
                     </button>
@@ -510,12 +571,19 @@ export default function TableScreen(props: TableScreenProps) {
                       <span className="grow small muted">追咗咩牌</span>
                       <div className="seg" role="group" aria-label="番子定非番子">
                         {([['fan', '番子（5 起）'], ['other', '非番子（10 起）']] as const).map(([k, t]) => (
-                          <button key={k} type="button" aria-pressed={chaseKind === k} onClick={() => { setChaseKind(k); setRepeat(suggestRepeat(lastStep?.event, k)); }}>{t}</button>
+                          <button key={k} type="button" aria-pressed={chaseKind === k} onClick={() => { setChaseKind(k); const r = suggestRepeat(lastStep?.event, k); setRepeat(r); if (r > 0) setInstant(true); }}>{t}</button>
                         ))}
                       </div>
                     </div>
                     <div className="row">
-                      <span className="grow small muted">同一隻追咗幾次{suggestRepeat(lastStep?.event, chaseKind) > 0 ? '（上一鋪都係被追）' : ''}</span>
+                      <span className="grow small muted">係咪即摸？<br />即摸先會同一隻再追加 5</span>
+                      <div className="seg" role="group" aria-label="係咪即摸">
+                        <button type="button" aria-pressed={!instant} onClick={() => setInstant(false)}>唔係</button>
+                        <button type="button" aria-pressed={instant} onClick={() => { setInstant(true); sfx.tap(); }}>即摸</button>
+                      </div>
+                    </div>
+                    {instant && <div className="row">
+                      <span className="grow small muted">同一隻追咗幾次{suggestRepeat(lastStep?.event, chaseKind) > 0 ? '（上一鋪都係即摸被追）' : ''}</span>
                       <div className="seg" role="group" aria-label="同一隻追咗幾次">
                         {Array.from({ length: CHASE_MAX_REPEAT + 1 }, (_, r) => (
                           <button key={r} type="button" aria-pressed={repeat === r} onClick={() => { setRepeat(r); if (r > 0) sfx.chips(); }}>
@@ -523,8 +591,8 @@ export default function TableScreen(props: TableScreenProps) {
                           </button>
                         ))}
                       </div>
-                    </div>
-                    {repeat > 0 && <p className={`chase-note heat-${repeat}`}>同一隻再追 {repeat} 次：{chaseAmount(chaseKind, 0)} + {5 * repeat} = 每家 {amount}{repeat === CHASE_MAX_REPEAT ? '，追到盡' : ''}</p>}
+                    </div>}
+                    {instant && repeat > 0 && <p className={`chase-note heat-${repeat}`}>即摸，同一隻再追 {repeat} 次：{chaseAmount(chaseKind, 0)} + {5 * repeat} = 每家 {amount}{repeat === CHASE_MAX_REPEAT ? '，追到盡' : ''}</p>}
                   </div>
                 )}
                 {spArt && (
@@ -545,10 +613,11 @@ export default function TableScreen(props: TableScreenProps) {
                   disabled={busy || !who || !item}
                   onClick={() => {
                     if (!item) return;
-                    const label = isChase ? `被追（${chaseKind === 'fan' ? '番子' : '非番子'}）${repeat > 0 ? `同一隻第 ${repeat + 1} 次` : ''}` : item.label;
+                    const rep = instant ? repeat : 0;
+                    const label = isChase ? `被追（${chaseKind === 'fan' ? '番子' : '非番子'}${instant ? '，即摸' : ''}）${rep > 0 ? `同一隻第 ${rep + 1} 次` : ''}` : item.label;
                     push({
                       type: 'special', player: who, label, amount, direction: item.dir,
-                      meta: isChase ? { art: 'chase', chase: chaseKind, repeat } : { art: item.art },
+                      meta: isChase ? { art: 'chase', chase: chaseKind, repeat: rep, instant } : { art: item.art },
                     }, '已入數');
                   }}
                 >
@@ -626,10 +695,10 @@ export default function TableScreen(props: TableScreenProps) {
       )}
 
       {diceShown !== null && dice && dice.n === diceShown && (
-        <Sheet onClose={() => setDiceShown(null)} label="擲骰">
+        <Sheet onClose={() => { revealDice(); setDiceShown(null); }} label="擲骰">
           <h2 className="center-text">{name(dice.by)} 擲骰</h2>
-          <DiceRoll values={dice.values} />
-          <button type="button" className="btn big" onClick={() => setDiceShown(null)}>好</button>
+          <DiceRoll values={dice.values} onDone={revealDice} />
+          <button type="button" className="btn big" onClick={() => { revealDice(); setDiceShown(null); }}>好</button>
         </Sheet>
       )}
 
