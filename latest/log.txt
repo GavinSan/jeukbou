@@ -1,2 +1,2 @@
-light: overflow 0px, errors []
+light: overflow 0px, errors ["settle: locator.click: Timeout 30000ms exceeded."]
 dark: overflow 0px, errors []
