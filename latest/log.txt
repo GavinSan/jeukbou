@@ -1,2 +1,2 @@
-light: overflow 0px, errors []
+light: overflow 0px, errors ["dice: locator.click: Timeout 30000ms exceeded.","swap: locator.click: Timeout 30000ms exceeded."]
 dark: overflow 0px, errors []
