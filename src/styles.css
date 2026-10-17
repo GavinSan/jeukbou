@@ -290,3 +290,88 @@ button.tile:active { transform: translateY(3px); box-shadow: 0 2px 0 var(--tile-
 .seat-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
 @media (max-width: 380px) { .seat-grid { grid-template-columns: minmax(0, 1fr); } }
 .demo-note { background: #F2C14E; color: #2A2205; border-radius: 10px; padding: 6px 12px; font-size: 13px; text-align: center; }
+
+/* ---------- 第二輪 ---------- */
+.banner.calm { background: var(--sunk); color: var(--ink); }
+.choices.three { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+.pv-note { color: var(--muted); font-size: 12px; flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.preview .pv .num { margin-left: 0; }
+
+/* 揀番數滾輪 */
+.fan-row { display: flex; align-items: center; justify-content: center; gap: 14px; }
+.wheel-wrap { position: relative; width: 150px; flex: none; }
+.wheel {
+  overflow-y: scroll; scroll-snap-type: y mandatory; overscroll-behavior: contain; scrollbar-width: none;
+  -webkit-mask-image: linear-gradient(to bottom, transparent 0, #000 30%, #000 70%, transparent 100%);
+          mask-image: linear-gradient(to bottom, transparent 0, #000 30%, #000 70%, transparent 100%);
+}
+.wheel::-webkit-scrollbar { display: none; }
+.wheel:focus-visible { outline: 2px solid var(--gain); border-radius: 12px; }
+.wheel-item {
+  scroll-snap-align: center; display: flex; align-items: center; justify-content: center;
+  font-family: var(--font-num); font-variant-numeric: tabular-nums; font-weight: 600; font-size: 22px; color: var(--muted);
+  transition: font-size .12s, color .12s; cursor: pointer; user-select: none;
+}
+.wheel-item.near { font-size: 26px; }
+.wheel-item.on { font-size: 40px; font-weight: 700; color: var(--ink); }
+.wheel-band {
+  position: absolute; left: 0; right: 0; top: 50%; height: 52px; transform: translateY(-50%); pointer-events: none;
+  border-top: 1.5px solid var(--line); border-bottom: 1.5px solid var(--line); border-radius: 4px;
+}
+.wheel-unit { position: absolute; right: 8px; top: 50%; transform: translateY(-50%); color: var(--muted); font-family: var(--font-kai); font-size: 15px; }
+.wheel-input {
+  position: absolute; left: 10px; right: 10px; top: 50%; transform: translateY(-50%); height: 52px; border-radius: 10px;
+  border: 2px solid var(--gain); background: var(--surface); text-align: center; font-family: var(--font-num); font-weight: 700; font-size: 32px !important;
+}
+.quick { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 8px; }
+.quick button { min-width: 0; min-height: 44px; }
+
+/* 數字變：升嘅出個「＋」飄上去 */
+.float { position: absolute; right: 10px; top: 6px; font-weight: 700; pointer-events: none; animation: floatUp .8s ease-out both; }
+.float.gain { color: var(--tile-gain); }
+@keyframes floatUp { from { transform: translateY(6px); opacity: 0; } 30% { opacity: 1; } to { transform: translateY(-14px); opacity: 0; } }
+.flashrow { animation: rowFlash 1s ease-out; }
+@keyframes rowFlash { from { background: var(--gain-soft); } to { background: transparent; } }
+
+/* 骰 */
+.dice-box { display: flex; flex-direction: column; align-items: center; gap: 10px; padding: 8px 0; }
+.dice-row { display: flex; gap: 16px; }
+.die { filter: drop-shadow(0 4px 4px rgba(0,0,0,.22)); }
+.die.rolling { animation: tumble .3s linear infinite; }
+@keyframes tumble { 0% { transform: rotate(0) translateY(0); } 25% { transform: rotate(14deg) translateY(-8px); } 50% { transform: rotate(-6deg) translateY(0); } 75% { transform: rotate(10deg) translateY(-4px); } 100% { transform: rotate(0) translateY(0); } }
+.dice-total { font-family: var(--font-kai); font-weight: 700; font-size: 28px; min-height: 40px; }
+
+/* 掉位：風牌反開 */
+.draw-row { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px; }
+.draw-cell { display: flex; flex-direction: column; align-items: center; gap: 8px; min-width: 0; }
+.draw-tile { position: relative; width: 56px; height: 74px; perspective: 400px; }
+.draw-back, .draw-face {
+  position: absolute; inset: 0; border-radius: 8px; backface-visibility: hidden; transition: transform .45s cubic-bezier(.3,.9,.4,1.2);
+  box-shadow: 0 4px 0 var(--tile-back-deep), 0 6px 10px rgba(0,0,0,.25);
+}
+.draw-back { background: var(--tile-back); }
+.draw-face { background: var(--tile); color: var(--tile-ink); display: flex; align-items: center; justify-content: center; font-family: var(--font-kai); font-weight: 700; font-size: 32px; transform: rotateY(180deg); }
+.draw-tile.open .draw-back { transform: rotateY(180deg); }
+.draw-tile.open .draw-face { transform: rotateY(0); }
+
+@media (prefers-reduced-motion: reduce) {
+  .float, .die.rolling, .flashrow { animation: none !important; }
+  .draw-back, .draw-face { transition: none; }
+}
+
+/* 家規 */
+.rule-row { display: flex; align-items: center; gap: 12px; min-height: 56px; padding: 6px 16px; border-top: 1px solid var(--line); }
+.rule-row:first-child { border-top: none; }
+.rule-row .grow small { display: block; color: var(--muted); font-size: 13px; }
+.switch { width: 52px; height: 32px; border-radius: 16px; border: none; background: var(--line); position: relative; cursor: pointer; flex: none; transition: background .2s; }
+.switch::after { content: ''; position: absolute; top: 3px; left: 3px; width: 26px; height: 26px; border-radius: 50%; background: #FFF; box-shadow: 0 1px 3px rgba(0,0,0,.3); transition: left .2s; }
+.switch[aria-checked="true"] { background: var(--felt); }
+.switch[aria-checked="true"]::after { left: 23px; }
+.switch:disabled { opacity: .5; cursor: not-allowed; }
+.mini-num { width: 76px; min-height: 44px; border-radius: 10px; border: 1.5px solid var(--line); background: var(--surface); text-align: center; font-family: var(--font-num); font-weight: 600; }
+.seg { display: inline-flex; background: var(--sunk); border-radius: 10px; padding: 3px; gap: 3px; flex-wrap: wrap; }
+.seg button { border: none; background: none; border-radius: 8px; padding: 0 12px; min-height: 38px; cursor: pointer; }
+.seg button[aria-pressed="true"] { background: var(--surface); font-weight: 700; box-shadow: 0 1px 2px rgba(0,0,0,.12); }
+.choice.static { cursor: default; background: var(--sunk); border-style: dashed; }
+.big-num { font-size: 18px; }
+.banner.invite { background: var(--gain-soft); color: var(--ink); }

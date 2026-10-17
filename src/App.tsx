@@ -11,6 +11,7 @@ import GroupPage from './pages/GroupPage.tsx';
 import NewSession from './pages/NewSession.tsx';
 import SessionPage from './pages/SessionPage.tsx';
 import TablePage from './pages/TablePage.tsx';
+import RulesPage from './pages/RulesPage.tsx';
 import Demo from './demo.tsx';
 
 function Routes({ user, refresh }: { user: User; refresh: () => void }) {
@@ -21,7 +22,9 @@ function Routes({ user, refresh }: { user: User; refresh: () => void }) {
   if ((m = match('/join/:g/:code', path))) return <Join user={user} groupId={m.g} code={m.code} />;
   if ((m = match('/g/:g/new', path))) return <NewSession user={user} groupId={m.g} />;
   if ((m = match('/g/:g/s/:s/t/:t', path))) return <TablePage user={user} groupId={m.g} sessionId={m.s} tableId={m.t} />;
-  if ((m = match('/g/:g/s/:s', path))) return <SessionPage groupId={m.g} sessionId={m.s} />;
+  if ((m = match('/g/:g/s/:s/rules', path))) return <RulesPage user={user} groupId={m.g} sessionId={m.s} />;
+  if ((m = match('/g/:g/s/:s', path))) return <SessionPage user={user} groupId={m.g} sessionId={m.s} />;
+  if ((m = match('/g/:g/rules', path))) return <RulesPage user={user} groupId={m.g} />;
   if ((m = match('/g/:g', path))) return <GroupPage user={user} groupId={m.g} />;
   return <Home user={user} refresh={refresh} />;
 }

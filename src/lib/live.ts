@@ -3,7 +3,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { collection, doc, onSnapshot, orderBy, query } from 'firebase/firestore';
 import type { DocumentData } from 'firebase/firestore';
 import { fs } from './data.ts';
-import type { Group, Member, Session, StoredEvent, TableDoc } from './data.ts';
+import type { Dice, Group, Member, Session, StoredEvent, SwapRequest, TableDoc } from './data.ts';
 
 export interface Live<T> {
   data: T;
@@ -52,10 +52,17 @@ const toGroup = (id: string, d: DocumentData): Group => ({
 });
 const toMember = (id: string, d: DocumentData): Member => ({ uid: id, name: String(d.name ?? '玩家'), photoURL: d.photoURL ?? null });
 const toSession = (id: string, d: DocumentData): Session => ({
-  id, name: String(d.name ?? ''), createdBy: String(d.createdBy ?? ''), createdAt: d.createdAt ?? null,
+  id, name: String(d.name ?? ''), createdBy: String(d.createdBy ?? ''), createdAt: d.createdAt ?? null, rules: d.rules ?? undefined,
 });
+const toDice = (d: DocumentData | undefined): Dice | null =>
+  d && Array.isArray(d.values) ? { values: d.values.map(Number), by: String(d.by ?? ''), at: Number(d.at ?? 0), n: Number(d.n ?? 0) } : null;
 const toTable = (id: string, d: DocumentData): TableDoc => ({
   id, name: String(d.name ?? ''), order: Number(d.order ?? 0), seats: Array.isArray(d.seats) ? d.seats.map(String) : [], names: d.names ?? {},
+  dice: toDice(d.dice),
+});
+const toRequest = (id: string, d: DocumentData): SwapRequest => ({
+  id, tableId: String(d.tableId ?? ''), out: String(d.out ?? ''), in: String(d.in ?? ''), inName: String(d.inName ?? ''),
+  by: String(d.by ?? ''), status: d.status ?? 'pending',
 });
 const toEvent = (_id: string, d: DocumentData): StoredEvent => ({
   seq: Number(d.seq),
@@ -75,6 +82,7 @@ export const useSessions = (g: string | null) => useLiveList(g ? ['groups', g, '
 export const useSession = (g: string, s: string) => useLiveDoc(['groups', g, 'sessions', s], toSession);
 export const useTables = (g: string, s: string) => useLiveList(['groups', g, 'sessions', s, 'tables'], 'order', toTable);
 export const useTable = (g: string, s: string, t: string) => useLiveDoc(['groups', g, 'sessions', s, 'tables', t], toTable);
+export const useRequests = (g: string, s: string) => useLiveList(['groups', g, 'sessions', s, 'requests'], null, toRequest);
 export const useEvents = (g: string, s: string, t: string) =>
   useLiveList(['groups', g, 'sessions', s, 'tables', t, 'events'], 'seq', toEvent);
 

@@ -5,6 +5,7 @@ import { createSession, guestId } from '../lib/data.ts';
 import type { NewTable } from '../lib/data.ts';
 import { useGroup, useMembers } from '../lib/live.ts';
 import { go } from '../lib/router.tsx';
+import { shuffle } from '../components/SeatDraw.tsx';
 import { Loading, TopBar, message } from '../ui.tsx';
 
 const WINDS = ['東', '南', '西', '北'];
@@ -42,6 +43,10 @@ export default function NewSession({ user, groupId }: { user: User; groupId: str
     setTables((prev) => [...prev, [emptySeat(), emptySeat(), emptySeat(), emptySeat()]]);
   }
 
+  function shuffleTable(ti: number) {
+    setTables((prev) => prev.map((t, i) => (i !== ti ? t : shuffle(t))));
+  }
+
   function removeTable(ti: number) {
     setTables((prev) => prev.filter((_, i) => i !== ti));
   }
@@ -71,7 +76,7 @@ export default function NewSession({ user, groupId }: { user: User; groupId: str
     }
     setBusy(true);
     try {
-      const id = await createSession(user, groupId, name.trim() || today(), out);
+      const id = await createSession(user, groupId, name.trim() || today(), out, group.data?.rules ?? {});
       go(`/g/${groupId}/s/${id}`);
     } catch (err) {
       setError(message(err));
@@ -96,7 +101,10 @@ export default function NewSession({ user, groupId }: { user: User; groupId: str
           <section key={ti} className="panel">
             <div className="between">
               <h2>第 {ti + 1} 枱</h2>
-              {tables.length > 1 && <button type="button" className="textbtn" onClick={() => removeTable(ti)}>刪除呢張枱</button>}
+              <span className="row" style={{ gap: 4 }}>
+                <button type="button" className="textbtn" onClick={() => shuffleTable(ti)}>掉位</button>
+                {tables.length > 1 && <button type="button" className="textbtn loss" onClick={() => removeTable(ti)}>刪除</button>}
+              </span>
             </div>
             <div className="seat-grid">
               {t.map((s, si) => (

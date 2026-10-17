@@ -1,15 +1,21 @@
 // 一張枱：綠絨布枱面 + 撳人入數。資料由外面傳入，所以示範模式都用到。
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import type { ReactNode } from 'react';
 import { applyEvent, seatWind } from '../engine/table.ts';
 import type { Line, TableEvent } from '../engine/table.ts';
 import type { Rules } from '../engine/rules.ts';
-import type { TableDoc, UndoEvent } from '../lib/data.ts';
+import type { SwapRequest, TableDoc, UndoEvent } from '../lib/data.ts';
 import type { Computed } from '../lib/score.ts';
 import { ago, describe } from '../lib/score.ts';
+import { setSoundOn, sfx, soundOn, unlock } from '../lib/sound.ts';
+import { Link } from '../lib/router.tsx';
 import { Chips, RollingNumber, Sheet, TopBar, message, useNow } from '../ui.tsx';
+import FanWheel from './FanWheel.tsx';
+import DiceRoll from './Dice.tsx';
+import SeatDraw from './SeatDraw.tsx';
 
 const SPOTS = ['s-bottom', 's-right', 's-top', 's-left'];
-const QUICK_FANS = [3, 5, 8, 10, 13, 15, 20, 30, 40, 60];
+const QUICK_FANS = [5, 8, 10, 13, 15, 20, 25, 30, 40, 50];
 const SPECIALS = [
   { k: '暗槓', v: 5, dir: 'collect' as const },
   { k: '一台花', v: 5, dir: 'collect' as const },
@@ -31,7 +37,12 @@ interface Entry {
   current: string;
 }
 
-type More = null | 'menu' | 'falseWin' | 'special' | 'draw' | 'end';
+type More = null | 'menu' | 'falseWin' | 'special' | 'draw' | 'end' | 'swap' | 'reseat';
+
+export interface Candidate {
+  id: string;
+  name: string;
+}
 
 export interface TableScreenProps {
   table: TableDoc;
@@ -40,13 +51,26 @@ export interface TableScreenProps {
   me: string | null;
   back: string;
   subtitle?: string;
+  rulesHref?: string;
+  /** 可以換入嚟嘅人（未坐低嘅成員） */
+  candidates?: Candidate[];
+  pendingSwaps?: SwapRequest[];
+  /** 頂部額外提示（例如有人請你入枱） */
+  notice?: ReactNode;
   onPush: (event: TableEvent | UndoEvent) => Promise<void>;
+  onSwap?: (out: string, incoming: Candidate, guest: boolean) => Promise<'done' | 'requested'>;
+  onCancelSwap?: (id: string) => Promise<void>;
+  onReseat?: (seats: string[]) => Promise<void>;
+  onDice?: () => Promise<void>;
 }
 
-export default function TableScreen({ table, computed: c, rules, me, back, subtitle, onPush }: TableScreenProps) {
+const totalOf = (c: Computed, id: string) => (c.state.settled[id] ?? 0) + (c.pending[id] ?? 0);
+
+export default function TableScreen(props: TableScreenProps) {
+  const { table, computed: c, rules, me, back, subtitle, rulesHref, candidates = [], pendingSwaps = [], notice, onPush } = props;
   const now = useNow();
   const name = useCallback((id: string) => table.names[id] ?? '玩家', [table.names]);
-  const seats = table.seats;
+  const seats = c.state.seats;
   const ended = c.state.ended;
 
   // 自己坐喺下面
@@ -57,36 +81,56 @@ export default function TableScreen({ table, computed: c, rules, me, back, subti
   const [more, setMore] = useState<More>(null);
   const [who, setWho] = useState('');
   const [special, setSpecial] = useState(0);
+  const [swapOut, setSwapOut] = useState('');
+  const [swapIn, setSwapIn] = useState('');
+  const [guestName, setGuestName] = useState('');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
   const [toast, setToast] = useState('');
   const [showAll, setShowAll] = useState(false);
   const [dismissed, setDismissed] = useState<string[]>([]);
   const [dealing, setDealing] = useState(true);
-  const [fx, setFx] = useState<{ won: string[]; hit: string[]; key: number }>({ won: [], hit: [], key: 0 });
+  const [sound, setSound] = useState(soundOn);
+  const [fx, setFx] = useState<{ up: string[]; down: string[]; key: number }>({ up: [], down: [], key: 0 });
+  const [diceShown, setDiceShown] = useState<number | null>(null);
 
   useEffect(() => { const t = setTimeout(() => setDealing(false), 900); return () => clearTimeout(t); }, []);
 
-  // 有新一鋪（包括其他手機入嘅）就郁吓啲牌
-  const lastSeq = c.steps.length ? c.steps[c.steps.length - 1].seq : 0;
-  const seen = useRef(lastSeq);
+  // 任何人嘅數有變（包括其他手機入嘅）就郁：升嘅推牌，跌嘅震
+  const snapshot = seats.map((id) => `${id}:${totalOf(c, id)}:${c.state.settled[id] ?? 0}`).join('|') + `#${c.steps.length}`;
+  const prev = useRef<{ snap: string; totals: Record<string, number> } | null>(null);
   useEffect(() => {
-    if (lastSeq <= seen.current) { seen.current = lastSeq; return; }
-    seen.current = lastSeq;
-    const last = c.steps[c.steps.length - 1];
-    const ev = last.event;
-    let won: string[] = [];
-    let hit: string[] = [];
-    if (ev.type === 'win') {
-      won = ev.winners.map((w) => w.player);
-      hit = ev.loser ? [ev.loser] : seats.filter((s) => !won.includes(s));
-    } else if (ev.type === 'falseWin') {
-      hit = [ev.player];
+    const totals: Record<string, number> = {};
+    for (const id of seats) totals[id] = totalOf(c, id) * 1000 + (c.state.settled[id] ?? 0);
+    const before = prev.current;
+    prev.current = { snap: snapshot, totals };
+    if (!before || before.snap === snapshot) return;
+    const up: string[] = [];
+    const down: string[] = [];
+    for (const id of seats) {
+      const was = before.totals[id];
+      if (was === undefined) continue;
+      if (totals[id] > was) up.push(id);
+      else if (totals[id] < was) down.push(id);
     }
-    setFx((f) => ({ won, hit, key: f.key + 1 }));
-    const t = setTimeout(() => setFx((f) => ({ ...f, won: [], hit: [] })), 900);
+    if (!up.length && !down.length) return;
+    setFx((f) => ({ up, down, key: f.key + 1 }));
+    const last = c.steps[c.steps.length - 1]?.event;
+    if (last?.type === 'win') sfx.win();
+    else if (last?.type === 'settle' || last?.type === 'special' || last?.type === 'falseWin' || last?.type === 'end') sfx.chips();
+    else sfx.tap();
+    const t = setTimeout(() => setFx((f) => ({ ...f, up: [], down: [] })), 900);
     return () => clearTimeout(t);
-  }, [lastSeq, c.steps, seats]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [snapshot]);
+
+  // 擲骰：全枱同步，啱啱擲（20 秒內）先播
+  const dice = table.dice;
+  useEffect(() => {
+    if (!dice || Date.now() - dice.at > 20000) return;
+    setDiceShown(dice.n);
+    sfx.dice();
+  }, [dice?.n]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const owe: Record<string, number> = {};
   const collect: Record<string, number> = {};
@@ -100,17 +144,21 @@ export default function TableScreen({ table, computed: c, rules, me, back, subti
     ? c.state.chains.filter((ch) => ch.count % every === 0 && !dismissed.includes(`${ch.puller}>${ch.pulled}#${ch.count}`))
     : [];
 
-  async function push(event: TableEvent | UndoEvent, done: string) {
+  function flash(text: string) {
+    setToast(text);
+    setTimeout(() => setToast(''), 2200);
+  }
+
+  async function run(task: () => Promise<unknown>, done: string) {
+    unlock();
     setError('');
     setBusy(true);
     try {
-      if (event.type !== 'undo') applyEvent(c.state, event, rules);
-      await onPush(event);
+      await task();
       setEntry(null);
       setMore(null);
       setWho('');
-      setToast(done);
-      setTimeout(() => setToast(''), 2200);
+      flash(done);
     } catch (err) {
       setError(message(err));
     } finally {
@@ -118,20 +166,24 @@ export default function TableScreen({ table, computed: c, rules, me, back, subti
     }
   }
 
+  const push = (event: TableEvent | UndoEvent, done: string) =>
+    run(async () => {
+      if (event.type !== 'undo') applyEvent(c.state, event, rules);
+      await onPush(event);
+    }, done);
+
   // ---------- 食糊 ----------
   function startWin(id: string) {
+    unlock();
     if (ended) return;
     setError('');
+    sfx.tap();
     setEntry({ winners: [id], loser: undefined, fans: {}, step: 'who', current: id });
   }
 
   const draft: TableEvent | null = useMemo(() => {
     if (!entry || entry.loser === undefined) return null;
-    return {
-      type: 'win',
-      winners: entry.winners.map((w) => ({ player: w, fan: entry.fans[w] ?? 0 })),
-      loser: entry.loser,
-    };
+    return { type: 'win', winners: entry.winners.map((w) => ({ player: w, fan: entry.fans[w] ?? 0 })), loser: entry.loser };
   }, [entry]);
 
   const preview = useMemo((): { lines: Line[]; error: string } => {
@@ -144,22 +196,33 @@ export default function TableScreen({ table, computed: c, rules, me, back, subti
   }, [draft, c.state, rules]);
 
   function setFan(id: string, v: number) {
-    setEntry((e) => (e ? { ...e, fans: { ...e.fans, [id]: Math.max(0, Math.min(999, Math.round(v))) } } : e));
+    setEntry((e) => (e ? { ...e, fans: { ...e.fans, [id]: Math.max(0, Math.min(500, Math.round(v))) } } : e));
   }
 
   const lastStep = c.steps[c.steps.length - 1];
   const log = [...c.steps].reverse().slice(0, showAll ? undefined : 4);
   const sum = (lines: Line[]) => lines.filter((l) => l.kind !== 'water').reduce((a, l) => a + l.amount, 0);
+  const free = candidates.filter((p) => !seats.includes(p.id));
+  const myPending = pendingSwaps.filter((r) => r.status === 'pending' && r.tableId === table.id);
+
+  const menuButton = (
+    <button type="button" className="iconbtn" aria-label="其他：換人、擲骰、詐糊、特別事項、流局、完場" onClick={() => { unlock(); setError(''); setMore('menu'); }}>
+      <svg width="22" height="22" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><circle cx="5" cy="12" r="1.9" /><circle cx="12" cy="12" r="1.9" /><circle cx="19" cy="12" r="1.9" /></svg>
+    </button>
+  );
 
   return (
     <main className="page">
-      <TopBar
-        back={back}
-        title={<div className="stack tight"><h1>{table.name}</h1>{subtitle && <span className="muted small">{subtitle}</span>}</div>}
-        right={!ended ? <button type="button" className="iconbtn" aria-label="其他：詐糊、特別事項、流局、完場" onClick={() => { setError(''); setMore('menu'); }}>
-          <svg width="22" height="22" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><circle cx="5" cy="12" r="1.9" /><circle cx="12" cy="12" r="1.9" /><circle cx="19" cy="12" r="1.9" /></svg>
-        </button> : undefined}
-      />
+      <TopBar back={back} title={<div className="stack tight"><h1>{table.name}</h1>{subtitle && <span className="muted small">{subtitle}</span>}</div>} right={menuButton} />
+
+      {notice}
+
+      {myPending.map((r) => (
+        <div key={r.id} className="banner calm">
+          <span className="grow">等緊 {r.inName} 接受，換 {name(r.out)}</span>
+          {props.onCancelSwap && <button type="button" className="textbtn" onClick={() => run(() => props.onCancelSwap!(r.id), '已取消')}>取消</button>}
+        </div>
+      ))}
 
       {settleable.map((ch) => (
         <div key={ch.puller + ch.pulled} className="banner">
@@ -173,16 +236,19 @@ export default function TableScreen({ table, computed: c, rules, me, back, subti
         {seats.map((id, i) => {
           const settled = c.state.settled[id] ?? 0;
           const isDealer = c.info.dealer === id && !ended;
-          const cls = ['tile', spotOf(i), fx.won.includes(id) ? 'won' : '', fx.hit.includes(id) ? 'hit' : ''].filter(Boolean).join(' ');
+          const up = fx.up.includes(id);
+          const down = fx.down.includes(id);
+          const cls = ['tile', spotOf(i), up ? 'won' : '', down ? 'hit' : ''].filter(Boolean).join(' ');
           return (
             <button key={id} type="button" className={cls} onClick={() => startWin(id)} disabled={ended} aria-label={`${name(id)}，${settled} 番，撳嚟入佢食糊`}>
               <span className="t-name"><span className="ellipsis">{name(id)}</span>{isDealer && <span className="dealer-mark">莊{c.state.streak ? c.state.streak : ''}</span>}</span>
               <RollingNumber value={settled} className={`t-score t-${tone2(settled)}`} />
               <span className="t-foot">
-                {owe[id] ? <><Chips amount={owe[id]} pop={fx.hit.includes(id)} /><span className="t-loss">{owe[id]}</span></> : null}
-                {collect[id] ? <span className="t-gain">+{collect[id]}</span> : null}
+                {owe[id] ? <><Chips key={`c${owe[id]}`} amount={owe[id]} pop={down} /><RollingNumber value={-owe[id]} className="t-loss" /></> : null}
+                {collect[id] ? <RollingNumber value={collect[id]} className="t-gain" /> : null}
                 <span className="t-wind">{seatWind(c.state, id)}</span>
               </span>
+              {up && <span className="float gain" key={`u${fx.key}`}>＋</span>}
             </button>
           );
         })}
@@ -192,7 +258,19 @@ export default function TableScreen({ table, computed: c, rules, me, back, subti
         </div>
       </section>
 
-      {!ended && <p className="hint">撳食糊嗰個人入數</p>}
+      {!ended && (
+        <div className="actions">
+          <span className="hint">撳食糊嗰個人入數</span>
+        </div>
+      )}
+      {!ended && (
+        <div className="actions">
+          {props.onDice && <button type="button" className="textbtn" disabled={busy} onClick={() => run(() => props.onDice!(), '')}>擲骰</button>}
+          {props.onReseat && c.steps.length === 0 && <button type="button" className="textbtn" onClick={() => { unlock(); setMore('reseat'); }}>掉位</button>}
+          {props.onSwap && <button type="button" className="textbtn" onClick={() => { unlock(); setSwapOut(''); setSwapIn(''); setGuestName(''); setMore('swap'); }}>換人</button>}
+          <button type="button" className="textbtn" aria-pressed={sound} onClick={() => { unlock(); setSoundOn(!sound); setSound(!sound); }}>{sound ? '聲效：開' : '聲效：關'}</button>
+        </div>
+      )}
 
       <section className="stack">
         <div className="section-head">
@@ -203,7 +281,7 @@ export default function TableScreen({ table, computed: c, rules, me, back, subti
         </div>
         {c.skipped.length > 0 && <p className="banner small">{c.skipped.map((s) => `第 ${s.seq} 項計唔到：${s.message}`).join('；')}</p>}
         {c.steps.length === 0 ? (
-          <p className="muted">未有紀錄。撳上面食糊嗰個人就開始。</p>
+          <p className="muted">未有紀錄。開始之前可以擲骰或者掉位；開咗就撳上面食糊嗰個人。</p>
         ) : (
           <ul className="log list">
             {log.map((st) => (
@@ -278,32 +356,24 @@ export default function TableScreen({ table, computed: c, rules, me, back, subti
                   ))}
                 </div>
               )}
-              <div className="fan-box">
+              <div className="fan-row">
                 <button type="button" className="stepper" aria-label="減一番" onClick={() => setFan(entry.current, (entry.fans[entry.current] ?? 0) - 1)}>−</button>
-                <input
-                  id="fan"
-                  className="fan-value"
-                  type="number"
-                  inputMode="numeric"
-                  min={0}
-                  value={entry.fans[entry.current] ?? 0}
-                  onChange={(e) => setFan(entry.current, Number(e.target.value) || 0)}
-                  aria-label={`${name(entry.current)} 番數`}
-                />
+                <FanWheel key={entry.current} value={entry.fans[entry.current] ?? 0} onChange={(v) => setFan(entry.current, v)} label={`${name(entry.current)} 番數`} />
                 <button type="button" className="stepper" aria-label="加一番" onClick={() => setFan(entry.current, (entry.fans[entry.current] ?? 0) + 1)}>+</button>
               </div>
-              <p className="center-text muted small">{name(entry.current)} 牌型幾多番？底 {rules.base}、莊、雙響會自動加</p>
               <div className="quick">
                 {QUICK_FANS.map((n) => (
                   <button key={n} type="button" aria-pressed={(entry.fans[entry.current] ?? 0) === n} onClick={() => setFan(entry.current, n)}>{n}</button>
                 ))}
               </div>
+              <p className="center-text muted small">碌滾輪或者撳快捷掣；撳中間個數字可以自己打。{autoNote(rules)}</p>
               {preview.lines.length > 0 && (
                 <div className="preview" aria-live="polite">
                   {preview.lines.filter((l) => l.kind !== 'water').map((l, i) => (
                     <div key={i} className="pv">
                       <span className={`tag ${l.kind}`}>{KIND[l.kind]}</span>
                       <span>{name(l.from)} → {l.to ? name(l.to) : '水'}</span>
+                      <span className="pv-note">{l.note}</span>
                       <span className="num">{l.amount}</span>
                     </div>
                   ))}
@@ -324,12 +394,16 @@ export default function TableScreen({ table, computed: c, rules, me, back, subti
           {more === 'menu' && (
             <>
               <h2>其他</h2>
-              <div className="choices">
-                <button type="button" className="choice" onClick={() => setMore('falseWin')}>詐糊<small>俾每家 {rules.falseWinPenalty}</small></button>
-                <button type="button" className="choice" onClick={() => setMore('special')}>特別事項<small>花、槓、骰</small></button>
-                <button type="button" className="choice" onClick={() => setMore('draw')}>流局<small>冇人食</small></button>
-                <button type="button" className="choice loser" onClick={() => setMore('end')}>完場<small>全部找數</small></button>
+              <div className="choices three">
+                {props.onSwap && !ended && <button type="button" className="choice" onClick={() => { setSwapOut(''); setSwapIn(''); setGuestName(''); setMore('swap'); }}>換人<small>加人入枱</small></button>}
+                {props.onDice && !ended && <button type="button" className="choice" onClick={() => run(() => props.onDice!(), '')}>擲骰<small>三粒</small></button>}
+                {props.onReseat && !ended && c.steps.length === 0 && <button type="button" className="choice" onClick={() => setMore('reseat')}>掉位<small>抽風牌</small></button>}
+                {!ended && <button type="button" className="choice" onClick={() => setMore('falseWin')}>詐糊<small>俾每家 {rules.falseWinPenalty}</small></button>}
+                {!ended && <button type="button" className="choice" onClick={() => setMore('special')}>特別事項<small>花、槓、骰</small></button>}
+                {!ended && <button type="button" className="choice" onClick={() => setMore('draw')}>流局<small>冇人食</small></button>}
+                {!ended && <button type="button" className="choice loser" onClick={() => setMore('end')}>完場<small>全部找數</small></button>}
               </div>
+              {rulesHref && <Link to={rulesHref} className="textbtn center-text">睇呢個大局嘅家規</Link>}
             </>
           )}
           {(more === 'falseWin' || more === 'special') && (
@@ -377,7 +451,65 @@ export default function TableScreen({ table, computed: c, rules, me, back, subti
               <button type="button" className="btn big danger" disabled={busy} onClick={() => push({ type: 'end' }, '已完場')}>確認完場</button>
             </>
           )}
+          {more === 'swap' && props.onSwap && (
+            <>
+              <h2>換人</h2>
+              <div className="field">
+                <span>邊個走？</span>
+                <div className="choices">
+                  {seats.map((s) => (
+                    <button key={s} type="button" className="choice loser" aria-pressed={swapOut === s} onClick={() => setSwapOut(s)}>
+                      <span className="ellipsis">{name(s)}</span>
+                      {(owe[s] || collect[s]) ? <small>拉緊，會即刻找數</small> : null}
+                    </button>
+                  ))}
+                </div>
+              </div>
+              <div className="field">
+                <span>邊個入嚟？</span>
+                <div className="choices">
+                  {free.map((p) => (
+                    <button key={p.id} type="button" className="choice" aria-pressed={swapIn === p.id} onClick={() => setSwapIn(p.id)}>
+                      <span className="ellipsis">{p.name}</span><small>要佢接受</small>
+                    </button>
+                  ))}
+                  <button type="button" className="choice" aria-pressed={swapIn === '__guest'} onClick={() => setSwapIn('__guest')}>訪客<small>冇帳戶</small></button>
+                </div>
+                {swapIn === '__guest' && (
+                  <input id="swap-guest" className="input" value={guestName} onChange={(e) => setGuestName(e.target.value)} placeholder="訪客名" maxLength={20} aria-label="訪客名" />
+                )}
+                {free.length === 0 && <p className="muted small">冇其他成員得閒。用大局嘅邀請連結叫人入嚟，佢就會出現喺度。</p>}
+              </div>
+              <button
+                type="button"
+                className="btn big"
+                disabled={busy || !swapOut || !swapIn || (swapIn === '__guest' && !guestName.trim())}
+                onClick={() => {
+                  const guest = swapIn === '__guest';
+                  const incoming = guest ? { id: `guest-${Math.random().toString(36).slice(2, 10)}`, name: guestName.trim() } : free.find((p) => p.id === swapIn);
+                  if (!incoming) return;
+                  run(async () => {
+                    const r = await props.onSwap!(swapOut, incoming, guest);
+                    if (r === 'requested') flash(`已經請 ${incoming.name} 接受`);
+                  }, guest ? '已換人' : '已發出邀請');
+                }}
+              >
+                {swapIn && swapIn !== '__guest' ? '請佢接受' : '換人'}
+              </button>
+            </>
+          )}
+          {more === 'reseat' && props.onReseat && (
+            <SeatDraw players={seats} name={name} busy={busy} onCancel={() => setMore(null)} onConfirm={(s) => run(() => props.onReseat!(s), '已掉位')} />
+          )}
           {error && <p className="error" role="alert">{error}</p>}
+        </Sheet>
+      )}
+
+      {diceShown !== null && dice && dice.n === diceShown && (
+        <Sheet onClose={() => setDiceShown(null)} label="擲骰">
+          <h2 className="center-text">{name(dice.by)} 擲骰</h2>
+          <DiceRoll values={dice.values} />
+          <button type="button" className="btn big" onClick={() => setDiceShown(null)}>好</button>
         </Sheet>
       )}
 
@@ -387,3 +519,12 @@ export default function TableScreen({ table, computed: c, rules, me, back, subti
 }
 
 const tone2 = (n: number) => (n > 0 ? 'gain' : n < 0 ? 'loss' : 'even');
+
+function autoNote(r: Rules): string {
+  const parts: string[] = [];
+  if (r.base) parts.push(`底 ${r.base}`);
+  if (r.dealer.enabled) parts.push('莊番');
+  if (r.multiWinBonus.double || r.multiWinBonus.triple) parts.push('雙響');
+  if (r.reverse.enabled) parts.push('反雙響');
+  return parts.length ? `${parts.join('、')}會自動加。` : '';
+}

@@ -26,6 +26,18 @@ test('連食三鋪 20：未找 20 → 50 → 95，第 3 拉可以找數', () => 
   assert.equal(r.state.settled.Ivan, 0, '未找數唔入已找');
 });
 
+test('Gavin 例子：連續俾人食 10、20、30 → 未找 10、35、83（52.5 進位 53 + 30），第 3 拉問找唔找', () => {
+  const noBase = withRules({ base: 0, dealer: { enabled: false }, water: { enabled: false }, rounds: 0 });
+  const r = replay(SEATS, [eat('Gavin', 10, 'Ivan'), eat('Gavin', 20, 'Ivan'), eat('Gavin', 30, 'Ivan')], noBase);
+  assert.deepEqual(r.steps.map((s) => chain(s.state, 'Gavin', 'Ivan')?.owed), [10, 35, 83]);
+  assert.equal(r.steps[2].prompts.length, 1);
+  assert.equal(r.steps[2].prompts[0].owed, 83);
+  // 揀四捨五入都係 83；保留小數就係 82.5
+  const half = replay(SEATS, [eat('Gavin', 10, 'Ivan'), eat('Gavin', 20, 'Ivan'), eat('Gavin', 30, 'Ivan')],
+    withRules({ base: 0, dealer: { enabled: false }, water: { enabled: false }, rounds: 0, rounding: 'none' }));
+  assert.equal(chain(half.state, 'Gavin', 'Ivan')?.owed, 82.5);
+});
+
 test('第 1 題：20 之後再食 30，今鋪俾 40（30 + 20 ÷ 2）', () => {
   const r = replay(SEATS, [eat('Gavin', 15, 'Ivan'), eat('Gavin', 25, 'Ivan')], PURE);
   assert.equal(r.steps[1].lines[0].amount, 40);

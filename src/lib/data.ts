@@ -5,8 +5,10 @@ import {
   collection,
   doc,
   getDoc,
+  getDocs,
   serverTimestamp,
   setDoc,
+  updateDoc,
   writeBatch,
 } from 'firebase/firestore';
 import type { Firestore, Timestamp } from 'firebase/firestore';
@@ -36,6 +38,15 @@ export interface Session {
   name: string;
   createdBy: string;
   createdAt?: Timestamp | null;
+  /** 開局嗰陣複製咗牌友圈嘅家規；舊大局冇就用牌友圈嘅 */
+  rules?: RulesPatch;
+}
+
+export interface Dice {
+  values: number[];
+  by: string;
+  at: number;
+  n: number;
 }
 
 export interface TableDoc {
@@ -44,8 +55,21 @@ export interface TableDoc {
   order: number;
   /** 4 個位，起始東南西北；成員 uid 或者訪客 id（guest-…） */
   seats: string[];
-  /** 每個位嘅顯示名 */
+  /** 每個位嘅顯示名（包括換咗出去同換入嚟嘅人） */
   names: Record<string, string>;
+  /** 最近一次擲骰（全枱見到） */
+  dice?: Dice | null;
+}
+
+/** 換人請求：換入嚟嘅人接受先生效 */
+export interface SwapRequest {
+  id: string;
+  tableId: string;
+  out: string;
+  in: string;
+  inName: string;
+  by: string;
+  status: 'pending' | 'accepted' | 'declined' | 'cancelled';
 }
 
 export interface UndoEvent {
@@ -137,10 +161,10 @@ export interface NewTable {
 }
 
 /** 開大局：一次過開晒啲枱 */
-export async function createSession(user: User, groupId: string, name: string, tables: NewTable[]): Promise<string> {
+export async function createSession(user: User, groupId: string, name: string, tables: NewTable[], rules: RulesPatch): Promise<string> {
   const sessionRef = doc(collection(fs(), 'groups', groupId, 'sessions'));
   const batch = writeBatch(fs());
-  batch.set(sessionRef, { name, createdBy: user.uid, createdAt: serverTimestamp() });
+  batch.set(sessionRef, { name, createdBy: user.uid, createdAt: serverTimestamp(), rules: clean(rules) });
   tables.forEach((t, i) => {
     const tableRef = doc(collection(fs(), 'groups', groupId, 'sessions', sessionRef.id, 'tables'));
     batch.set(tableRef, { name: t.name, order: i, seats: t.seats, names: t.names, createdAt: serverTimestamp() });
@@ -185,4 +209,62 @@ export function activeEvents(stored: StoredEvent[]): { seq: number; event: Table
     out.push({ seq: e.seq, event: e.event, at: e.at });
   }
   return out;
+}
+
+/** 大局中途加一張枱 */
+export async function addTable(groupId: string, sessionId: string, order: number, table: NewTable): Promise<void> {
+  const ref = doc(collection(fs(), 'groups', groupId, 'sessions', sessionId, 'tables'));
+  await setDoc(ref, { name: table.name, order, seats: table.seats, names: table.names, createdAt: serverTimestamp() });
+}
+
+/** 開枱之前掉位：重排 4 個位（未有任何一鋪先得） */
+export async function reseat(groupId: string, sessionId: string, tableId: string, seats: string[]): Promise<void> {
+  await updateDoc(doc(fs(), 'groups', groupId, 'sessions', sessionId, 'tables', tableId), { seats });
+}
+
+export async function rollDice(groupId: string, sessionId: string, tableId: string, by: string, n: number): Promise<number[]> {
+  const bytes = new Uint8Array(3);
+  crypto.getRandomValues(bytes);
+  const values = Array.from(bytes, (b) => (b % 6) + 1);
+  await updateDoc(doc(fs(), 'groups', groupId, 'sessions', sessionId, 'tables', tableId), { dice: { values, by, at: Date.now(), n } });
+  return values;
+}
+
+export async function saveRules(path: string[], rules: RulesPatch): Promise<void> {
+  const [first, ...rest] = path;
+  await updateDoc(doc(fs(), first, ...rest), { rules: clean(rules) });
+}
+
+async function nextSeq(groupId: string, sessionId: string, tableId: string): Promise<number> {
+  const snap = await getDocs(collection(fs(), 'groups', groupId, 'sessions', sessionId, 'tables', tableId, 'events'));
+  return snap.size + 1;
+}
+
+/** 即時換人（換入訪客，或者對方已經接受） */
+export async function applySwap(
+  groupId: string, sessionId: string, tableId: string, by: string, out: string, incoming: string, inName: string,
+): Promise<void> {
+  await updateDoc(doc(fs(), 'groups', groupId, 'sessions', sessionId, 'tables', tableId), { [`names.${incoming}`]: inName });
+  try {
+    await appendEvent(groupId, sessionId, tableId, await nextSeq(groupId, sessionId, tableId), by, { type: 'swap', out, in: incoming });
+  } catch (err) {
+    if (!(err instanceof ConflictError)) throw err;
+    // 啱啱有人入咗數，攞過新序號再試一次
+    await appendEvent(groupId, sessionId, tableId, await nextSeq(groupId, sessionId, tableId), by, { type: 'swap', out, in: incoming });
+  }
+}
+
+export async function requestSwap(groupId: string, sessionId: string, req: Omit<SwapRequest, 'id' | 'status'>): Promise<void> {
+  const ref = doc(collection(fs(), 'groups', groupId, 'sessions', sessionId, 'requests'));
+  await setDoc(ref, { ...req, status: 'pending', createdAt: serverTimestamp() });
+}
+
+export async function answerSwap(groupId: string, sessionId: string, req: SwapRequest, user: User, accept: boolean): Promise<void> {
+  const ref = doc(fs(), 'groups', groupId, 'sessions', sessionId, 'requests', req.id);
+  if (accept) await applySwap(groupId, sessionId, req.tableId, user.uid, req.out, req.in, displayName(user));
+  await updateDoc(ref, { status: accept ? 'accepted' : 'declined' });
+}
+
+export async function cancelSwap(groupId: string, sessionId: string, reqId: string): Promise<void> {
+  await updateDoc(doc(fs(), 'groups', groupId, 'sessions', sessionId, 'requests', reqId), { status: 'cancelled' });
 }

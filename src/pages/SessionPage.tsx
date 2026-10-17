@@ -1,16 +1,21 @@
 import { useMemo } from 'react';
+import type { User } from 'firebase/auth';
 import SessionScreen from '../components/SessionScreen.tsx';
-import { useGroup, useManyEvents, useSession, useTables } from '../lib/live.ts';
+import Incoming from '../components/Incoming.tsx';
+import { addTable } from '../lib/data.ts';
+import { useGroup, useManyEvents, useMembers, useRequests, useSession, useTables } from '../lib/live.ts';
 import { computeTable, rulesOf } from '../lib/score.ts';
 import type { Computed } from '../lib/score.ts';
 import { Loading, TopBar } from '../ui.tsx';
 
-export default function SessionPage({ groupId, sessionId }: { groupId: string; sessionId: string }) {
+export default function SessionPage({ user, groupId, sessionId }: { user: User; groupId: string; sessionId: string }) {
   const group = useGroup(groupId);
   const session = useSession(groupId, sessionId);
   const tables = useTables(groupId, sessionId);
+  const members = useMembers(groupId);
+  const requests = useRequests(groupId, sessionId);
   const events = useManyEvents(groupId, sessionId, tables.data.map((t) => t.id));
-  const rules = useMemo(() => rulesOf(group.data), [group.data]);
+  const rules = useMemo(() => rulesOf(group.data, session.data), [group.data, session.data]);
 
   const computed = useMemo(() => {
     const out: Record<string, Computed | null> = {};
@@ -22,6 +27,10 @@ export default function SessionPage({ groupId, sessionId }: { groupId: string; s
   if (session.error || group.error) return <main className="page"><TopBar back={back} /><p className="error">{session.error ?? group.error}</p></main>;
   if (!session.data || !group.data) return <main className="page"><TopBar back={back} /><Loading /></main>;
 
+  const seated = new Set<string>();
+  for (const x of Object.values(computed)) if (x && !x.state.ended) x.state.seats.forEach((s) => seated.add(s));
+  const candidates = members.data.filter((m) => !seated.has(m.uid)).map((m) => ({ id: m.uid, name: m.name }));
+
   return (
     <SessionScreen
       title={session.data.name}
@@ -30,6 +39,14 @@ export default function SessionPage({ groupId, sessionId }: { groupId: string; s
       computed={computed}
       tableHref={(t) => `/g/${groupId}/s/${sessionId}/t/${t}`}
       invite={`${window.location.origin}/join/${groupId}/${group.data.inviteCode}/s/${sessionId}`}
+      rulesHref={`/g/${groupId}/s/${sessionId}/rules`}
+      notice={<Incoming user={user} groupId={groupId} sessionId={sessionId} requests={requests.data} tables={tables.data} computed={computed} />}
+      candidates={candidates}
+      onAddTable={async (people) => {
+        const names: Record<string, string> = {};
+        for (const p of people) names[p.id] = p.name;
+        await addTable(groupId, sessionId, tables.data.length, { name: `第 ${tables.data.length + 1} 枱`, seats: people.map((p) => p.id), names });
+      }}
     />
   );
 }

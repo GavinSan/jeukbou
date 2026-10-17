@@ -4,7 +4,7 @@ import type { StepResult, TableEvent, TableState } from '../engine/table.ts';
 import { withRules } from '../engine/rules.ts';
 import type { Rules } from '../engine/rules.ts';
 import { activeEvents } from './data.ts';
-import type { Group, StoredEvent, TableDoc } from './data.ts';
+import type { Group, Session, StoredEvent, TableDoc } from './data.ts';
 
 export interface Step {
   seq: number;
@@ -32,7 +32,7 @@ export interface Computed {
   stats: TableStats;
 }
 
-export const rulesOf = (group: Group | null): Rules => withRules(group?.rules ?? {});
+export const rulesOf = (group: Group | null, session?: Session | null): Rules => withRules(session?.rules ?? group?.rules ?? {});
 
 export function computeTable(table: TableDoc, stored: StoredEvent[], rules: Rules): Computed | null {
   let state: TableState;
