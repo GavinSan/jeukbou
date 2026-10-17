@@ -465,3 +465,5 @@ button.tile:active { transform: translateY(3px); box-shadow: 0 2px 0 var(--tile-
   .play .blade, .play .bloom, .play .kong-tile, .play .sp-die, .play .strike, .play .chase-b, .play .speed, .ember, .burst-bit, .burst-stamp, .chase-note.heat-3 { animation: none !important; }
   .burst { display: none; }
 }
+.sp-art.side { left: auto; right: -4%; width: 66%; }
+.sp-die, .bloom { transform-origin: center; transform-box: fill-box; }

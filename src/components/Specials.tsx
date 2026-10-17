@@ -75,9 +75,11 @@ export function SpecialArt({ art, heat = 0 }: { art: Art; heat?: number }) {
           <path d="M0 80 Q40 50 80 58 T160 30" stroke="#6B4A2E" strokeWidth="2.4" fill="none" strokeLinecap="round" />
           <path d="M60 58 Q66 40 84 34" stroke="#6B4A2E" strokeWidth="1.8" fill="none" strokeLinecap="round" />
           {blossoms.map(([x, y, s, c], i) => (
-            <g key={i} className="bloom" style={{ '--d': `${i * 0.07}s`, transformOrigin: `${x}px ${y}px` } as CSSProperties} transform={`translate(${x} ${y}) scale(${s})`}>
-              {[0, 72, 144, 216, 288].map((a) => <ellipse key={a} cx="0" cy="-7" rx="5.5" ry="7" fill={c} transform={`rotate(${a})`} opacity="0.92" />)}
-              <circle r="2.6" fill="#F2C14E" />
+            <g key={i} transform={`translate(${x} ${y}) scale(${s})`}>
+              <g className="bloom" style={{ '--d': `${i * 0.07}s` } as CSSProperties}>
+                {[0, 72, 144, 216, 288].map((a) => <ellipse key={a} cx="0" cy="-7" rx="5.5" ry="7" fill={c} transform={`rotate(${a})`} opacity="0.92" />)}
+                <circle r="2.6" fill="#F2C14E" />
+              </g>
             </g>
           ))}
         </svg>
@@ -85,7 +87,7 @@ export function SpecialArt({ art, heat = 0 }: { art: Art; heat?: number }) {
     }
     case 'kong':
       return (
-        <svg className="sp-art kong" viewBox="0 0 160 90" preserveAspectRatio="xMidYMid meet" aria-hidden="true">
+        <svg className="sp-art side kong" viewBox="0 0 160 90" preserveAspectRatio="xMidYMid meet" aria-hidden="true">
           {[0, 1, 2, 3].map((i) => (
             <g key={i} className="kong-tile" style={{ '--d': `${i * 0.08}s`, transformOrigin: `${34 + i * 31}px 64px` } as CSSProperties}>
               <rect x={20 + i * 31} y={26} width={28} height={40} rx={4} fill={GREEN} />
@@ -99,11 +101,13 @@ export function SpecialArt({ art, heat = 0 }: { art: Art; heat?: number }) {
       const faces = art === 'triple' ? [4, 4, 4] : [1, 2, 3];
       const pips: Record<number, [number, number][]> = { 1: [[50, 50]], 2: [[30, 30], [70, 70]], 3: [[28, 28], [50, 50], [72, 72]], 4: [[30, 30], [70, 30], [30, 70], [70, 70]] };
       return (
-        <svg className="sp-art dice" viewBox="0 0 160 90" preserveAspectRatio="xMidYMid meet" aria-hidden="true">
+        <svg className="sp-art side dice" viewBox="0 0 160 90" preserveAspectRatio="xMidYMid meet" aria-hidden="true">
           {faces.map((f, i) => (
-            <g key={i} className="sp-die" style={{ '--d': `${i * 0.09}s`, transformOrigin: `${37 + i * 43}px 45px` } as CSSProperties} transform={`translate(${17 + i * 43} 25) scale(0.4)`}>
-              <rect x="2" y="2" width="96" height="96" rx="18" fill="#FBF8EE" stroke="#C9C2AE" strokeWidth="4" />
-              {pips[f].map(([x, y], j) => <circle key={j} cx={x} cy={y} r={f === 1 ? 14 : 10} fill={f === 1 || f === 4 ? RED : INK} />)}
+            <g key={i} transform={`translate(${17 + i * 43} 25) scale(0.4)`}>
+              <g className="sp-die" style={{ '--d': `${i * 0.09}s` } as CSSProperties}>
+                <rect x="2" y="2" width="96" height="96" rx="18" fill="#FBF8EE" stroke="#C9C2AE" strokeWidth="4" />
+                {pips[f].map(([x, y], j) => <circle key={j} cx={x} cy={y} r={f === 1 ? 14 : 10} fill={f === 1 || f === 4 ? RED : INK} />)}
+              </g>
             </g>
           ))}
         </svg>
@@ -111,14 +115,14 @@ export function SpecialArt({ art, heat = 0 }: { art: Art; heat?: number }) {
     }
     case 'pong':
       return (
-        <svg className="sp-art pong" viewBox="0 0 160 90" preserveAspectRatio="xMidYMid meet" aria-hidden="true">
+        <svg className="sp-art side pong" viewBox="0 0 160 90" preserveAspectRatio="xMidYMid meet" aria-hidden="true">
           <text x="80" y="66" textAnchor="middle" fontSize="54" fontWeight="700" fill={RED} opacity="0.85" style={{ fontFamily: 'var(--font-kai)' }}>碰</text>
           <path className="strike" d="M42 26 L118 72" stroke={INK} strokeWidth="4" strokeLinecap="round" />
         </svg>
       );
     case 'chase':
       return (
-        <svg className="sp-art chase" viewBox="0 0 160 90" preserveAspectRatio="xMidYMid meet" aria-hidden="true">
+        <svg className="sp-art side chase" viewBox="0 0 160 90" preserveAspectRatio="xMidYMid meet" aria-hidden="true">
           {[0, 1, 2].map((i) => <path key={i} className="speed" style={{ '--d': `${i * 0.1}s` } as CSSProperties} d={`M${14 + i * 4} ${36 + i * 10} h${30 - i * 6}`} stroke={BLUE} strokeWidth="2.4" strokeLinecap="round" opacity={0.7 - i * 0.15} />)}
           <g className="chase-a"><rect x="58" y="22" width="30" height="42" rx="4" fill="#FBF8EE" stroke="#C9C2AE" strokeWidth="1.5" /><text x="73" y="51" textAnchor="middle" fontSize="20" fontWeight="700" fill={RED} style={{ fontFamily: 'var(--font-kai)' }}>中</text></g>
           <g className="chase-b"><rect x="96" y="22" width="30" height="42" rx="4" fill="#FBF8EE" stroke="#C9C2AE" strokeWidth="1.5" /><text x="111" y="51" textAnchor="middle" fontSize="20" fontWeight="700" fill={RED} style={{ fontFamily: 'var(--font-kai)' }}>中</text></g>
