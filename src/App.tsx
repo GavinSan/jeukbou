@@ -12,6 +12,7 @@ const NewSession = lazy(() => import('./pages/NewSession.tsx'));
 import SessionPage from './pages/SessionPage.tsx';
 import TablePage from './pages/TablePage.tsx';
 const RulesPage = lazy(() => import('./pages/RulesPage.tsx'));
+const SettlePage = lazy(() => import('./pages/SettlePage.tsx'));
 const Demo = lazy(() => import('./demo.tsx'));
 
 function Routes({ user, refresh }: { user: User; refresh: () => void }) {
@@ -22,6 +23,7 @@ function Routes({ user, refresh }: { user: User; refresh: () => void }) {
   if ((m = match('/join/:g/:code', path))) return <Join user={user} groupId={m.g} code={m.code} />;
   if ((m = match('/g/:g/new', path))) return <NewSession user={user} groupId={m.g} />;
   if ((m = match('/g/:g/s/:s/t/:t', path))) return <TablePage user={user} groupId={m.g} sessionId={m.s} tableId={m.t} />;
+  if ((m = match('/g/:g/s/:s/settle', path))) return <SettlePage user={user} groupId={m.g} sessionId={m.s} />;
   if ((m = match('/g/:g/s/:s/rules', path))) return <RulesPage user={user} groupId={m.g} sessionId={m.s} />;
   if ((m = match('/g/:g/s/:s', path))) return <SessionPage user={user} groupId={m.g} sessionId={m.s} />;
   if ((m = match('/g/:g/rules', path))) return <RulesPage user={user} groupId={m.g} />;

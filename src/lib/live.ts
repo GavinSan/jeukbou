@@ -3,7 +3,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { collection, doc, onSnapshot, orderBy, query } from 'firebase/firestore';
 import type { DocumentData } from 'firebase/firestore';
 import { fs } from './data.ts';
-import type { Dice, Group, Member, Session, StoredEvent, SwapRequest, TableDoc } from './data.ts';
+import type { Dice, ExpenseDoc, Group, Member, PairDoc, Session, StoredEvent, SwapRequest, TableDoc } from './data.ts';
 
 export interface Live<T> {
   data: T;
@@ -53,6 +53,15 @@ const toGroup = (id: string, d: DocumentData): Group => ({
 const toMember = (id: string, d: DocumentData): Member => ({ uid: id, name: String(d.name ?? '玩家'), photoURL: d.photoURL ?? null });
 const toSession = (id: string, d: DocumentData): Session => ({
   id, name: String(d.name ?? ''), createdBy: String(d.createdBy ?? ''), createdAt: d.createdAt ?? null, rules: d.rules ?? undefined,
+  settle: d.settle ?? undefined,
+});
+const toExpense = (id: string, d: DocumentData): ExpenseDoc => ({
+  id, kind: d.kind === 'transfer' ? 'transfer' : 'expense', label: String(d.label ?? ''), payer: String(d.payer ?? ''),
+  amount: Number(d.amount ?? 0), sharedBy: Array.isArray(d.sharedBy) ? d.sharedBy.map(String) : [], by: String(d.by ?? ''),
+  at: d.at && typeof d.at.toMillis === 'function' ? d.at.toMillis() : null,
+});
+const toPair = (id: string, d: DocumentData): PairDoc => ({
+  id, a: String(d.a ?? ''), b: String(d.b ?? ''), by: String(d.by ?? ''), accepted: Array.isArray(d.accepted) ? d.accepted.map(String) : [],
 });
 const toDice = (d: DocumentData | undefined): Dice | null =>
   d && Array.isArray(d.values) ? { values: d.values.map(Number), by: String(d.by ?? ''), at: Number(d.at ?? 0), n: Number(d.n ?? 0) } : null;
@@ -83,6 +92,8 @@ export const useSession = (g: string, s: string) => useLiveDoc(['groups', g, 'se
 export const useTables = (g: string, s: string) => useLiveList(['groups', g, 'sessions', s, 'tables'], 'order', toTable);
 export const useTable = (g: string, s: string, t: string) => useLiveDoc(['groups', g, 'sessions', s, 'tables', t], toTable);
 export const useRequests = (g: string, s: string) => useLiveList(['groups', g, 'sessions', s, 'requests'], null, toRequest);
+export const useExpenses = (g: string, s: string) => useLiveList(['groups', g, 'sessions', s, 'expenses'], null, toExpense);
+export const usePairs = (g: string, s: string) => useLiveList(['groups', g, 'sessions', s, 'pairs'], null, toPair);
 export const useEvents = (g: string, s: string, t: string) =>
   useLiveList(['groups', g, 'sessions', s, 'tables', t, 'events'], 'seq', toEvent);
 

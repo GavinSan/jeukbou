@@ -109,6 +109,19 @@ for (const scheme of ['light', 'dark']) {
       await page.waitForTimeout(2200);
       await page.screenshot({ path: `${out}/reseat.png` });
     });
+    await step('settle-page', async () => {
+      await page.goto(`${base}/demo/settle`, { waitUntil: 'networkidle' });
+      await page.waitForTimeout(500);
+      await page.screenshot({ path: `${out}/settle.png`, fullPage: true });
+      await page.getByRole('button', { name: '＋ 新增' }).first().click();
+      await page.getByRole('dialog').getByRole('button', { name: '的士', exact: true }).click();
+      await page.getByRole('dialog').getByLabel('金額').fill('36');
+      await page.getByRole('dialog').getByRole('button', { name: 'Athena', exact: true }).first().click();
+      await page.waitForTimeout(200);
+      await page.screenshot({ path: `${out}/expense-sheet.png` });
+      await page.getByRole('button', { name: /^新增 \$36/ }).click();
+      await page.waitForTimeout(300);
+    });
     await step('board', async () => {
       await page.goto(`${base}/demo/board`, { waitUntil: 'networkidle' });
       await page.waitForTimeout(500);

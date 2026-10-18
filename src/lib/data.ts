@@ -3,6 +3,7 @@
 import {
   arrayUnion,
   collection,
+  deleteDoc,
   doc,
   getDoc,
   getDocs,
@@ -40,6 +41,41 @@ export interface Session {
   createdAt?: Timestamp | null;
   /** 開局嗰陣複製咗牌友圈嘅家規；舊大局冇就用牌友圈嘅 */
   rules?: RulesPatch;
+  /** 埋數設定 */
+  settle?: SettleConfig;
+}
+
+export interface SettleConfig {
+  /** 貨幣代號，例如 CAD、HKD */
+  currency: string;
+  /** 幾多番 = 1 個貨幣單位 */
+  perUnit: number;
+  /** 剩水：'split' 平分，或者某個玩家 id */
+  waterTo: string;
+}
+
+export const DEFAULT_SETTLE: SettleConfig = { currency: 'CAD', perUnit: 6, waterTo: 'split' };
+
+/** 開支（晚餐、的士…）或者已經私下轉咗嘅錢 */
+export interface ExpenseDoc {
+  id: string;
+  kind: 'expense' | 'transfer';
+  label: string;
+  payer: string;
+  amount: number;
+  /** 分嘅人；['水'] = 由水支付；transfer 就係收錢嗰個 */
+  sharedBy: string[];
+  by: string;
+  at: number | null;
+}
+
+/** GP：兩個人一齊計數，兩個都要同意（訪客唔使） */
+export interface PairDoc {
+  id: string;
+  a: string;
+  b: string;
+  by: string;
+  accepted: string[];
 }
 
 export interface Dice {
@@ -283,3 +319,36 @@ export async function answerSwap(groupId: string, sessionId: string, req: SwapRe
 export async function cancelSwap(groupId: string, sessionId: string, reqId: string): Promise<void> {
   await updateDoc(doc(fs(), 'groups', groupId, 'sessions', sessionId, 'requests', reqId), { status: 'cancelled' });
 }
+
+// ---------- 埋數 ----------
+const sessionRef = (g: string, s: string) => doc(fs(), 'groups', g, 'sessions', s);
+
+export async function saveSettleConfig(g: string, s: string, config: SettleConfig): Promise<void> {
+  await updateDoc(sessionRef(g, s), { settle: config });
+}
+
+export async function addExpense(g: string, s: string, e: Omit<ExpenseDoc, 'id' | 'at'>): Promise<void> {
+  const ref = doc(collection(fs(), 'groups', g, 'sessions', s, 'expenses'));
+  await setDoc(ref, { ...e, at: serverTimestamp() });
+}
+
+export async function deleteExpense(g: string, s: string, id: string): Promise<void> {
+  await deleteDoc(doc(fs(), 'groups', g, 'sessions', s, 'expenses', id));
+}
+
+export async function proposePair(g: string, s: string, p: Omit<PairDoc, 'id'>): Promise<void> {
+  const ref = doc(collection(fs(), 'groups', g, 'sessions', s, 'pairs'));
+  await setDoc(ref, { ...p, at: serverTimestamp() });
+}
+
+export async function acceptPair(g: string, s: string, id: string, uid: string): Promise<void> {
+  await updateDoc(doc(fs(), 'groups', g, 'sessions', s, 'pairs', id), { accepted: arrayUnion(uid) });
+}
+
+export async function deletePair(g: string, s: string, id: string): Promise<void> {
+  await deleteDoc(doc(fs(), 'groups', g, 'sessions', s, 'pairs', id));
+}
+
+/** pair 生效：兩個人入面，有帳戶嘅都同意咗 */
+export const pairActive = (p: Pick<PairDoc, 'a' | 'b' | 'accepted'>) =>
+  [p.a, p.b].every((id) => isGuest(id) || p.accepted.includes(id));

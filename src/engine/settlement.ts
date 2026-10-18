@@ -6,10 +6,10 @@ export const WATER = '水';
 
 export interface Expense {
   label: string;
-  /** 邊個（或者 WATER）俾咗錢，貨幣單位 */
+  /** 邊個俾咗錢 */
   payer: string;
   amount: number;
-  /** 邊幾個人分 */
+  /** 邊幾個人分；[WATER] = 由水支付 */
   sharedBy: string[];
 }
 
@@ -115,4 +115,96 @@ function balanceCents(cents: Record<string, number>) {
   if (diff === 0) return;
   const biggest = keys.reduce((a, k) => (Math.abs(cents[k]) > Math.abs(cents[a]) ? k : a), keys[0]);
   cents[biggest] -= diff;
+}
+
+/** 水剩落嚟（或者唔夠）點處理：平分俾所有玩家，或者全部歸一個人 */
+export type WaterTo = 'split' | PlayerId;
+
+export interface SettleInput {
+  /** 每人番數（已找 + 枱面） */
+  fan: Record<PlayerId, number>;
+  /** 抽咗幾多番水 */
+  water: number;
+  /** 幾多番 = 1 個貨幣單位 */
+  perUnit: number;
+  expenses: Expense[];
+  waterTo: WaterTo;
+  /** 有份嘅人（水平分用） */
+  players: PlayerId[];
+  pairs: [PlayerId, PlayerId][];
+}
+
+export interface SettleResult {
+  /** 打牌輸贏（貨幣） */
+  game: Record<PlayerId, number>;
+  /** 開支淨額：俾咗錢 +，要分 − */
+  expense: Record<PlayerId, number>;
+  /** 分到（或者要補）嘅水 */
+  waterShare: Record<PlayerId, number>;
+  water: { collected: number; spent: number; left: number };
+  /** 每人最後 */
+  net: Record<PlayerId, number>;
+  /** 合埋 pair 之後嘅戶口 */
+  accounts: Record<string, number>;
+  transfers: Transfer[];
+}
+
+/** 成個大局埋數：番 → 錢 → 加開支 → 處理水 → 合 pair → 最少轉賬 */
+export function settleSession(input: SettleInput): SettleResult {
+  const { players } = input;
+  const fanAll: Record<string, number> = {};
+  for (const p of players) fanAll[p] = input.fan[p] ?? 0;
+  fanAll[WATER] = input.water;
+  const money = toMoney(fanAll, input.perUnit);
+
+  const afterExp = applyExpenses(money, input.expenses);
+  const cents: Record<string, number> = {};
+  for (const [k, v] of Object.entries(afterExp)) cents[k] = toCents(v);
+  for (const p of players) cents[p] = cents[p] ?? 0;
+
+  const collected = toCents(money[WATER] ?? 0);
+  const left = cents[WATER] ?? 0;
+  delete cents[WATER];
+
+  const waterCents: Record<string, number> = {};
+  for (const p of players) waterCents[p] = 0;
+  if (left !== 0) {
+    if (input.waterTo === 'split' || !players.includes(input.waterTo)) {
+      const sign = Math.sign(left);
+      const abs = Math.abs(left);
+      const each = Math.floor(abs / players.length);
+      let rest = abs - each * players.length;
+      // 零頭由排頭嗰幾個人負責，順序固定
+      for (const p of players) {
+        const share = each + (rest > 0 ? 1 : 0);
+        if (rest > 0) rest -= 1;
+        waterCents[p] = sign * share;
+      }
+    } else {
+      waterCents[input.waterTo] = left;
+    }
+  }
+
+  const game: Record<string, number> = {};
+  const expense: Record<string, number> = {};
+  const waterShare: Record<string, number> = {};
+  const net: Record<string, number> = {};
+  for (const p of Object.keys(cents)) {
+    const g = toCents(money[p] ?? 0);
+    game[p] = fromCents(g);
+    expense[p] = fromCents(cents[p] - g);
+    waterShare[p] = fromCents(waterCents[p] ?? 0);
+    net[p] = fromCents(cents[p] + (waterCents[p] ?? 0));
+  }
+
+  const accounts = mergePairs(net, input.pairs);
+  return {
+    game,
+    expense,
+    waterShare,
+    water: { collected: fromCents(collected), spent: fromCents(collected - left), left: fromCents(left) },
+    net,
+    accounts,
+    transfers: minimalTransfers(accounts),
+  };
 }

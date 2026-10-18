@@ -20,12 +20,13 @@ export interface SessionScreenProps {
   tableHref: (tableId: string) => string;
   invite: string | null;
   rulesHref?: string;
+  settleHref?: string;
   notice?: ReactNode;
   candidates?: Candidate[];
   onAddTable?: (seats: Candidate[]) => Promise<void>;
 }
 
-export default function SessionScreen({ title, back, tables, computed, tableHref, invite, rulesHref, notice, candidates = [], onAddTable }: SessionScreenProps) {
+export default function SessionScreen({ title, back, tables, computed, tableHref, invite, rulesHref, settleHref, notice, candidates = [], onAddTable }: SessionScreenProps) {
   const now = useNow();
   const [adding, setAdding] = useState(false);
   const [picked, setPicked] = useState<Candidate[]>([]);
@@ -141,6 +142,19 @@ export default function SessionScreen({ title, back, tables, computed, tableHref
         })}
         {onAddTable && <button type="button" className="btn plain" onClick={() => { setAdding(true); setPicked([]); setError(''); }}>加一張枱</button>}
       </section>
+
+      {settleHref && (
+        <Link to={settleHref} className="settle-link">
+          <span className="settle-icon" aria-hidden="true">
+            <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><rect x="4" y="3" width="16" height="18" rx="2" /><path d="M8 7h8M8 11h8M8 15h5" /></svg>
+          </span>
+          <span className="grow">
+            <b>埋數</b>
+            <small>換算金額、晚餐等開支、GP、轉賬</small>
+          </span>
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" aria-hidden="true"><path d="M9 6l6 6-6 6" /></svg>
+        </Link>
+      )}
 
       {ranking.length > 0 && (
         <section className="stack">

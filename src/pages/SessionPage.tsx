@@ -40,6 +40,7 @@ export default function SessionPage({ user, groupId, sessionId }: { user: User; 
       tableHref={(t) => `/g/${groupId}/s/${sessionId}/t/${t}`}
       invite={`${window.location.origin}/join/${groupId}/${group.data.inviteCode}/s/${sessionId}`}
       rulesHref={`/g/${groupId}/s/${sessionId}/rules`}
+      settleHref={`/g/${groupId}/s/${sessionId}/settle`}
       notice={<Incoming user={user} groupId={groupId} sessionId={sessionId} requests={requests.data} tables={tables.data} computed={computed} />}
       candidates={candidates}
       onAddTable={async (people) => {

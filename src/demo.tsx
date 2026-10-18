@@ -12,6 +12,10 @@ import TableScreen from './components/TableScreen.tsx';
 import RulesEditor from './components/RulesEditor.tsx';
 import { TopBar } from './ui.tsx';
 import { Leaderboard } from './components/Charts.tsx';
+import SettleScreen from './components/SettleScreen.tsx';
+import { DEFAULT_SETTLE } from './lib/data.ts';
+import type { ExpenseDoc, PairDoc, SettleConfig } from './lib/data.ts';
+import { sessionSummary } from './lib/totals.ts';
 
 const TABLES: TableDoc[] = [
   { id: 't0', name: '第 1 枱', order: 0, seats: ['gavin', 'athena', 'ivan', 'viola'], names: { gavin: 'Gavin', athena: 'Athena', ivan: 'Ivan', viola: 'Viola' } },
@@ -45,6 +49,12 @@ export default function Demo() {
   const [dice, setDice] = useState<Record<string, Dice>>({});
   const [seatOverride, setSeatOverride] = useState<Record<string, string[]>>({});
   const [extraNames, setExtraNames] = useState<Record<string, string>>({});
+  const [settleCfg, setSettleCfg] = useState<SettleConfig>(DEFAULT_SETTLE);
+  const [expenses, setExpenses] = useState<ExpenseDoc[]>([
+    { id: 'e1', kind: 'expense', label: '晚餐', payer: 'gavin', amount: 186.4, sharedBy: ['gavin', 'athena', 'ivan', 'viola', 'janice', 'sang', 'clau', 'af'], by: 'demo', at: null },
+    { id: 'e2', kind: 'expense', label: '飲品', payer: 'sang', amount: 3, sharedBy: ['水'], by: 'demo', at: null },
+  ]);
+  const [pairs, setPairs] = useState<PairDoc[]>([{ id: 'p1', a: 'robin', b: 'tat', by: 'robin', accepted: ['robin'] }]);
   const tables = useMemo(
     () => TABLES.map((t) => ({ ...t, seats: seatOverride[t.id] ?? t.seats, names: { ...t.names, ...extraNames }, dice: dice[t.id] ?? null })),
     [seatOverride, extraNames, dice],
@@ -79,6 +89,30 @@ export default function Demo() {
           <div className="list pad"><Leaderboard rows={rows} me="gavin" /></div>
         </section>
       </main>
+    );
+  }
+
+  if (path === '/demo/settle') {
+    const sum = sessionSummary(tables, computed);
+    return (
+      <SettleScreen
+        title="10月18日 屋企局"
+        back="/demo"
+        players={sum.players}
+        fan={sum.fan}
+        water={sum.water}
+        unfinished={sum.unfinished}
+        config={settleCfg}
+        expenses={expenses}
+        pairs={pairs}
+        me="gavin"
+        onSaveConfig={async (c) => setSettleCfg(c)}
+        onAddExpense={async (e) => setExpenses((l) => [...l, { ...e, id: `e${l.length + 1}-${Date.now()}`, by: 'gavin', at: Date.now() }])}
+        onDeleteExpense={async (id) => setExpenses((l) => l.filter((x) => x.id !== id))}
+        onProposePair={async (a, b) => setPairs((l) => [...l, { id: `p${Date.now()}`, a, b, by: 'gavin', accepted: [a, b].filter((x) => x === 'gavin') }])}
+        onAcceptPair={async (id) => setPairs((l) => l.map((x) => (x.id === id ? { ...x, accepted: [...x.accepted, 'gavin'] } : x)))}
+        onDeletePair={async (id) => setPairs((l) => l.filter((x) => x.id !== id))}
+      />
     );
   }
 
@@ -127,6 +161,7 @@ export default function Demo() {
       tableHref={(t) => `/demo/t/${t.slice(1)}`}
       invite={null}
       rulesHref="/demo/rules"
+      settleHref="/demo/settle"
       candidates={[{ id: 'kit', name: 'Kit' }, { id: 'jo', name: 'Jo' }]}
     />
   );

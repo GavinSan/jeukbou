@@ -58,6 +58,14 @@ service cloud.firestore {
           allow delete: if false;
         }
 
+        // 埋數：開支同 GP，同局成員都可以加、改、刪
+        match /expenses/{x} {
+          allow read, create, update, delete: if isMember(g);
+        }
+        match /pairs/{x} {
+          allow read, create, update, delete: if isMember(g);
+        }
+
         match /tables/{t} {
           allow read, create, update: if isMember(g);
           allow delete: if isOwner(g);
