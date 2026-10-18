@@ -437,7 +437,7 @@ export default function TableScreen(props: TableScreenProps) {
         </div>
       </section>
 
-      {!ended && (pf.hints || locked) && (
+      {!ended && !entry && (pf.hints || locked) && (
         <div className="actions">
           <span className={`hint${locked ? ' loss' : ''}`}>{locked ? '有人夠拉，決定找數後才可再入數' : '按贏家入數'}</span>
         </div>

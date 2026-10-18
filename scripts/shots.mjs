@@ -142,8 +142,8 @@ for (const scheme of ['light', 'dark']) {
       await page.getByRole('button', { name: /^6 番/ }).click();
       await page.waitForTimeout(300);
       await page.screenshot({ path: `${out}/settle-config.png` });
-      await page.getByRole('button', { name: '儲存' }).click();
-      await page.waitForTimeout(300);
+      await page.goBack();
+      await page.waitForTimeout(400);
       await page.getByRole('button', { name: '＋ 新增' }).first().click();
       await page.getByRole('dialog').getByRole('button', { name: '的士', exact: true }).click();
       await page.getByRole('dialog').getByLabel('金額').fill('36');
