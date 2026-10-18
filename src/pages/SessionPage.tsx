@@ -3,7 +3,8 @@ import { rememberTable } from '../lib/nav.ts';
 import type { User } from 'firebase/auth';
 import SessionScreen from '../components/SessionScreen.tsx';
 import Incoming from '../components/Incoming.tsx';
-import { addTable, deleteSession } from '../lib/data.ts';
+import { addTable, deleteSession, setSessionNoWater } from '../lib/data.ts';
+import { Link } from '../lib/router.tsx';
 import { useSuperAdmin } from '../lib/admin.ts';
 import { go } from '../lib/router.tsx';
 import { useGroup, useManyEvents, useMembers, useRequests, useSession, useTables } from '../lib/live.ts';
@@ -49,6 +50,12 @@ export default function SessionPage({ user, groupId, sessionId }: { user: User; 
       invite={`${window.location.origin}/join/${groupId}/${group.data.inviteCode}/s/${sessionId}`}
       rulesHref={`/g/${groupId}/s/${sessionId}/rules`}
       settleHref={`/g/${groupId}/s/${sessionId}/settle`}
+      water={session.data.closed ? undefined : { on: !session.data.noWater, onToggle: (on) => setSessionNoWater(groupId, sessionId, !on) }}
+      closedNote={session.data.closed
+        ? <Link to={`/g/${groupId}/s/${sessionId}/settle`} className="banner calm"><span className="stamp small-stamp">已埋數</span><span className="grow">睇轉賬</span></Link>
+        : session.data.closeReq
+          ? <Link to={`/g/${groupId}/s/${sessionId}/settle`} className="banner"><span className="grow">有人申請埋數，撳入去同意</span></Link>
+          : null}
       onDeleteSession={group.data.ownerId === user.uid || admin ? async () => { await deleteSession(groupId, sessionId); go(`/g/${groupId}`); } : undefined}
       notice={<Incoming user={user} groupId={groupId} sessionId={sessionId} requests={requests.data} tables={tables.data} computed={computed} />}
       candidates={candidates}

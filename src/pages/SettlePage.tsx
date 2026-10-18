@@ -1,7 +1,7 @@
 import { useMemo } from 'react';
 import type { User } from 'firebase/auth';
 import SettleScreen from '../components/SettleScreen.tsx';
-import { acceptPair, addExpense, deleteExpense, deletePair, proposePair, saveSettleConfig, settleConfigOf } from '../lib/data.ts';
+import { acceptPair, addExpense, approveClose, cancelClose, closeSession, deleteExpense, deletePair, isGuest, proposePair, requestClose, saveSettleConfig, setSessionWaterTo, settleConfigOf } from '../lib/data.ts';
 import { useExpenses, useGroup, useManyEvents, useMembers, usePairs, useSession, useTables } from '../lib/live.ts';
 import { computeTable, rulesOf } from '../lib/score.ts';
 import type { Computed } from '../lib/score.ts';
@@ -31,6 +31,16 @@ export default function SettlePage({ user, groupId, sessionId }: { user: User; g
   const accounts = [...members.data.map((m) => ({ id: m.uid, name: m.name }))];
   for (const pl of sum.players) if (!accounts.some((a) => a.id === pl.id)) accounts.push(pl);
 
+  const sess = session.data;
+  const hostId = sess.createdBy;
+  const isHost = hostId === user.uid || group.data.ownerId === user.uid;
+  const waterTo = sess.waterTo || hostId;
+  // 水只可以畀局入面嘅人（加埋場主）保管
+  const waterOptions = [...sum.players];
+  if (!waterOptions.some((x) => x.id === hostId)) waterOptions.unshift({ id: hostId, name: `${members.data.find((m) => m.uid === hostId)?.name ?? '場主'}（場主）` });
+  const needed = sum.players.map((x) => x.id).filter((id) => !isGuest(id));
+  const openTables = tables.data.filter((t) => computed[t.id] && !computed[t.id]!.state.ended).map((t) => t.id);
+
   return (
     <SettleScreen
       title={session.data.name}
@@ -39,7 +49,27 @@ export default function SettlePage({ user, groupId, sessionId }: { user: User; g
       fan={sum.fan}
       water={sum.water}
       unfinished={sum.unfinished}
-      config={settleConfigOf(group.data)}
+      config={{ ...settleConfigOf(group.data), waterTo }}
+      canSetWater={isHost && !sess.closed}
+      waterOptions={waterOptions}
+      onSetWaterTo={(uid) => setSessionWaterTo(groupId, sessionId, uid)}
+      closing={{
+        closed: sess.closed ?? null,
+        request: sess.closeReq ?? null,
+        needed,
+        isHost,
+        onClose: () => closeSession(groupId, sessionId, user.uid, openTables),
+        onRequest: async () => {
+          await requestClose(groupId, sessionId, user.uid);
+          if (needed.every((id) => id === user.uid)) await closeSession(groupId, sessionId, user.uid, openTables);
+        },
+        onApprove: async () => {
+          await approveClose(groupId, sessionId, user.uid);
+          const got = new Set([...(sess.closeReq?.approvals ?? []), user.uid]);
+          if (needed.every((id) => got.has(id))) await closeSession(groupId, sessionId, user.uid, openTables);
+        },
+        onCancel: () => cancelClose(groupId, sessionId),
+      }}
       canEdit={group.data.ownerId === user.uid}
       accounts={accounts}
       expenses={expenses.data}

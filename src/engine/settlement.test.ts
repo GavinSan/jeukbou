@@ -113,3 +113,14 @@ test('埋數：四捨五入', () => {
   assert.equal(r.water.total, 0);
   assert.equal(r.gameLedger.accounts.A, 11);
 });
+
+test('埋數：開支都跟取整，差額入保管水嗰個', () => {
+  const r = settleSession({
+    fan: { A: 0, B: 0, C: 0 }, water: 0, waterTo: 'A', perUnit: 6, rounding: 'up',
+    expenses: [{ label: '晚餐', payer: 'A', amount: 100, sharedBy: ['A', 'B', 'C'] }], players: ['A', 'B', 'C'], pairs: [],
+  });
+  // B、C 各 −33.33 → −34；A +66.67 → +67，差額 −1 計返 A → 68
+  assert.equal(r.expense.B, -34);
+  assert.equal(r.expense.C, -34);
+  assert.equal(r.expense.A, 68);
+});

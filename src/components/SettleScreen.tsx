@@ -33,6 +33,22 @@ export interface SettleScreenProps {
   onSaveConfig: (c: SettleConfig) => Promise<void>;
   /** 埋數設定喺家規頁 */
   settingsHref?: string;
+  /** 水由誰保管：場主（或局主）改得，只可以揀局入面嘅人 */
+  canSetWater?: boolean;
+  waterOptions?: Player[];
+  onSetWaterTo?: (uid: string) => Promise<void>;
+  /** 埋數（完場並鎖定） */
+  closing?: {
+    closed: { by: string; at: number } | null;
+    request: { by: string; approvals: string[] } | null;
+    /** 要同意嘅人（有帳戶嘅玩家） */
+    needed: string[];
+    isHost: boolean;
+    onClose: () => Promise<void>;
+    onRequest: () => Promise<void>;
+    onApprove: () => Promise<void>;
+    onCancel: () => Promise<void>;
+  };
   onAddExpense: (e: Omit<ExpenseDoc, 'id' | 'at' | 'by'>) => Promise<void>;
   onDeleteExpense: (id: string) => Promise<void>;
   onProposePair: (a: string, b: string) => Promise<void>;
@@ -148,7 +164,18 @@ export default function SettleScreen(p: SettleScreenProps) {
         <span className="rate-cash"><b className="num">$1</b> {cfg.currency}</span>
         <span className="rate-edit">{p.canEdit ? '在家規修改' : '家規'}</span>
       </button>
-      <p className="rate-note muted small">{ROUND_LABEL[cfg.rounding] || '計到仙'} · 水由 {nameOf(cfg.waterTo)} 保管</p>
+      <div className="rate-note muted small">
+        {ROUND_LABEL[cfg.rounding] && <span>{ROUND_LABEL[cfg.rounding]} · </span>}
+        <span>水由</span>
+        {p.canSetWater && p.onSetWaterTo && p.waterOptions?.length ? (
+          <select className="inline-select" value={cfg.waterTo} aria-label="水由誰保管" onChange={(e) => run(() => p.onSetWaterTo!(e.target.value))}>
+            {p.waterOptions.map((o) => <option key={o.id} value={o.id}>{o.name}</option>)}
+          </select>
+        ) : <b> {nameOf(cfg.waterTo)} </b>}
+        <span>保管</span>
+      </div>
+
+      {p.closing && <CloseBar c={p.closing} me={p.me} nameOf={nameOf} busy={busy} run={run} />}
 
       {result.error && <p className="error">{result.error}</p>}
 
@@ -305,21 +332,14 @@ export function SettleConfigForm({ cfg, canEdit, accounts, busy, error, onSave }
 }) {
   const [per, setPer] = useState(cfg.perUnit);
   const [cur, setCur] = useState(cfg.currency);
-  const [waterTo, setWaterTo] = useState(cfg.waterTo);
+  const waterTo = cfg.waterTo;
+  void accounts;
   const [rounding, setRounding] = useState<MoneyRounding>(cfg.rounding);
   const n = per;
   const d = !canEdit;
-  const list = accounts.some((a) => a.id === waterTo) ? accounts : [...accounts, { id: waterTo, name: '（已離開的成員）' }];
   return (
     <div className="stack">
       {!canEdit && <p className="muted small">只有局主可修改。</p>}
-      <div className="field">
-        <span>水由誰保管</span>
-        <select className="input" value={waterTo} disabled={d} onChange={(e) => setWaterTo(e.target.value)} aria-label="水由誰保管">
-          {list.map((a) => <option key={a.id} value={a.id}>{a.name}</option>)}
-        </select>
-        <small className="muted">每晚抽的水（及取整差額）會計入此人的數。</small>
-      </div>
       <div className="field">
         <span>匯率</span>
         <div className="rate-edit-row">
@@ -465,5 +485,47 @@ function PairSheet({ players, busy, error, onClose, onSave }: { players: Player[
       {error && <p className="error">{error}</p>}
       <button type="button" className="btn big" disabled={busy || picked.length !== 2} onClick={() => onSave(picked[0], picked[1])}>新增</button>
     </Sheet>
+  );
+}
+
+function CloseBar({ c, me, nameOf, busy, run }: {
+  c: NonNullable<SettleScreenProps['closing']>; me: string | null; nameOf: (id: string) => string; busy: boolean; run: (t: () => Promise<void>) => Promise<void>;
+}) {
+  const [ask, setAsk] = useState(false);
+  if (c.closed) {
+    return (
+      <div className="closed-stamp">
+        <span className="stamp">已埋數</span>
+        <span className="muted small">{nameOf(c.closed.by)} · {new Date(c.closed.at).toLocaleString('zh-HK', { month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit' })}</span>
+      </div>
+    );
+  }
+  if (c.request) {
+    const got = c.needed.filter((id) => c.request!.approvals.includes(id));
+    const waiting = c.needed.filter((id) => !c.request!.approvals.includes(id));
+    const mine = !!me && waiting.includes(me);
+    return (
+      <div className="banner calm close-req">
+        <span className="grow">{nameOf(c.request.by)} 申請埋數：已同意 {got.length}/{c.needed.length}{waiting.length ? `，等 ${waiting.map(nameOf).join('、')}` : ''}</span>
+        {mine && <button type="button" className="btn" disabled={busy} onClick={() => run(c.onApprove)}>同意</button>}
+        {c.isHost && <button type="button" className="btn danger" disabled={busy} onClick={() => run(c.onClose)}>直接埋數</button>}
+        {(c.isHost || me === c.request.by) && <button type="button" className="textbtn" disabled={busy} onClick={() => run(c.onCancel)}>取消</button>}
+      </div>
+    );
+  }
+  return (
+    <>
+      <button type="button" className="btn big close-btn" disabled={busy} onClick={() => (c.isHost ? setAsk(true) : run(c.onRequest))}>
+        埋數{c.isHost ? '（完場並鎖定）' : '（要全部人同意）'}
+      </button>
+      {ask && (
+        <Sheet onClose={() => setAsk(false)} label="埋數">
+          <h2>埋數</h2>
+          <p className="muted">所有未完場嘅枱會即刻完場，拉住嘅數會找晒，之後唔可以再入數。</p>
+          <button type="button" className="btn big danger" disabled={busy} onClick={() => run(async () => { await c.onClose(); setAsk(false); })}>確認埋數</button>
+          <button type="button" className="btn plain" onClick={() => setAsk(false)}>取消</button>
+        </Sheet>
+      )}
+    </>
   );
 }

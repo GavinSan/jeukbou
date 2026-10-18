@@ -157,14 +157,14 @@ export interface BoardRow {
 }
 
 /** 龍虎榜：由中線向左右嘅橫條，數字喺條尾 */
-export function Leaderboard({ rows, me }: { rows: BoardRow[]; me?: string | null }) {
+export function Leaderboard({ rows, me, onPick }: { rows: BoardRow[]; me?: string | null; onPick?: (id: string) => void }) {
   const max = Math.max(1, ...rows.map((r) => Math.abs(r.total)));
   return (
     <ol className="board">
       {rows.map((r, i) => {
         const pct = (Math.abs(r.total) / max) * 50;
         return (
-          <li key={r.id} className={r.id === me ? 'me' : ''}>
+          <li key={r.id} className={`${r.id === me ? 'me' : ''}${onPick ? ' pickable-row' : ''}`} onClick={onPick ? () => onPick(r.id) : undefined} role={onPick ? 'button' : undefined} tabIndex={onPick ? 0 : undefined} aria-label={onPick ? `${r.name} 統計` : undefined} onKeyDown={onPick ? (e) => { if (e.key === 'Enter') onPick(r.id); } : undefined}>
             <span className="board-rank">{i === 0 && r.total > 0 ? '龍' : i === rows.length - 1 && r.total < 0 ? '虎' : i + 1}</span>
             <span className="board-who">
               <span className="ellipsis">{r.name}</span>

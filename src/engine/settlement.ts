@@ -190,7 +190,20 @@ export function settleSession(input: SettleInput): SettleResult {
 
   const zero: Record<string, number> = {};
   for (const p of players) zero[p] = 0;
-  const expense = applyExpenses(zero, input.expenses);
+  const rawExpense = applyExpenses(zero, input.expenses);
+  // 開支都跟同一個取整；差額同樣計入保管水嗰個
+  const expense: Record<string, number> = {};
+  if (input.rounding === 'none' || !input.expenses.length) Object.assign(expense, rawExpense);
+  else {
+    let resid = 0;
+    for (const [k, v] of Object.entries(rawExpense)) {
+      const c = toCents(v);
+      const r = input.rounding === 'up' ? ceilAbs(c) : roundAbs(c);
+      expense[k] = fromCents(r);
+      resid += r;
+    }
+    if (resid) expense[input.waterTo] = fromCents(toCents(expense[input.waterTo] ?? 0) - resid);
+  }
 
   const both: Record<string, number> = {};
   for (const [k, v] of Object.entries(gameBal)) both[k] = toCents(v);

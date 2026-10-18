@@ -872,3 +872,56 @@ body.entering .page { padding-bottom: calc(52vh + 24px); }
 body.shake .page { animation: screenShake .5s ease-in-out 2; }
 @keyframes screenShake { 10%, 90% { transform: translateX(-2px); } 20%, 80% { transform: translateX(4px); } 30%, 50%, 70% { transform: translateX(-7px) rotate(-.4deg); } 40%, 60% { transform: translateX(7px) rotate(.4deg); } }
 @media (prefers-reduced-motion: reduce) { .instant-btn, .party-text, body.shake .page { animation: none !important; } }
+.t-la { font-size: 11px; font-weight: 700; padding: 0 4px; border-radius: 4px; line-height: 16px; white-space: nowrap; }
+.t-la.loss { background: color-mix(in srgb, var(--tile-loss) 14%, transparent); color: var(--tile-loss); }
+.t-la.gain { background: color-mix(in srgb, var(--tile-gain) 14%, transparent); color: var(--tile-gain); }
+.tile .t-foot { flex-wrap: wrap; row-gap: 2px; }
+
+.inline-select { border: none; background: var(--sunk); border-radius: 8px; padding: 2px 8px; margin: 0 4px; font: inherit; font-weight: 700; color: var(--ink); min-height: 30px; font-size: 14px !important; }
+.close-btn { background: var(--tile-loss); box-shadow: 0 4px 0 #7E1F1A; }
+.close-req { flex-wrap: wrap; }
+.closed-stamp { display: flex; align-items: center; gap: 12px; justify-content: center; padding: 8px; }
+.stamp { font-family: var(--font-kai); font-weight: 700; font-size: 28px; color: var(--tile-loss); border: 3px solid var(--tile-loss); border-radius: 10px; padding: 2px 14px; transform: rotate(-6deg); letter-spacing: 4px; opacity: .9; }
+.water-toggle { display: flex; align-items: center; gap: 12px; padding: 10px 16px; border-radius: 14px; background: var(--surface); }
+.water-toggle small { font-size: 13px; }
+.small-stamp { font-size: 16px; padding: 0 8px; border-width: 2px; }
+
+/* 詐糊：老貓燒鬚 */
+.gag { position: fixed; inset: 0; z-index: 41; display: flex; align-items: center; justify-content: center; pointer-events: none; background: radial-gradient(circle at 50% 45%, rgba(255,120,40,.18), transparent 60%); animation: gagFade 3.2s ease both; }
+.gag-card { display: flex; flex-direction: column; align-items: center; gap: 4px; animation: gagIn .5s cubic-bezier(.2,1.6,.4,1) both, gagShake .12s linear .6s 6; }
+.gag-cat { width: min(62vw, 260px); height: auto; overflow: visible; filter: drop-shadow(0 8px 16px rgba(0,0,0,.35)); }
+.gag-text { text-align: center; color: #FFF; text-shadow: 0 2px 0 #7A1E14, 0 0 14px rgba(0,0,0,.5); }
+.gag-text b { display: block; font-family: var(--font-kai); font-size: 40px; color: #FFD66B; }
+.gag-text span { font-size: 18px; font-weight: 700; }
+.whisker { transform-box: fill-box; animation: burn 1.4s ease-in both; }
+.whisker.l { transform-origin: right center; }
+.whisker.r { transform-origin: left center; }
+@keyframes burn { 0% { transform: scaleX(1); } 70% { transform: scaleX(.35); } 100% { transform: scaleX(.3); stroke: #000; } }
+.flame { animation: flame .18s ease-in-out infinite alternate, flameOut 3s linear both; }
+@keyframes flame { from { transform: scale(.85) rotate(-6deg); } to { transform: scale(1.15) rotate(6deg); } }
+@keyframes flameOut { 0%, 5% { opacity: 0; } 12% { opacity: 1; } 80% { opacity: 1; } 100% { opacity: 0; } }
+.smoke { fill: rgba(90,90,90,.55); opacity: 0; transform-box: fill-box; transform-origin: center; animation: smoke 1.6s ease-out both; }
+@keyframes smoke { 0% { opacity: 0; transform: translateY(0) scale(.5); } 20% { opacity: .8; } 100% { opacity: 0; transform: translateY(-70px) scale(2.2); } }
+.gag-eyes .pupil { transform-box: fill-box; transform-origin: center; animation: pupil 1s ease-in-out .4s both; }
+@keyframes pupil { 0% { transform: scale(1); } 30% { transform: scale(.4); } 100% { transform: scale(.55) translate(0, -2px); } }
+.gag-mouth { transform-box: fill-box; transform-origin: center; animation: mouth .6s ease-out .5s both; }
+@keyframes mouth { from { transform: scaleY(.3); } to { transform: scaleY(1.2); } }
+.sweat { animation: sweat .9s ease-in .8s infinite; }
+@keyframes sweat { from { transform: translateY(0); opacity: 1; } to { transform: translateY(18px); opacity: 0; } }
+@keyframes gagIn { from { transform: scale(.2) rotate(-20deg); opacity: 0; } to { transform: none; opacity: 1; } }
+@keyframes gagShake { 50% { transform: translateX(-4px) rotate(-1deg); } 100% { transform: translateX(4px) rotate(1deg); } }
+@keyframes gagFade { 0%, 85% { opacity: 1; } 100% { opacity: 0; } }
+@media (prefers-reduced-motion: reduce) { .gag *, .gag { animation: none !important; } }
+
+/* 龍虎榜：時段同個人 */
+.period-nav { display: flex; align-items: center; justify-content: center; gap: 16px; font-family: var(--font-kai); font-size: 18px; }
+.period-nav .iconbtn { font-size: 26px; line-height: 1; }
+.board li.pickable-row { cursor: pointer; border-radius: 8px; }
+.board li.pickable-row:active { background: var(--sunk); }
+.stat-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }
+.stat-grid > div { background: var(--sunk); border-radius: 12px; padding: 10px 12px; display: flex; flex-direction: column; gap: 2px; }
+.stat-grid small { color: var(--muted); font-size: 12px; }
+.stat-grid b { font-size: 22px; }
+.mini-bars { width: 100%; height: 80px; background: var(--sunk); border-radius: 12px; }
+.bar-gain { fill: var(--gain); } .bar-loss { fill: var(--loss); }
+.row-link { display: flex; align-items: center; gap: 12px; width: 100%; color: inherit; text-decoration: none; }

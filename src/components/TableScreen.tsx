@@ -9,6 +9,7 @@ import type { Computed } from '../lib/score.ts';
 import { ago, describe, netOf, trendOf } from '../lib/score.ts';
 import { TrendChart } from './Charts.tsx';
 import Celebrate from './Celebrate.tsx';
+import CatGag from './CatGag.tsx';
 import { FanPicker } from './FanTable.tsx';
 import type { FanTable } from '../lib/fanTable.ts';
 import { money } from './SettleScreen.tsx';
@@ -69,7 +70,7 @@ export interface TableScreenProps {
   /** 夠拉時揀「不找」（全枱同步） */
   onDecline?: (key: string) => Promise<void>;
   /** 找數單用嚟換算金額 */
-  cash?: { perUnit: number; currency: string; waterName?: string };
+  cash?: { perUnit: number; currency: string; rounding?: 'up' | 'round' | 'none' };
 }
 
 const totalOf = (c: Computed, id: string) => (c.state.settled[id] ?? 0) + (c.pending[id] ?? 0);
@@ -111,6 +112,8 @@ export default function TableScreen(props: TableScreenProps) {
   const [receipt, setReceipt] = useState<number | null>(null);
   const [delTable, setDelTable] = useState(false);
   const [party, setParty] = useState<{ fan: number; key: number } | null>(null);
+  const [gag, setGag] = useState<{ name: string; key: number } | null>(null);
+  const endGag = useCallback(() => setGag(null), []);
   const [picking, setPicking] = useState(false);
   const [pickedNote, setPickedNote] = useState('');
 
@@ -177,7 +180,11 @@ export default function TableScreen(props: TableScreenProps) {
     }
     else if (hp) { sfx.settle(); buzz('hit'); }
     else if (last?.type === 'special') { sfx.special(art ?? ''); buzz('tap'); }
-    else if (last?.type === 'falseWin') { sfx.falseWin(); buzz('hit'); }
+    else if (last?.type === 'falseWin') {
+      sfx.falseWin();
+      buzz('hit');
+      if (isNew) setGag({ name: name(last.player), key: Date.now() });
+    }
     else if (last?.type === 'end') { sfx.end(); buzz('win'); }
     else sfx.tap();
     const t = setTimeout(() => setFx((f) => ({ ...f, up: [], down: [], delta: {} })), hp ? 1300 : 1000);
@@ -204,6 +211,9 @@ export default function TableScreen(props: TableScreenProps) {
     owe[ch.pulled] = (owe[ch.pulled] ?? 0) + ch.owed;
     collect[ch.puller] = (collect[ch.puller] ?? 0) + ch.owed;
   }
+
+  /** 拉緊／被拉緊幾多舖（有幾條就攞最多嗰條） */
+  const laCount = (id: string, side: 'puller' | 'pulled') => Math.max(0, ...c.state.chains.filter((ch) => ch[side] === id).map((ch) => ch.count));
 
   const every = rules.la.settleEvery;
   const settleable = rules.la.enabled && every > 0 && !ended
@@ -431,8 +441,8 @@ export default function TableScreen(props: TableScreenProps) {
               <span className="t-name"><span className="ellipsis">{name(id)}</span>{isDealer && <span className="dealer-mark">莊{c.state.streak ? c.state.streak : ''}</span>}</span>
               <RollingNumber value={settled} className={`t-score t-${tone2(settled)}`} />
               <span className="t-foot">
-                {owe[id] ? <><Chips key={`c${owe[id]}`} amount={owe[id]} pop={down} /><RollingNumber value={-owe[id]} className="t-loss" /></> : null}
-                {collect[id] ? <RollingNumber value={collect[id]} className="t-gain" /> : null}
+                {owe[id] ? <><Chips key={`c${owe[id]}`} amount={owe[id]} pop={down} /><RollingNumber value={-owe[id]} className="t-loss" /><span className="t-la loss" title="被拉第幾舖">被拉{laCount(id, 'pulled')}</span></> : null}
+                {collect[id] ? <><RollingNumber value={collect[id]} className="t-gain" /><span className="t-la gain" title="拉緊第幾舖">拉{laCount(id, 'puller')}</span></> : null}
                 <span className="t-wind">{seatWind(c.state, id)}</span>
               </span>
               {fx.delta[id] ? <span className={`float ${fx.delta[id] > 0 ? 'gain' : 'loss'}${fx.hp ? ' hp' : ''}`} key={`f${fx.key}`}>{fmt(fx.delta[id])}</span> : null}
@@ -507,7 +517,7 @@ export default function TableScreen(props: TableScreenProps) {
                           return (
                             <span key={id} className={`lg-cell${id === me ? ' me' : ''}`}>
                               {v ? <b className={`num ${tone2(v)}`}>{fmt(v)}</b> : !cash ? <span className="lg-dash">·</span> : null}
-                              {cash && cash !== v ? <small className={`lg-pend ${tone2(cash)}`}>找 {fmt(cash)}</small> : null}
+                              {cash && cash !== v ? <small className={`lg-pend ${tone2(cash)}`}>{cash > 0 ? '袋' : '找'} {fmt(cash)}</small> : null}
                               {water ? <small className="lg-pend lg-water">水 −{water}</small> : null}
                             </span>
                           );
@@ -923,6 +933,7 @@ export default function TableScreen(props: TableScreenProps) {
 
       {settings && <Settings onClose={() => setSettings(false)} />}
       {party && <Celebrate key={party.key} fan={party.fan} onDone={() => setParty(null)} />}
+      {gag && <CatGag key={gag.key} name={gag.name} onDone={endGag} />}
       {delTable && props.onDeleteTable && (
         <ConfirmDelete title="刪除此枱" detail={`會永久刪除「${table.name}」所有紀錄，無法復原。`} word={table.name} onConfirm={props.onDeleteTable} onClose={() => setDelTable(false)} />
       )}
@@ -933,7 +944,12 @@ export default function TableScreen(props: TableScreenProps) {
         const waters = st.result.lines.filter((l) => l.kind === 'water');
         const waterTotal = waters.reduce((a, l) => a + l.amount, 0);
         const cash = props.cash;
-        const toCash = (fan: number) => (cash && cash.perUnit > 0 ? `≈ ${money(fan / cash.perUnit)}` : '');
+        const toCash = (fan: number) => {
+          if (!cash || !(cash.perUnit > 0)) return '';
+          const v = fan / cash.perUnit;
+          const r = cash.rounding === 'up' ? Math.ceil(v - 1e-9) : cash.rounding === 'round' ? Math.round(v) : v;
+          return `${cash.rounding === 'none' ? '≈ ' : ''}${money(r)}`;
+        };
         const people = Object.entries(st.delta.settled).filter(([, v]) => v).sort((a, b) => a[1] - b[1]);
         return (
           <Sheet onClose={() => setReceipt(null)} label="找數單">
@@ -951,7 +967,7 @@ export default function TableScreen(props: TableScreenProps) {
               ))}
               {waters.length > 0 && (
                 <li className="rc-water">
-                  <span className="rc-who">抽水{cash?.waterName ? <span className="muted">（{cash.waterName} 保管）</span> : null}</span>
+                  <span className="rc-who">抽水</span>
                   <span className="rc-amt"><b className="num">{waterTotal}</b> 番<small className="muted">{toCash(waterTotal)}</small></span>
                   <small className="rc-note muted">{waters.map((l) => `${name(l.from)} ${l.amount}（${l.note}）`).join('、')}</small>
                 </li>
@@ -964,7 +980,6 @@ export default function TableScreen(props: TableScreenProps) {
                 ))}
               </div>
             )}
-            {cash && <Hint>以 {cash.perUnit} 番 = {cash.currency} $1 換算，最後以埋數頁為準。</Hint>}
             <button type="button" className="btn big" onClick={() => setReceipt(null)}>好</button>
           </Sheet>
         );

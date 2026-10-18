@@ -48,7 +48,7 @@ export default function TablePage({ user, groupId, sessionId, tableId }: { user:
       onDecline={(key) => declineSettle(groupId, sessionId, tableId, key)}
       cash={(() => {
         const sc = settleConfigOf(group.data);
-        return { perUnit: sc.perUnit, currency: sc.currency, waterName: members.data.find((m) => m.uid === sc.waterTo)?.name ?? table.names[sc.waterTo] };
+        return { perUnit: sc.perUnit, currency: sc.currency, rounding: sc.rounding };
       })()}
       me={user.uid}
       back={back}

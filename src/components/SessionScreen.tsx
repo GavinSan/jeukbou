@@ -23,12 +23,16 @@ export interface SessionScreenProps {
   settleHref?: string;
   /** 局主／管理員：刪除成個大局 */
   onDeleteSession?: () => Promise<void>;
+  /** 呢局抽唔抽水（打牌嘅人揀） */
+  water?: { on: boolean; onToggle: (on: boolean) => Promise<void> };
+  /** 埋數狀態 */
+  closedNote?: ReactNode;
   notice?: ReactNode;
   candidates?: Candidate[];
   onAddTable?: (seats: Candidate[]) => Promise<void>;
 }
 
-export default function SessionScreen({ title, back, tables, computed, tableHref, invite, rulesHref, settleHref, onDeleteSession, notice, candidates = [], onAddTable }: SessionScreenProps) {
+export default function SessionScreen({ title, back, tables, computed, tableHref, invite, rulesHref, settleHref, onDeleteSession, water: waterCtl, closedNote, notice, candidates = [], onAddTable }: SessionScreenProps) {
   const now = useNow();
   const [adding, setAdding] = useState(false);
   const [delSession, setDelSession] = useState(false);
@@ -98,6 +102,23 @@ export default function SessionScreen({ title, back, tables, computed, tableHref
       />
 
       {notice}
+      {closedNote}
+      {waterCtl && (
+        <div className="water-toggle">
+          <span className="grow">抽水<small className="muted">{waterCtl.on ? '　依家規' : '　此局不抽'}</small></span>
+          <button
+            type="button"
+            role="switch"
+            className="switch"
+            aria-checked={waterCtl.on}
+            aria-label="此局抽水"
+            onClick={async () => {
+              if (!window.confirm(waterCtl.on ? '此局不抽水？所有枱會重新計算。' : '此局恢復抽水？所有枱會重新計算。')) return;
+              try { await waterCtl.onToggle(!waterCtl.on); } catch (err) { alert(message(err)); }
+            }}
+          />
+        </div>
+      )}
 
       <section className="stack">
         {tables.map((t) => {

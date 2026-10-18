@@ -138,6 +138,12 @@ for (const scheme of ['light', 'dark']) {
       await page.goto(`${base}/demo/settle`, { waitUntil: 'networkidle' });
       await page.waitForTimeout(500);
       await page.screenshot({ path: `${out}/settle.png`, fullPage: true });
+      await page.getByRole('button', { name: /^埋數（完場並鎖定）/ }).click();
+      await page.waitForTimeout(300);
+      await page.screenshot({ path: `${out}/close-ask.png` });
+      await page.getByRole('button', { name: '確認埋數' }).click();
+      await page.waitForTimeout(300);
+      await page.screenshot({ path: `${out}/closed.png` });
       await page.getByRole('button', { name: /^6 番/ }).click();
       await page.waitForTimeout(300);
       await page.screenshot({ path: `${out}/settle-config.png` });
@@ -171,6 +177,23 @@ for (const scheme of ['light', 'dark']) {
       await page.goto(`${base}/demo/board`, { waitUntil: 'networkidle' });
       await page.waitForTimeout(500);
       await page.screenshot({ path: `${out}/board.png`, fullPage: true });
+      await page.getByRole('tab', { name: '週' }).click();
+      await page.waitForTimeout(200);
+      await page.screenshot({ path: `${out}/board-week.png` });
+      await page.getByRole('button', { name: /^Gavin 統計/ }).click();
+      await page.waitForTimeout(400);
+      await page.screenshot({ path: `${out}/player.png` });
+    });
+    await step('gag', async () => {
+      await page.goto(`${base}/demo/t/2`, { waitUntil: 'networkidle' });
+      await page.waitForTimeout(1200);
+      await page.getByRole('button', { name: /^其他/ }).click();
+      await page.getByRole('dialog').getByRole('button', { name: /^詐糊/ }).click();
+      await page.getByRole('dialog').getByRole('button', { name: 'Tat', exact: true }).click();
+      await page.getByRole('button', { name: '入數', exact: true }).click();
+      await page.waitForTimeout(1400);
+      await page.screenshot({ path: `${out}/gag.png` });
+      await page.waitForTimeout(2500);
     });
     await step('trend', async () => {
       await page.goto(`${base}/demo/t/2`, { waitUntil: 'networkidle' });

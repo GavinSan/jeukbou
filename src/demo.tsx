@@ -11,7 +11,8 @@ import SessionScreen from './components/SessionScreen.tsx';
 import TableScreen from './components/TableScreen.tsx';
 import RulesEditor from './components/RulesEditor.tsx';
 import { TopBar } from './ui.tsx';
-import { Leaderboard } from './components/Charts.tsx';
+import BoardView from './components/BoardView.tsx';
+import type { SessionResult } from './lib/history.ts';
 import SettleScreen, { SettleConfigForm } from './components/SettleScreen.tsx';
 import HouseRules from './components/HouseRules.tsx';
 import { FanTableView } from './components/FanTable.tsx';
@@ -45,9 +46,42 @@ function seed(): Record<string, StoredEvent[]> {
   return out;
 }
 
+// 示範：過去 7 日，每日一至兩場，每場 8 個人
+const DEMO_NAMES: Record<string, string> = {
+  gavin: 'Gavin', athena: 'Athena', ivan: 'Ivan', viola: 'Viola', janice: 'Janice', sang: 'Sang', clau: 'Clau', af: 'AF', robin: 'Robin', tat: 'Tat',
+};
+const DEMO_HISTORY: SessionResult[] = (() => {
+  let seed = 20261018;
+  const rnd = () => { seed = (seed * 1103515245 + 12345) % 2147483648; return seed / 2147483648; };
+  const ids = Object.keys(DEMO_NAMES);
+  const out: SessionResult[] = [];
+  const today = new Date();
+  today.setHours(20, 0, 0, 0);
+  for (let d = 7; d >= 0; d--) {
+    const games = d % 3 === 0 ? 2 : 1;
+    for (let g = 0; g < games; g++) {
+      const at = today.getTime() - d * 86400000 + g * 3 * 3600000;
+      const players = [...ids].sort(() => rnd() - 0.5).slice(0, 8);
+      const totals: Record<string, number> = {};
+      let sum = 0;
+      players.slice(0, -1).forEach((p) => { const v = Math.round((rnd() - 0.48) * 120); totals[p] = v; sum += v; });
+      totals[players[players.length - 1]] = -sum;
+      const date = new Date(at);
+      out.push({ id: `h${d}-${g}`, name: `${date.getMonth() + 1}月${date.getDate()}日 ${g ? '宵夜局' : '屋企局'}`, at, totals });
+    }
+  }
+  return out;
+})();
+
 export default function Demo() {
   const path = usePath();
-  const rules = useMemo(() => withRules({}), []);
+  const [noWater, setNoWater] = useState(false);
+  const [closed, setClosed] = useState<{ by: string; at: number } | null>(null);
+  const [waterTo, setWaterTo] = useState('gavin');
+  const rules = useMemo(() => {
+    const r = withRules({});
+    return noWater ? { ...r, water: { ...r.water, enabled: false } } : r;
+  }, [noWater]);
   const [events, setEvents] = useState<Record<string, StoredEvent[]>>(seed);
   const [dice, setDice] = useState<Record<string, Dice>>({});
   const [seatOverride, setSeatOverride] = useState<Record<string, string[]>>({});
@@ -82,18 +116,10 @@ export default function Demo() {
   }
 
   if (path === '/demo/board') {
-    const people: [string, number[]][] = [['Gavin', [35, -12, 60, 18]], ['Athena', [-20, 44, 8]], ['Ivan', [-40, -15, 22, -30]], ['Viola', [12, -33, 5, 9]], ['Kit', [-8, 15]], ['Mandy', [20, -60, -12]]];
-    const rows = people.map(([n, s]) => {
-      let acc = 0;
-      return { id: n.toLowerCase(), name: n, total: s.reduce((a, b) => a + b, 0), sessions: s.length, best: Math.max(...s), history: s.map((v) => (acc += v)) };
-    }).sort((a, b) => b.total - a.total);
     return (
       <main className="page">
         <TopBar back="/demo" title="龍虎榜" />
-        <section className="stack">
-          <div className="section-head"><h2>龍虎榜</h2><span className="muted small">所有大局合計（番）</span></div>
-          <div className="list pad"><Leaderboard rows={rows} me="gavin" /></div>
-        </section>
+        <BoardView sessions={DEMO_HISTORY} names={DEMO_NAMES} me="gavin" />
       </main>
     );
   }
@@ -108,7 +134,20 @@ export default function Demo() {
         fan={sum.fan}
         water={sum.water}
         unfinished={sum.unfinished}
-        config={settleCfg}
+        config={{ ...settleCfg, waterTo }}
+        canSetWater={!closed}
+        waterOptions={sum.players}
+        onSetWaterTo={async (id) => setWaterTo(id)}
+        closing={{
+          closed,
+          request: null,
+          needed: sum.players.map((x) => x.id),
+          isHost: true,
+          onClose: async () => setClosed({ by: 'gavin', at: Date.now() }),
+          onRequest: async () => undefined,
+          onApprove: async () => undefined,
+          onCancel: async () => undefined,
+        }}
         canEdit
         accounts={sum.players}
         expenses={expenses}
@@ -143,7 +182,7 @@ export default function Demo() {
         computed={c}
         rules={rules}
         me="gavin"
-        cash={{ perUnit: settleCfg.perUnit, currency: settleCfg.currency, waterName: 'Gavin' }}
+        cash={{ perUnit: settleCfg.perUnit, currency: settleCfg.currency, rounding: settleCfg.rounding }}
         rulesHref="/demo/rules"
         fanTable={DEFAULT_FAN_TABLE}
         back="/demo"
@@ -174,6 +213,7 @@ export default function Demo() {
       invite={null}
       rulesHref="/demo/rules"
       settleHref="/demo/settle"
+      water={{ on: !noWater, onToggle: async (on) => setNoWater(!on) }}
       candidates={[{ id: 'kit', name: 'Kit' }, { id: 'jo', name: 'Jo' }]}
     />
   );

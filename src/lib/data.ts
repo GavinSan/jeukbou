@@ -49,6 +49,14 @@ export interface Session {
   createdAt?: Timestamp | null;
   /** 開局嗰陣複製咗牌友圈嘅家規；舊大局冇就用牌友圈嘅 */
   rules?: RulesPatch;
+  /** 水由誰保管；冇就係場主（開局嗰個） */
+  waterTo?: string;
+  /** 呢局唔抽水（打牌嘅人揀） */
+  noWater?: boolean;
+  /** 已埋數 */
+  closed?: { by: string; at: number } | null;
+  /** 申請埋數（非場主）：要晒有帳戶嘅玩家同意 */
+  closeReq?: { by: string; approvals: string[] } | null;
 }
 
 /** 埋數設定（牌友圈層面，局主改） */
@@ -451,4 +459,42 @@ export async function checkSuperAdmin(): Promise<boolean> {
 export async function listAllGroups(): Promise<{ id: string; name: string; ownerId: string }[]> {
   const snap = await getDocs(collection(fs(), 'groups'));
   return snap.docs.map((d) => ({ id: d.id, name: String(d.data().name ?? ''), ownerId: String(d.data().ownerId ?? '') }));
+}
+
+// ---------- 大局：水、抽唔抽水、埋數 ----------
+const sessionDoc = (g: string, s: string) => doc(fs(), 'groups', g, 'sessions', s);
+
+export async function setSessionWaterTo(g: string, s: string, uid: string): Promise<void> {
+  await updateDoc(sessionDoc(g, s), { waterTo: uid });
+}
+
+export async function setSessionNoWater(g: string, s: string, noWater: boolean): Promise<void> {
+  await updateDoc(sessionDoc(g, s), { noWater });
+}
+
+export async function requestClose(g: string, s: string, uid: string): Promise<void> {
+  await updateDoc(sessionDoc(g, s), { closeReq: { by: uid, approvals: [uid] } });
+}
+
+export async function approveClose(g: string, s: string, uid: string): Promise<void> {
+  await updateDoc(sessionDoc(g, s), { 'closeReq.approvals': arrayUnion(uid) });
+}
+
+export async function cancelClose(g: string, s: string): Promise<void> {
+  await updateDoc(sessionDoc(g, s), { closeReq: null });
+}
+
+/** 埋數：未完場嘅枱逐張入「完場」（拉住嘅數即找），再鎖住大局 */
+export async function closeSession(g: string, s: string, uid: string, openTables: string[]): Promise<void> {
+  for (const t of openTables) {
+    for (let attempt = 0; attempt < 3; attempt++) {
+      try {
+        await appendEvent(g, s, t, await nextSeq(g, s, t), uid, { type: 'end' });
+        break;
+      } catch (err) {
+        if (!(err instanceof ConflictError) || attempt === 2) throw err;
+      }
+    }
+  }
+  await updateDoc(sessionDoc(g, s), { closed: { by: uid, at: Date.now() }, closeReq: null });
 }

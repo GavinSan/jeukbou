@@ -73,7 +73,7 @@ export default function GroupPage({ user, groupId }: { user: User; groupId: stri
         <section className="stack">
           <div className="section-head">
             <h2>龍虎榜</h2>
-            <span className="muted small">所有大局合計（番）</span>
+            <Link to={`/g/${groupId}/board`} className="textbtn">按日／週／月查看</Link>
           </div>
           <div className="list pad">
             <Leaderboard rows={board.rows} me={user.uid} />

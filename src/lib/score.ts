@@ -35,7 +35,11 @@ export interface Computed {
   stats: TableStats;
 }
 
-export const rulesOf = (group: Group | null, session?: Session | null): Rules => withRules(session?.rules ?? group?.rules ?? {});
+export const rulesOf = (group: Group | null, session?: Session | null): Rules => {
+  const r = withRules(session?.rules ?? group?.rules ?? {});
+  // 呢局揀咗唔抽水
+  return session?.noWater ? { ...r, water: { ...r.water, enabled: false } } : r;
+};
 
 export function computeTable(table: TableDoc, stored: StoredEvent[], rules: Rules): Computed | null {
   let state: TableState;

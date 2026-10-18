@@ -25,34 +25,62 @@ async function sessionTotals(g: Group, s: Session): Promise<{ totals: Record<str
   return { totals, names };
 }
 
-export function useBoard(group: Group | null, sessions: Session[], memberNames: Record<string, string>): { rows: BoardRow[]; loading: boolean } {
+/** 一個大局嘅結果（龍虎榜用） */
+export interface SessionResult {
+  id: string;
+  name: string;
+  at: number;
+  totals: Record<string, number>;
+}
+
+export interface History {
+  sessions: SessionResult[];
+  names: Record<string, string>;
+  loading: boolean;
+}
+
+/** 讀晒牌友圈每個大局（由舊到新）；唔即時跟 */
+export function useHistory(group: Group | null, sessions: Session[], memberNames: Record<string, string>): History {
   const key = group ? `${group.id}|${sessions.map((s) => s.id).join(',')}` : '';
-  const [state, setState] = useState<{ rows: BoardRow[]; loading: boolean }>({ rows: [], loading: true });
+  const [state, setState] = useState<History>({ sessions: [], names: {}, loading: true });
   useEffect(() => {
     if (!group) return;
     let alive = true;
     (async () => {
-      // 由舊到新
       const ordered = [...sessions].sort((a, b) => (a.createdAt?.toMillis() ?? 0) - (b.createdAt?.toMillis() ?? 0));
       const results = await Promise.all(ordered.map((s) => sessionTotals(group, s).catch(() => ({ totals: {} as Record<string, number>, names: {} as Record<string, string> }))));
-      const acc = new Map<string, BoardRow>();
-      results.forEach(({ totals, names }: { totals: Record<string, number>; names: Record<string, string> }, idx) => {
-        for (const [id, v] of Object.entries(totals)) {
-          const row = acc.get(id) ?? { id, name: '', total: 0, sessions: 0, best: -Infinity, history: [] };
-          row.name = memberNames[id] || names[id] || row.name || '玩家';
-          row.total += v;
-          row.sessions += 1;
-          row.best = Math.max(row.best, v);
-          row.history.push(row.total);
-          acc.set(id, row);
-        }
-        void idx;
+      const names: Record<string, string> = {};
+      const out: SessionResult[] = results.map((r, i) => {
+        for (const [id, n] of Object.entries(r.names)) names[id] = names[id] || n;
+        return { id: ordered[i].id, name: ordered[i].name, at: ordered[i].createdAt?.toMillis() ?? Date.now(), totals: r.totals };
       });
-      const rows = [...acc.values()].map((r) => ({ ...r, best: Number.isFinite(r.best) ? r.best : 0 })).sort((a, b) => b.total - a.total);
-      if (alive) setState({ rows, loading: false });
+      for (const [id, n] of Object.entries(memberNames)) names[id] = n;
+      if (alive) setState({ sessions: out, names, loading: false });
     })();
     return () => { alive = false; };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [key]);
   return state;
+}
+
+/** 由一堆大局結果計龍虎榜 */
+export function boardRows(sessions: SessionResult[], names: Record<string, string>): BoardRow[] {
+  const acc = new Map<string, BoardRow>();
+  for (const s of sessions) {
+    for (const [id, v] of Object.entries(s.totals)) {
+      const row = acc.get(id) ?? { id, name: names[id] || '玩家', total: 0, sessions: 0, best: -Infinity, history: [] };
+      row.total += v;
+      row.sessions += 1;
+      row.best = Math.max(row.best, v);
+      row.history.push(row.total);
+      acc.set(id, row);
+    }
+  }
+  return [...acc.values()].map((r) => ({ ...r, best: Number.isFinite(r.best) ? r.best : 0 })).sort((a, b) => b.total - a.total);
+}
+
+/** 舊接口：成個龍虎榜 */
+export function useBoard(group: Group | null, sessions: Session[], memberNames: Record<string, string>): { rows: BoardRow[]; loading: boolean } {
+  const h = useHistory(group, sessions, memberNames);
+  return { rows: boardRows(h.sessions, h.names), loading: h.loading };
 }

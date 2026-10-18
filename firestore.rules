@@ -60,9 +60,10 @@ service cloud.firestore {
       // 大局同枱
       match /sessions/{s} {
         allow read, create: if isMember(g);
-        // 家規淨係局主改得
+        // 家規淨係局主改得；水由誰保管淨係場主（開局嗰個）或者局主改得
         allow update: if isMember(g)
-          && (!request.resource.data.diff(resource.data).affectedKeys().hasAny(['rules']) || isOwner(g));
+          && (!request.resource.data.diff(resource.data).affectedKeys().hasAny(['rules']) || isOwner(g))
+          && (!request.resource.data.diff(resource.data).affectedKeys().hasAny(['waterTo']) || isOwner(g) || resource.data.createdBy == request.auth.uid);
         allow delete: if isOwner(g);
 
         // 換人請求：同局成員都睇到、發到、答到
