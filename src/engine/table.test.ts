@@ -88,8 +88,8 @@ test('自摸拉三家；其中一家食返自摸嗰個：佢劈自己嗰條，�
   const settles = r.steps[1].lines.filter((l) => l.kind === 'settle').map((l) => [l.from, l.to, l.amount, l.note]);
   assert.deepEqual(settles, [
     ['Athena', 'Gavin', 10, '劈：20 ÷ 2'],
-    ['Ivan', 'Gavin', 20, '斷拉，找晒'],
-    ['Viola', 'Gavin', 20, '斷拉，找晒'],
+    ['Ivan', 'Gavin', 20, '斷拉，全數找'],
+    ['Viola', 'Gavin', 20, '斷拉，全數找'],
   ]);
   assert.deepEqual(r.state.chains, [{ puller: 'Athena', pulled: 'Gavin', owed: 10, count: 1 }]);
 });

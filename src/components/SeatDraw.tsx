@@ -1,6 +1,7 @@
 // 掉位：四隻風牌冚住，逐隻反開，邊個攞到東就坐東
 import { useEffect, useState } from 'react';
 import { sfx } from '../lib/sound.ts';
+import { Hint } from '../ui.tsx';
 
 const WINDS = ['東', '南', '西', '北'];
 

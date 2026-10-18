@@ -34,9 +34,9 @@ export function useBoard(group: Group | null, sessions: Session[], memberNames: 
     (async () => {
       // 由舊到新
       const ordered = [...sessions].sort((a, b) => (a.createdAt?.toMillis() ?? 0) - (b.createdAt?.toMillis() ?? 0));
-      const results = await Promise.all(ordered.map((s) => sessionTotals(group, s).catch(() => ({ totals: {}, names: {} }))));
+      const results = await Promise.all(ordered.map((s) => sessionTotals(group, s).catch(() => ({ totals: {} as Record<string, number>, names: {} as Record<string, string> }))));
       const acc = new Map<string, BoardRow>();
-      results.forEach(({ totals, names }, idx) => {
+      results.forEach(({ totals, names }: { totals: Record<string, number>; names: Record<string, string> }, idx) => {
         for (const [id, v] of Object.entries(totals)) {
           const row = acc.get(id) ?? { id, name: '', total: 0, sessions: 0, best: -Infinity, history: [] };
           row.name = memberNames[id] || names[id] || row.name || '玩家';

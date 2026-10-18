@@ -122,9 +122,6 @@ export default function TableScreen(props: TableScreenProps) {
     }
     if (!up.length && !down.length) return;
     const lastStep = c.steps[c.steps.length - 1];
-  // 骰跟住莊家：莊坐邊，骰就喺佢隔籬個角
-  const dealerSpot = c.info.dealer && !ended && seats.includes(c.info.dealer) ? spotOf(seats.indexOf(c.info.dealer)) : 's-bottom';
-  const diceCorner = ({ 's-bottom': 'bl', 's-right': 'br', 's-top': 'tr', 's-left': 'tl' } as Record<string, string>)[dealerSpot] ?? 'bl';
     const last = lastStep?.event;
     const hp = !!lastStep && last?.type !== 'win' && lastStep.result.lines.some((l) => l.kind === 'settle');
     setFx((f) => ({ up, down, delta, hp, key: f.key + 1 }));
@@ -223,6 +220,9 @@ export default function TableScreen(props: TableScreenProps) {
     setEntry((e) => (e ? { ...e, fans: { ...e.fans, [id]: Math.max(0, Math.min(500, Math.round(v))) } } : e));
   }
 
+  // 骰跟住莊家：莊坐邊，骰就喺佢隔籬個角
+  const dealerSpot = c.info.dealer && !ended && seats.includes(c.info.dealer) ? spotOf(seats.indexOf(c.info.dealer)) : 's-bottom';
+  const diceCorner = ({ 's-bottom': 'bl', 's-right': 'br', 's-top': 'tr', 's-left': 'tl' } as Record<string, string>)[dealerSpot] ?? 'bl';
   const lastStep = c.steps[c.steps.length - 1];
   const log = [...c.steps].reverse().slice(0, showAll ? undefined : 5);
   const trend = useMemo(() => {
