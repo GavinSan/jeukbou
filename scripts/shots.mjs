@@ -116,7 +116,9 @@ for (const scheme of ['light', 'dark']) {
     });
     await step('trend', async () => {
       await page.goto(`${base}/demo/t/2`, { waitUntil: 'networkidle' });
-      await page.waitForTimeout(1200);
+      await page.waitForTimeout(1500);
+      console.log('dice-class', await page.locator('.felt-dice').getAttribute('class'));
+      await page.screenshot({ path: `${out}/felt-t2.png` });
       const plot = page.locator('.viz-plot rect').last();
       const box = await plot.boundingBox();
       if (box) await page.mouse.move(box.x + box.width * 0.55, box.y + box.height / 2);
