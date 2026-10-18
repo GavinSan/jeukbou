@@ -757,7 +757,7 @@ body.has-tabbar .toast { bottom: calc(96px + env(safe-area-inset-bottom, 0px)); 
 
 /* 入番數：撳牌型 */
 .picker { display: flex; flex-direction: column; gap: 12px; }
-.picker-head { position: sticky; top: -16px; z-index: 2; display: flex; align-items: center; gap: 12px; padding: 8px 0; background: var(--surface); }
+.picker-head { display: flex; align-items: center; gap: 12px; padding: 8px 0; background: var(--surface); }
 .picker-total { flex: 1; text-align: center; font-size: 15px; }
 .picker-total .num { font-size: 28px; }
 .picker-chosen { display: flex; flex-wrap: wrap; gap: 6px; }
@@ -775,3 +775,5 @@ body.has-tabbar .toast { bottom: calc(96px + env(safe-area-inset-bottom, 0px)); 
 .pick-opts { display: flex; gap: 6px; flex-wrap: wrap; justify-content: flex-end; }
 .pick-opts button { border: 1.5px solid var(--line); background: var(--surface); border-radius: 8px; min-height: 34px; padding: 0 10px; font: inherit; font-size: 13px; cursor: pointer; color: var(--ink); }
 .pick-opts button[aria-pressed="true"] { border-color: var(--felt); background: var(--gain-soft); font-weight: 700; }
+
+.picker-scroll { max-height: 52vh; overflow-y: auto; display: flex; flex-direction: column; gap: 12px; padding: 2px; margin: 0 -2px; overscroll-behavior: contain; }

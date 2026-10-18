@@ -176,6 +176,7 @@ export function FanPicker({ table, onUse, onClose }: { table: FanTable; onUse: (
         </div>
       )}
       <input className="input" type="search" value={q} onChange={(e) => setQ(e.target.value)} placeholder="搜尋牌型" aria-label="搜尋牌型" />
+      <div className="picker-scroll">
       {sections.map((sec) => {
         const items = sec.items.filter((it) => matches(it, query));
         if (!items.length) return null;
@@ -216,6 +217,7 @@ export function FanPicker({ table, onUse, onClose }: { table: FanTable; onUse: (
           </section>
         );
       })}
+      </div>
     </div>
   );
 }
