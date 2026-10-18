@@ -87,7 +87,7 @@ for (const scheme of ['light', 'dark']) {
       await page.getByRole('dialog').getByRole('button', { name: 'Ivan', exact: true }).click();
       await page.waitForTimeout(400);
       await page.screenshot({ path: `${out}/special-chase.png` });
-      await page.getByRole('button', { name: /^入數，俾每家/ }).click();
+      await page.getByRole('button', { name: /^入數，付每家/ }).click();
       await page.waitForTimeout(350);
       await page.screenshot({ path: `${out}/chase-stamp.png` });
       await page.waitForTimeout(1600);

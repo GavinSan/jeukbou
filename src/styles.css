@@ -554,7 +554,7 @@ button.tile:active { transform: translateY(3px); box-shadow: 0 2px 0 var(--tile-
 
 /* 骰跟莊家，喺佢隔籬個角，換莊時滑過去 */
 .felt .tile { z-index: 1; }
-.felt-dice { position: absolute; z-index: 0; width: 104px; padding: 4px; transition: left .7s cubic-bezier(.3,.8,.3,1), top .7s cubic-bezier(.3,.8,.3,1), opacity .2s, filter .2s; }
+.felt-dice { position: absolute; grid-column: auto; grid-row: auto; z-index: 0; width: 104px; padding: 4px; transition: left .7s cubic-bezier(.3,.8,.3,1), top .7s cubic-bezier(.3,.8,.3,1), opacity .2s, filter .2s; }
 .felt-dice.at-bl { left: 10px; top: calc(100% - 50px); }
 .felt-dice.at-br { left: calc(100% - 114px); top: calc(100% - 50px); }
 .felt-dice.at-tr { left: calc(100% - 114px); top: 10px; }
