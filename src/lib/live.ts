@@ -50,6 +50,7 @@ function useLiveList<T>(path: string[] | null, order: string | null, map: (id: s
 const toGroup = (id: string, d: DocumentData): Group => ({
   id, name: String(d.name ?? ''), ownerId: String(d.ownerId ?? ''), inviteCode: String(d.inviteCode ?? ''), rules: d.rules ?? {},
   settle: d.settle ?? undefined,
+  fanTable: d.fanTable ?? undefined,
 });
 const toMember = (id: string, d: DocumentData): Member => ({ uid: id, name: String(d.name ?? '玩家'), photoURL: d.photoURL ?? null });
 const toSession = (id: string, d: DocumentData): Session => ({

@@ -280,16 +280,35 @@ export default function SettleScreen(p: SettleScreenProps) {
 function ConfigSheet({ cfg, canEdit, accounts, busy, error, onClose, onSave }: {
   cfg: SettleConfig; canEdit: boolean; accounts: Player[]; busy: boolean; error: string; onClose: () => void; onSave: (c: SettleConfig) => void;
 }) {
+  return (
+    <Sheet onClose={onClose} label="埋數設定">
+      <h2>埋數設定</h2>
+      <SettleConfigForm cfg={cfg} canEdit={canEdit} accounts={accounts} busy={busy} error={error} onSave={onSave} />
+    </Sheet>
+  );
+}
+
+/** 埋數設定表格：埋數頁同家規頁共用 */
+export function SettleConfigForm({ cfg, canEdit, accounts, busy, error, onSave }: {
+  cfg: SettleConfig; canEdit: boolean; accounts: Player[]; busy: boolean; error: string; onSave: (c: SettleConfig) => void;
+}) {
   const [per, setPer] = useState(String(cfg.perUnit));
   const [cur, setCur] = useState(cfg.currency);
   const [waterTo, setWaterTo] = useState(cfg.waterTo);
   const [rounding, setRounding] = useState<MoneyRounding>(cfg.rounding);
   const n = Number(per);
   const d = !canEdit;
+  const list = accounts.some((a) => a.id === waterTo) ? accounts : [...accounts, { id: waterTo, name: '（已離開的成員）' }];
   return (
-    <Sheet onClose={onClose} label="埋數設定">
-      <h2>埋數設定</h2>
+    <div className="stack">
       {!canEdit && <p className="muted small">只有局主可修改。</p>}
+      <div className="field">
+        <span>水由誰保管</span>
+        <select className="input" value={waterTo} disabled={d} onChange={(e) => setWaterTo(e.target.value)} aria-label="水由誰保管">
+          {list.map((a) => <option key={a.id} value={a.id}>{a.name}</option>)}
+        </select>
+        <small className="muted">每晚抽的水（及取整差額）會計入此人的數。</small>
+      </div>
       <div className="field">
         <span>匯率</span>
         <div className="rate-edit-row">
@@ -305,12 +324,6 @@ function ConfigSheet({ cfg, canEdit, accounts, busy, error, onClose, onSave }: {
         </div>
       </div>
       <div className="field">
-        <span>水由誰保管</span>
-        <select className="input" value={waterTo} disabled={d} onChange={(e) => setWaterTo(e.target.value)} aria-label="水由誰保管">
-          {accounts.map((a) => <option key={a.id} value={a.id}>{a.name}</option>)}
-        </select>
-      </div>
-      <div className="field">
         <span>金額取整（差額計入水）</span>
         <div className="seg wide" role="group" aria-label="金額取整">
           {(['up', 'round', 'none'] as const).map((k) => (
@@ -319,8 +332,8 @@ function ConfigSheet({ cfg, canEdit, accounts, busy, error, onClose, onSave }: {
         </div>
       </div>
       {error && <p className="error">{error}</p>}
-      {canEdit && <button type="button" className="btn big" disabled={busy || !(n > 0) || !cur.trim()} onClick={() => onSave({ perUnit: n, currency: cur.trim(), waterTo, rounding })}>儲存</button>}
-    </Sheet>
+      {canEdit && <button type="button" className="btn big" disabled={busy || !(n > 0) || !cur.trim()} onClick={() => onSave({ perUnit: n, currency: cur.trim(), waterTo, rounding })}>儲存埋數設定</button>}
+    </div>
   );
 }
 

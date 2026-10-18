@@ -8,6 +8,8 @@ import type { SwapRequest, TableDoc, LogEvent } from '../lib/data.ts';
 import type { Computed } from '../lib/score.ts';
 import { ago, describe, netOf, trendOf } from '../lib/score.ts';
 import { TrendChart } from './Charts.tsx';
+import { FanPicker } from './FanTable.tsx';
+import type { FanTable } from '../lib/fanTable.ts';
 import { money } from './SettleScreen.tsx';
 import { sfx, unlock } from '../lib/sound.ts';
 import { buzz } from '../lib/haptics.ts';
@@ -59,6 +61,8 @@ export interface TableScreenProps {
   onCancelSwap?: (id: string) => Promise<void>;
   onReseat?: (seats: string[]) => Promise<void>;
   onDice?: () => Promise<void>;
+  /** 牌友圈番數表：入番數時可以撳牌型加 */
+  fanTable?: FanTable;
   /** 夠拉時揀「不找」（全枱同步） */
   onDecline?: (key: string) => Promise<void>;
   /** 找數單用嚟換算金額 */
@@ -102,6 +106,8 @@ export default function TableScreen(props: TableScreenProps) {
   const [diceShown, setDiceShown] = useState<number | null>(null);
   const [editing, setEditing] = useState<{ seq: number; event: TableEvent; current: string } | null>(null);
   const [receipt, setReceipt] = useState<number | null>(null);
+  const [picking, setPicking] = useState(false);
+  const [pickedNote, setPickedNote] = useState('');
 
   useEffect(() => { const t = setTimeout(() => setDealing(false), 900); return () => clearTimeout(t); }, []);
 
@@ -215,6 +221,8 @@ export default function TableScreen(props: TableScreenProps) {
     setError('');
     sfx.tap();
     setEntry({ winners: [id], loser: undefined, fans: {}, step: 'who', current: id });
+    setPicking(false);
+    setPickedNote('');
   }
 
   const draft: TableEvent | null = useMemo(() => {
@@ -506,6 +514,12 @@ export default function TableScreen(props: TableScreenProps) {
                 下一步：番數
               </button>
             </>
+          ) : picking && props.fanTable ? (
+            <FanPicker
+              table={props.fanTable}
+              onClose={() => setPicking(false)}
+              onUse={(fan, picked) => { setFan(entry.current, fan); setPickedNote(picked.map((p) => p.name).join('、')); setPicking(false); sfx.tap(); }}
+            />
           ) : (
             <>
               <div className="between">
@@ -528,9 +542,16 @@ export default function TableScreen(props: TableScreenProps) {
               </div>
               <div className="quick">
                 {QUICK_FANS.map((n) => (
-                  <button key={n} type="button" aria-pressed={(entry.fans[entry.current] ?? 0) === n} onClick={() => setFan(entry.current, n)}>{n}</button>
+                  <button key={n} type="button" aria-pressed={(entry.fans[entry.current] ?? 0) === n} onClick={() => { setFan(entry.current, n); setPickedNote(''); }}>{n}</button>
                 ))}
               </div>
+              {props.fanTable && (
+                <button type="button" className="btn plain fan-table-btn" onClick={() => setPicking(true)}>
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" aria-hidden="true"><rect x="4" y="3" width="16" height="18" rx="2" /><path d="M8 8h8M8 12h8M8 16h5" /></svg>
+                  用番數表計番
+                </button>
+              )}
+              {pickedNote && <p className="center-text small muted">{pickedNote}</p>}
               <Hint className="center-text muted small">轉動或按快捷數字；按中間可直接輸入。</Hint>
               <div className="auto-row" aria-label="自動計">
                 <span className="muted small">自動計</span>

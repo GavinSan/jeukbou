@@ -38,6 +38,15 @@ for (const scheme of ['light', 'dark']) {
       await page.getByRole('dialog').getByRole('button', { name: '13', exact: true }).click();
       await page.waitForTimeout(700);
       await page.screenshot({ path: `${out}/sheet-fan.png` });
+      await page.getByRole('button', { name: '用番數表計番' }).click();
+      await page.waitForTimeout(200);
+      await page.getByRole('dialog').getByRole('button', { name: /^清一色/ }).click();
+      await page.getByRole('dialog').getByRole('button', { name: /^對對糊/ }).click();
+      await page.getByRole('dialog').getByRole('button', { name: /^門清\d/ }).click();
+      await page.waitForTimeout(200);
+      await page.screenshot({ path: `${out}/picker.png` });
+      await page.getByRole('button', { name: /^用 \d+ 番$/ }).click();
+      await page.waitForTimeout(200);
       await page.getByRole('button', { name: /^入數/ }).click();
       await page.waitForTimeout(700);
       await page.screenshot({ path: `${out}/after-win.png` });
@@ -163,6 +172,14 @@ for (const scheme of ['light', 'dark']) {
       await page.goto(`${base}/demo/rules`, { waitUntil: 'networkidle' });
       await page.waitForTimeout(500);
       await page.screenshot({ path: `${out}/rules.png`, fullPage: true });
+      await page.getByRole('tab', { name: '埋數・水' }).click();
+      await page.waitForTimeout(200);
+      await page.screenshot({ path: `${out}/rules-settle.png` });
+      await page.getByRole('tab', { name: '番數表' }).click();
+      await page.getByRole('button', { name: /^十三么/ }).click();
+      await page.getByRole('button', { name: '編輯' }).click();
+      await page.waitForTimeout(200);
+      await page.screenshot({ path: `${out}/fan-edit.png` });
     });
   }
   const overflow = await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth);

@@ -4,6 +4,7 @@ import {
   arrayUnion,
   collection,
   deleteDoc,
+  deleteField,
   doc,
   getDoc,
   getDocs,
@@ -17,6 +18,8 @@ import type { User } from 'firebase/auth';
 import { db } from '../firebase.ts';
 import type { TableEvent } from '../engine/table.ts';
 import type { MoneyRounding } from '../engine/settlement.ts';
+import { DEFAULT_FAN_TABLE } from './fanTable.ts';
+import type { FanTable } from './fanTable.ts';
 import { withRules } from '../engine/rules.ts';
 
 export type RulesPatch = Parameters<typeof withRules>[0];
@@ -29,6 +32,8 @@ export interface Group {
   rules?: RulesPatch;
   /** 場主嘅埋數設定 */
   settle?: Partial<SettleConfig>;
+  /** 牌友圈自己嘅番數表；冇就用預設 */
+  fanTable?: FanTable;
 }
 
 export interface Member {
@@ -372,4 +377,12 @@ export const pairActive = (p: Pick<PairDoc, 'a' | 'b' | 'accepted'>) =>
 /** 輸家揀「不找」：記低，全枱唔再問，可以繼續入數 */
 export async function declineSettle(g: string, s: string, t: string, key: string): Promise<void> {
   await updateDoc(doc(fs(), 'groups', g, 'sessions', s, 'tables', t), { declined: arrayUnion(key) });
+}
+
+export const fanTableOf = (g: Group | null | undefined): FanTable =>
+  g?.fanTable && Array.isArray(g.fanTable.sections) && g.fanTable.sections.length ? g.fanTable : DEFAULT_FAN_TABLE;
+
+/** 淨係局主改得 */
+export async function saveFanTable(g: string, table: FanTable | null): Promise<void> {
+  await updateDoc(doc(fs(), 'groups', g), { fanTable: table ?? deleteField() });
 }

@@ -12,10 +12,13 @@ import TableScreen from './components/TableScreen.tsx';
 import RulesEditor from './components/RulesEditor.tsx';
 import { TopBar } from './ui.tsx';
 import { Leaderboard } from './components/Charts.tsx';
-import SettleScreen from './components/SettleScreen.tsx';
+import SettleScreen, { SettleConfigForm } from './components/SettleScreen.tsx';
+import HouseRules from './components/HouseRules.tsx';
+import { FanTableView } from './components/FanTable.tsx';
 import { DEFAULT_SETTLE } from './lib/data.ts';
 import type { ExpenseDoc, PairDoc, SettleConfig } from './lib/data.ts';
 import { sessionSummary } from './lib/totals.ts';
+import { DEFAULT_FAN_TABLE } from './lib/fanTable.ts';
 
 const TABLES: TableDoc[] = [
   { id: 't0', name: '第 1 枱', order: 0, seats: ['gavin', 'athena', 'ivan', 'viola'], names: { gavin: 'Gavin', athena: 'Athena', ivan: 'Ivan', viola: 'Viola' } },
@@ -69,7 +72,11 @@ export default function Demo() {
     return (
       <main className="page">
         <TopBar back="/demo" title="家規" />
-        <RulesEditor initial={{}} canEdit scopeNote="示範：修改不會儲存。" onSave={async () => undefined} />
+        <HouseRules
+          fans={<FanTableView table={DEFAULT_FAN_TABLE} canEdit onSave={async () => undefined} />}
+          scoring={<RulesEditor initial={{}} canEdit scopeNote="示範：修改不會儲存。" onSave={async () => undefined} />}
+          settle={<SettleConfigForm cfg={settleCfg} canEdit accounts={[{ id: 'gavin', name: 'Gavin' }, { id: 'athena', name: 'Athena' }, { id: 'ivan', name: 'Ivan' }]} busy={false} error="" onSave={(c) => setSettleCfg(c)} />}
+        />
       </main>
     );
   }
@@ -137,6 +144,7 @@ export default function Demo() {
         me="gavin"
         cash={{ perUnit: settleCfg.perUnit, currency: settleCfg.currency, waterName: 'Gavin' }}
         rulesHref="/demo/rules"
+        fanTable={DEFAULT_FAN_TABLE}
         back="/demo"
         subtitle="示範"
         candidates={[{ id: 'kit', name: 'Kit' }, { id: 'mandy', name: 'Mandy' }]}

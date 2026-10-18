@@ -2,7 +2,7 @@ import { useMemo } from 'react';
 import type { User } from 'firebase/auth';
 import TableScreen from '../components/TableScreen.tsx';
 import Incoming from '../components/Incoming.tsx';
-import { appendEvent, applySwap, cancelSwap, declineSettle, requestSwap, reseat, rollDice, settleConfigOf } from '../lib/data.ts';
+import { appendEvent, applySwap, cancelSwap, declineSettle, requestSwap, reseat, rollDice, fanTableOf, settleConfigOf } from '../lib/data.ts';
 import { useGroup, useManyEvents, useMembers, useRequests, useSession, useTables } from '../lib/live.ts';
 import { computeTable, rulesOf } from '../lib/score.ts';
 import type { Computed } from '../lib/score.ts';
@@ -40,6 +40,7 @@ export default function TablePage({ user, groupId, sessionId, tableId }: { user:
       table={table}
       computed={c}
       rules={rules}
+      fanTable={fanTableOf(group.data)}
       onDecline={(key) => declineSettle(groupId, sessionId, tableId, key)}
       cash={(() => {
         const sc = settleConfigOf(group.data);

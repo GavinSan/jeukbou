@@ -732,3 +732,46 @@ body.has-tabbar .toast { bottom: calc(96px + env(safe-area-inset-bottom, 0px)); 
 .rate-edit-row .big-input { width: 120px; flex: none; }
 .rate-edit-row span { white-space: nowrap; }
 .field .seg-input { width: 70px; min-height: 38px; border: none; background: none; padding: 0; border-radius: 8px; text-align: center; }
+
+/* ---------- 番數表 ---------- */
+.sticky-seg { position: sticky; top: 8px; z-index: 5; box-shadow: 0 4px 14px rgba(0,0,0,.06); }
+.fan-tools { display: flex; gap: 10px; align-items: center; }
+.fan-tools .input { flex: 1; }
+.fan-sec { display: flex; flex-direction: column; gap: 8px; }
+.fan-sec h3 { font-family: var(--font-kai); font-size: 18px; padding: 0 4px; }
+.fan-list { list-style: none; margin: 0; padding: 0; }
+.fan-list li { border-top: 1px solid var(--line); }
+.fan-list li:first-child { border-top: none; }
+.fan-row { display: flex; align-items: center; gap: 12px; width: 100%; padding: 11px 16px; background: none; border: none; text-align: left; font: inherit; color: inherit; cursor: pointer; }
+.fan-row .grow { display: flex; flex-direction: column; min-width: 0; }
+.fan-row small { font-size: 12px; }
+.fan-name { font-size: 16px; }
+.fan-val { font-size: 16px; white-space: nowrap; color: var(--tile-loss); }
+.fan-desc { margin: 0; padding: 0 16px 12px; color: var(--muted); font-size: 14px; }
+.fan-rules { margin: 0; padding: 10px 16px 10px 36px; display: flex; flex-direction: column; gap: 6px; font-size: 14px; }
+.fan-edit-row { display: grid; grid-template-columns: minmax(0, 1.6fr) minmax(0, 1fr) 36px; gap: 6px; padding: 8px 10px; align-items: center; }
+.fan-edit-row .input { min-height: 40px; padding: 6px 10px; }
+.fan-note-input { grid-column: 1 / -1; font-size: 14px !important; }
+.fan-title-input { font-family: var(--font-kai); font-weight: 700; }
+.fan-table-btn { display: inline-flex; align-items: center; justify-content: center; gap: 8px; }
+
+/* 入番數：撳牌型 */
+.picker { display: flex; flex-direction: column; gap: 12px; }
+.picker-head { position: sticky; top: -16px; z-index: 2; display: flex; align-items: center; gap: 12px; padding: 8px 0; background: var(--surface); }
+.picker-total { flex: 1; text-align: center; font-size: 15px; }
+.picker-total .num { font-size: 28px; }
+.picker-chosen { display: flex; flex-wrap: wrap; gap: 6px; }
+.pill.on { border-color: var(--felt); background: var(--gain-soft); font-weight: 700; }
+.picker-sec h4 { font-family: var(--font-kai); font-size: 15px; color: var(--muted); margin: 4px 0 6px; }
+.picker-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
+.pick {
+  display: flex; align-items: center; justify-content: space-between; gap: 6px; min-height: 46px; padding: 6px 12px; border-radius: 10px;
+  border: 1.5px solid var(--line); background: var(--tile); color: var(--tile-ink); font: inherit; font-size: 14px; text-align: left; cursor: pointer;
+  box-shadow: 0 2px 0 var(--tile-back);
+}
+.pick .num { color: var(--tile-loss); }
+.pick[aria-pressed="true"] { border-color: var(--felt); background: var(--gain-soft); color: var(--ink); box-shadow: 0 0 0 1px var(--felt); }
+.pick.multi { grid-column: 1 / -1; cursor: default; }
+.pick-opts { display: flex; gap: 6px; flex-wrap: wrap; justify-content: flex-end; }
+.pick-opts button { border: 1.5px solid var(--line); background: var(--surface); border-radius: 8px; min-height: 34px; padding: 0 10px; font: inherit; font-size: 13px; cursor: pointer; color: var(--ink); }
+.pick-opts button[aria-pressed="true"] { border-color: var(--felt); background: var(--gain-soft); font-weight: 700; }
