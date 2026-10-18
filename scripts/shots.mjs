@@ -42,7 +42,7 @@ for (const scheme of ['light', 'dark']) {
         await page.getByRole('button', { name: '用番數表計番' }).click({ timeout: 4000 });
         await page.waitForTimeout(300);
         await page.screenshot({ path: `${out}/picker-open.png` });
-        for (const re of [/^清一色/, /^對對糊/, /^門清\d/]) {
+        for (const re of [/^清一色/, /^對對糊/]) {
           await page.getByRole('dialog').getByRole('button', { name: re }).first().click({ timeout: 4000 });
         }
         await page.waitForTimeout(200);
