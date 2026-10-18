@@ -729,3 +729,6 @@ button.tile:active { transform: translateY(3px); box-shadow: 0 2px 0 var(--tile-
 body.has-tabbar .page { padding-bottom: calc(108px + env(safe-area-inset-bottom, 0px)); }
 body.has-tabbar .toast { bottom: calc(96px + env(safe-area-inset-bottom, 0px)); }
 @media (prefers-reduced-motion: reduce) { .tab-lens { transition: none; } }
+.rate-edit-row .big-input { width: 120px; flex: none; }
+.rate-edit-row span { white-space: nowrap; }
+.field .seg-input { width: 70px; min-height: 38px; border: none; background: none; padding: 0; border-radius: 8px; text-align: center; }

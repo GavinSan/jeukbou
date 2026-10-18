@@ -23,7 +23,7 @@ import type { Art } from './Specials.tsx';
 
 const SPOTS = ['s-bottom', 's-right', 's-top', 's-left'];
 const QUICK_FANS = [5, 8, 10, 13, 15, 20, 25, 30, 40, 50];
-const KIND: Record<Line['kind'], string> = { pending: '擺低', settle: '找數', instant: '即時', water: '抽水' };
+const KIND: Record<Line['kind'], string> = { pending: '枱面', settle: '找數', instant: '即時', water: '抽水' };
 
 interface Entry {
   winners: string[];

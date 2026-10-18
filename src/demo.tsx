@@ -136,6 +136,7 @@ export default function Demo() {
         rules={rules}
         me="gavin"
         cash={{ perUnit: settleCfg.perUnit, currency: settleCfg.currency, waterName: 'Gavin' }}
+        rulesHref="/demo/rules"
         back="/demo"
         subtitle="示範"
         candidates={[{ id: 'kit', name: 'Kit' }, { id: 'mandy', name: 'Mandy' }]}
