@@ -38,15 +38,23 @@ for (const scheme of ['light', 'dark']) {
       await page.getByRole('dialog').getByRole('button', { name: '13', exact: true }).click();
       await page.waitForTimeout(700);
       await page.screenshot({ path: `${out}/sheet-fan.png` });
-      await page.getByRole('button', { name: '用番數表計番' }).click();
-      await page.waitForTimeout(200);
-      await page.getByRole('dialog').getByRole('button', { name: /^清一色/ }).click();
-      await page.getByRole('dialog').getByRole('button', { name: /^對對糊/ }).click();
-      await page.getByRole('dialog').getByRole('button', { name: /^門清\d/ }).click();
-      await page.waitForTimeout(200);
-      await page.screenshot({ path: `${out}/picker.png` });
-      await page.getByRole('button', { name: /^用 \d+ 番$/ }).click();
-      await page.waitForTimeout(200);
+      try {
+        await page.getByRole('button', { name: '用番數表計番' }).click({ timeout: 4000 });
+        await page.waitForTimeout(300);
+        await page.screenshot({ path: `${out}/picker-open.png` });
+        for (const re of [/^清一色/, /^對對糊/, /^門清\d/]) {
+          await page.getByRole('dialog').getByRole('button', { name: re }).first().click({ timeout: 4000 });
+        }
+        await page.waitForTimeout(200);
+        await page.screenshot({ path: `${out}/picker.png` });
+        await page.getByRole('button', { name: /^用 \d+ 番$/ }).click({ timeout: 4000 });
+        await page.waitForTimeout(200);
+      } catch (e) {
+        errors.push(`picker: ${e.message.split('\n')[0]}`);
+        await page.screenshot({ path: `${out}/picker-fail.png` });
+        const back = page.getByRole('button', { name: '返回' });
+        if (await back.count()) await back.click();
+      }
       await page.getByRole('button', { name: /^入數/ }).click();
       await page.waitForTimeout(700);
       await page.screenshot({ path: `${out}/after-win.png` });
