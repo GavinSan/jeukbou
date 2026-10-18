@@ -2,7 +2,7 @@ import { useMemo } from 'react';
 import type { User } from 'firebase/auth';
 import TableScreen from '../components/TableScreen.tsx';
 import Incoming from '../components/Incoming.tsx';
-import { appendEvent, applySwap, cancelSwap, requestSwap, reseat, rollDice } from '../lib/data.ts';
+import { appendEvent, applySwap, cancelSwap, requestSwap, reseat, rollDice, settleConfigOf } from '../lib/data.ts';
 import { useGroup, useManyEvents, useMembers, useRequests, useSession, useTables } from '../lib/live.ts';
 import { computeTable, rulesOf } from '../lib/score.ts';
 import type { Computed } from '../lib/score.ts';
@@ -40,6 +40,10 @@ export default function TablePage({ user, groupId, sessionId, tableId }: { user:
       table={table}
       computed={c}
       rules={rules}
+      cash={(() => {
+        const sc = settleConfigOf(group.data);
+        return { perUnit: sc.perUnit, currency: sc.currency, waterName: members.data.find((m) => m.uid === sc.waterTo)?.name ?? table.names[sc.waterTo] };
+      })()}
       me={user.uid}
       back={back}
       subtitle={session.data?.name}

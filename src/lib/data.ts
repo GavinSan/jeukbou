@@ -26,6 +26,8 @@ export interface Group {
   ownerId: string;
   inviteCode: string;
   rules?: RulesPatch;
+  /** 場主嘅埋數設定 */
+  settle?: Partial<SettleConfig>;
 }
 
 export interface Member {
@@ -41,29 +43,36 @@ export interface Session {
   createdAt?: Timestamp | null;
   /** 開局嗰陣複製咗牌友圈嘅家規；舊大局冇就用牌友圈嘅 */
   rules?: RulesPatch;
-  /** 埋數設定 */
-  settle?: SettleConfig;
 }
 
+/** 埋數設定（牌友圈層面，局主改） */
 export interface SettleConfig {
   /** 貨幣代號，例如 CAD、HKD */
   currency: string;
   /** 幾多番 = 1 個貨幣單位 */
   perUnit: number;
-  /** 剩水：'split' 平分，或者某個玩家 id */
+  /** 水歸邊個戶口；空白 = 局主 */
   waterTo: string;
+  /** 金額向上取整 */
+  roundUp: boolean;
 }
 
-export const DEFAULT_SETTLE: SettleConfig = { currency: 'CAD', perUnit: 6, waterTo: 'split' };
+export const DEFAULT_SETTLE: SettleConfig = { currency: 'CAD', perUnit: 6, waterTo: '', roundUp: true };
 
-/** 開支（晚餐、的士…）或者已經私下轉咗嘅錢 */
+export function settleConfigOf(g: Group | null | undefined): SettleConfig {
+  const c = { ...DEFAULT_SETTLE, ...(g?.settle ?? {}) };
+  if (!c.waterTo && g) c.waterTo = g.ownerId;
+  return c;
+}
+
+/** 開支（晚餐、的士…）或者已經私下轉咗嘅錢；同麻雀數分開 */
 export interface ExpenseDoc {
   id: string;
   kind: 'expense' | 'transfer';
   label: string;
   payer: string;
   amount: number;
-  /** 分嘅人；['水'] = 由水支付；transfer 就係收錢嗰個 */
+  /** 分嘅人；transfer 就係收錢嗰個 */
   sharedBy: string[];
   by: string;
   at: number | null;
@@ -321,10 +330,10 @@ export async function cancelSwap(groupId: string, sessionId: string, reqId: stri
 }
 
 // ---------- 埋數 ----------
-const sessionRef = (g: string, s: string) => doc(fs(), 'groups', g, 'sessions', s);
 
-export async function saveSettleConfig(g: string, s: string, config: SettleConfig): Promise<void> {
-  await updateDoc(sessionRef(g, s), { settle: config });
+/** 淨係局主改得（firestore.rules：groups 只准局主 update） */
+export async function saveSettleConfig(g: string, config: SettleConfig): Promise<void> {
+  await updateDoc(doc(fs(), 'groups', g), { settle: config });
 }
 
 export async function addExpense(g: string, s: string, e: Omit<ExpenseDoc, 'id' | 'at'>): Promise<void> {

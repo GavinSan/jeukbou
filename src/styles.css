@@ -652,3 +652,24 @@ button.tile:active { transform: translateY(3px); box-shadow: 0 2px 0 var(--tile-
 .seg.wide { display: flex; }
 .seg.wide button { flex: 1; }
 .seg-input { width: 70px; border: none; background: none; text-align: center; font: inherit; min-height: 38px; }
+
+/* 埋數第二版 */
+.rate-note { margin-top: -6px; padding: 0 4px; }
+.settle-table .st-row.three { grid-template-columns: minmax(0, 1.6fr) minmax(0, 1fr) minmax(0, 1.2fr); }
+.settle-table .st-water { background: var(--sunk); color: var(--muted); }
+.exp-net { display: flex; flex-wrap: wrap; gap: 4px 14px; font-size: 13px; padding: 0 4px; }
+.flat-row { padding: 6px 0; border-top: none; }
+
+/* 找數單 */
+.receipt { list-style: none; margin: 0; padding: 0; border-radius: 14px; background: var(--tile); color: var(--tile-ink); box-shadow: 0 4px 0 var(--tile-back), 0 6px 12px rgba(0,0,0,.12); }
+.receipt li { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 2px 10px; padding: 12px 14px; border-top: 1px dashed rgba(0,0,0,.15); }
+.receipt li:first-child { border-top: none; }
+.receipt .rc-who { font-size: 17px; }
+.receipt .rc-who .gain { color: var(--tile-gain); } .receipt .rc-who .loss { color: var(--tile-loss); }
+.receipt .rc-amt { text-align: right; white-space: nowrap; }
+.receipt .rc-amt .num { font-size: 22px; }
+.receipt .rc-amt small { display: block; font-size: 12px; }
+.receipt .rc-note { grid-column: 1 / -1; font-size: 12px; }
+.receipt .muted { color: var(--tile-muted); }
+.receipt .rc-water { background: rgba(0,0,0,.035); }
+.rc-net { display: flex; flex-wrap: wrap; gap: 4px 16px; font-size: 15px; }

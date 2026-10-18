@@ -49,10 +49,9 @@ export default function Demo() {
   const [dice, setDice] = useState<Record<string, Dice>>({});
   const [seatOverride, setSeatOverride] = useState<Record<string, string[]>>({});
   const [extraNames, setExtraNames] = useState<Record<string, string>>({});
-  const [settleCfg, setSettleCfg] = useState<SettleConfig>(DEFAULT_SETTLE);
+  const [settleCfg, setSettleCfg] = useState<SettleConfig>({ ...DEFAULT_SETTLE, waterTo: 'gavin' });
   const [expenses, setExpenses] = useState<ExpenseDoc[]>([
     { id: 'e1', kind: 'expense', label: '晚餐', payer: 'gavin', amount: 186.4, sharedBy: ['gavin', 'athena', 'ivan', 'viola', 'janice', 'sang', 'clau', 'af'], by: 'demo', at: null },
-    { id: 'e2', kind: 'expense', label: '飲品', payer: 'sang', amount: 3, sharedBy: ['水'], by: 'demo', at: null },
   ]);
   const [pairs, setPairs] = useState<PairDoc[]>([{ id: 'p1', a: 'robin', b: 'tat', by: 'robin', accepted: ['robin'] }]);
   const tables = useMemo(
@@ -103,6 +102,8 @@ export default function Demo() {
         water={sum.water}
         unfinished={sum.unfinished}
         config={settleCfg}
+        canEdit
+        accounts={sum.players}
         expenses={expenses}
         pairs={pairs}
         me="gavin"
@@ -134,6 +135,7 @@ export default function Demo() {
         computed={c}
         rules={rules}
         me="gavin"
+        cash={{ perUnit: settleCfg.perUnit, currency: settleCfg.currency, waterName: 'Gavin' }}
         back="/demo"
         subtitle="示範"
         candidates={[{ id: 'kit', name: 'Kit' }, { id: 'mandy', name: 'Mandy' }]}

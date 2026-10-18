@@ -117,39 +117,52 @@ function balanceCents(cents: Record<string, number>) {
   cents[biggest] -= diff;
 }
 
-/** 水剩落嚟（或者唔夠）點處理：平分俾所有玩家，或者全部歸一個人 */
-export type WaterTo = 'split' | PlayerId;
-
 export interface SettleInput {
-  /** 每人番數（已找 + 枱面） */
+  /** 每人番數（已找 + 枱面，已扣水） */
   fan: Record<PlayerId, number>;
   /** 抽咗幾多番水 */
   water: number;
+  /** 水歸邊個戶口（場主揀）；可以唔係今晚玩家 */
+  waterTo: PlayerId;
   /** 幾多番 = 1 個貨幣單位 */
   perUnit: number;
+  /** 每人金額向上取整（輸家多付、贏家多收），差額由水戶口吸收 */
+  roundUp: boolean;
+  /** 開支（晚餐等），同麻雀數分開計 */
   expenses: Expense[];
-  waterTo: WaterTo;
-  /** 有份嘅人（水平分用） */
   players: PlayerId[];
   pairs: [PlayerId, PlayerId][];
 }
 
-export interface SettleResult {
-  /** 打牌輸贏（貨幣） */
-  game: Record<PlayerId, number>;
-  /** 開支淨額：俾咗錢 +，要分 − */
-  expense: Record<PlayerId, number>;
-  /** 分到（或者要補）嘅水 */
-  waterShare: Record<PlayerId, number>;
-  water: { collected: number; spent: number; left: number };
-  /** 每人最後 */
-  net: Record<PlayerId, number>;
-  /** 合埋 pair 之後嘅戶口 */
+export interface Ledger {
+  /** 每個戶口（已合 pair） */
   accounts: Record<string, number>;
   transfers: Transfer[];
 }
 
-/** 成個大局埋數：番 → 錢 → 加開支 → 處理水 → 合 pair → 最少轉賬 */
+export interface SettleResult {
+  /** 麻雀輸贏（貨幣，已取整） */
+  game: Record<PlayerId, number>;
+  /** 水：原本幾多、取整差額、最後歸水戶口幾多 */
+  water: { raw: number; rounding: number; total: number; to: PlayerId };
+  /** 開支淨額：付了 +，要分 − */
+  expense: Record<PlayerId, number>;
+  /** 麻雀 + 水 */
+  gameLedger: Ledger;
+  /** 晚餐等開支 */
+  expenseLedger: Ledger;
+  /** 兩樣合埋一次過轉 */
+  combined: Ledger;
+}
+
+const ceilAbs = (cents: number) => Math.sign(cents) * Math.ceil(Math.abs(cents) / 100 - 1e-9) * 100;
+
+function ledger(balances: Record<string, number>, pairs: [PlayerId, PlayerId][]): Ledger {
+  const accounts = mergePairs(balances, pairs);
+  return { accounts, transfers: minimalTransfers(accounts) };
+}
+
+/** 埋數：麻雀數（連水）同開支分開計，亦可以合埋 */
 export function settleSession(input: SettleInput): SettleResult {
   const { players } = input;
   const fanAll: Record<string, number> = {};
@@ -157,54 +170,37 @@ export function settleSession(input: SettleInput): SettleResult {
   fanAll[WATER] = input.water;
   const money = toMoney(fanAll, input.perUnit);
 
-  const afterExp = applyExpenses(money, input.expenses);
-  const cents: Record<string, number> = {};
-  for (const [k, v] of Object.entries(afterExp)) cents[k] = toCents(v);
-  for (const p of players) cents[p] = cents[p] ?? 0;
-
-  const collected = toCents(money[WATER] ?? 0);
-  const left = cents[WATER] ?? 0;
-  delete cents[WATER];
-
-  const waterCents: Record<string, number> = {};
-  for (const p of players) waterCents[p] = 0;
-  if (left !== 0) {
-    if (input.waterTo === 'split' || !players.includes(input.waterTo)) {
-      const sign = Math.sign(left);
-      const abs = Math.abs(left);
-      const each = Math.floor(abs / players.length);
-      let rest = abs - each * players.length;
-      // 零頭由排頭嗰幾個人負責，順序固定
-      for (const p of players) {
-        const share = each + (rest > 0 ? 1 : 0);
-        if (rest > 0) rest -= 1;
-        waterCents[p] = sign * share;
-      }
-    } else {
-      waterCents[input.waterTo] = left;
-    }
+  // 每人取整；水戶口吸收差額，令總數保持 0
+  const gameCents: Record<string, number> = {};
+  for (const p of players) {
+    const c = toCents(money[p] ?? 0);
+    gameCents[p] = input.roundUp ? ceilAbs(c) : c;
   }
+  const rawWater = toCents(money[WATER] ?? 0);
+  const waterTotal = -Object.values(gameCents).reduce((a, b) => a + b, 0);
 
   const game: Record<string, number> = {};
-  const expense: Record<string, number> = {};
-  const waterShare: Record<string, number> = {};
-  const net: Record<string, number> = {};
-  for (const p of Object.keys(cents)) {
-    const g = toCents(money[p] ?? 0);
-    game[p] = fromCents(g);
-    expense[p] = fromCents(cents[p] - g);
-    waterShare[p] = fromCents(waterCents[p] ?? 0);
-    net[p] = fromCents(cents[p] + (waterCents[p] ?? 0));
-  }
+  for (const p of players) game[p] = fromCents(gameCents[p]);
 
-  const accounts = mergePairs(net, input.pairs);
+  const gameBal: Record<string, number> = { ...game };
+  gameBal[input.waterTo] = fromCents(toCents(gameBal[input.waterTo] ?? 0) + waterTotal);
+
+  const zero: Record<string, number> = {};
+  for (const p of players) zero[p] = 0;
+  const expense = applyExpenses(zero, input.expenses);
+
+  const both: Record<string, number> = {};
+  for (const [k, v] of Object.entries(gameBal)) both[k] = toCents(v);
+  for (const [k, v] of Object.entries(expense)) both[k] = (both[k] ?? 0) + toCents(v);
+  const combined: Record<string, number> = {};
+  for (const [k, v] of Object.entries(both)) combined[k] = fromCents(v);
+
   return {
     game,
+    water: { raw: fromCents(rawWater), rounding: fromCents(waterTotal - rawWater), total: fromCents(waterTotal), to: input.waterTo },
     expense,
-    waterShare,
-    water: { collected: fromCents(collected), spent: fromCents(collected - left), left: fromCents(left) },
-    net,
-    accounts,
-    transfers: minimalTransfers(accounts),
+    gameLedger: ledger(gameBal, input.pairs),
+    expenseLedger: ledger(expense, input.pairs),
+    combined: ledger(combined, input.pairs),
   };
 }

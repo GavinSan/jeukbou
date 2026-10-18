@@ -49,11 +49,11 @@ function useLiveList<T>(path: string[] | null, order: string | null, map: (id: s
 
 const toGroup = (id: string, d: DocumentData): Group => ({
   id, name: String(d.name ?? ''), ownerId: String(d.ownerId ?? ''), inviteCode: String(d.inviteCode ?? ''), rules: d.rules ?? {},
+  settle: d.settle ?? undefined,
 });
 const toMember = (id: string, d: DocumentData): Member => ({ uid: id, name: String(d.name ?? '玩家'), photoURL: d.photoURL ?? null });
 const toSession = (id: string, d: DocumentData): Session => ({
   id, name: String(d.name ?? ''), createdBy: String(d.createdBy ?? ''), createdAt: d.createdAt ?? null, rules: d.rules ?? undefined,
-  settle: d.settle ?? undefined,
 });
 const toExpense = (id: string, d: DocumentData): ExpenseDoc => ({
   id, kind: d.kind === 'transfer' ? 'transfer' : 'expense', label: String(d.label ?? ''), payer: String(d.payer ?? ''),

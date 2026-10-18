@@ -12,6 +12,11 @@ for (const scheme of ['light', 'dark']) {
   const page = await ctx.newPage();
   const errors = [];
   page.on('pageerror', (e) => errors.push(e.message));
+  const closeReceipt = async () => {
+    await page.waitForTimeout(500);
+    const d = page.getByRole('dialog', { name: '找數單' });
+    if (await d.count()) await d.getByRole('button', { name: '好' }).click();
+  };
   const step = async (label, fn) => { try { await fn(); } catch (e) { errors.push(`${label}: ${e.message.split('\n')[0]}`); } };
 
   await page.goto(`${base}/demo`, { waitUntil: 'networkidle' });
@@ -34,8 +39,9 @@ for (const scheme of ['light', 'dark']) {
       await page.waitForTimeout(700);
       await page.screenshot({ path: `${out}/sheet-fan.png` });
       await page.getByRole('button', { name: /^入數/ }).click();
-      await page.waitForTimeout(300);
+      await page.waitForTimeout(700);
       await page.screenshot({ path: `${out}/after-win.png` });
+      await closeReceipt();
     });
     await step('edit', async () => {
       await page.waitForTimeout(1000);
@@ -57,12 +63,16 @@ for (const scheme of ['light', 'dark']) {
         await page.getByRole('button', { name: '下一步：番數' }).click();
         await page.getByRole('dialog').getByRole('button', { name: '10', exact: true }).click();
         await page.getByRole('button', { name: /^入數/ }).click();
+        await closeReceipt();
       }
       await page.waitForTimeout(1400);
       await page.getByRole('button', { name: '找數', exact: true }).click();
       await page.waitForTimeout(180);
       await page.screenshot({ path: `${out}/settle-hit.png` });
-      await page.waitForTimeout(1500);
+      await page.waitForTimeout(700);
+      await page.screenshot({ path: `${out}/receipt.png` });
+      await closeReceipt();
+      await page.waitForTimeout(800);
       await page.screenshot({ path: `${out}/ledger.png`, fullPage: true });
     });
     await step('dice', async () => {
@@ -113,6 +123,11 @@ for (const scheme of ['light', 'dark']) {
       await page.goto(`${base}/demo/settle`, { waitUntil: 'networkidle' });
       await page.waitForTimeout(500);
       await page.screenshot({ path: `${out}/settle.png`, fullPage: true });
+      await page.getByRole('button', { name: /^6 番/ }).click();
+      await page.waitForTimeout(300);
+      await page.screenshot({ path: `${out}/settle-config.png` });
+      await page.getByRole('button', { name: '儲存' }).click();
+      await page.waitForTimeout(300);
       await page.getByRole('button', { name: '＋ 新增' }).first().click();
       await page.getByRole('dialog').getByRole('button', { name: '的士', exact: true }).click();
       await page.getByRole('dialog').getByLabel('金額').fill('36');

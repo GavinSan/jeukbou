@@ -8,6 +8,7 @@ import type { SwapRequest, TableDoc, LogEvent } from '../lib/data.ts';
 import type { Computed } from '../lib/score.ts';
 import { ago, describe, netOf, trendOf } from '../lib/score.ts';
 import { TrendChart } from './Charts.tsx';
+import { money } from './SettleScreen.tsx';
 import { sfx, unlock } from '../lib/sound.ts';
 import { buzz } from '../lib/haptics.ts';
 import { setPref, usePrefs } from '../lib/prefs.ts';
@@ -58,6 +59,8 @@ export interface TableScreenProps {
   onCancelSwap?: (id: string) => Promise<void>;
   onReseat?: (seats: string[]) => Promise<void>;
   onDice?: () => Promise<void>;
+  /** 找數單用嚟換算金額 */
+  cash?: { perUnit: number; currency: string; waterName?: string };
 }
 
 const totalOf = (c: Computed, id: string) => (c.state.settled[id] ?? 0) + (c.pending[id] ?? 0);
@@ -96,6 +99,7 @@ export default function TableScreen(props: TableScreenProps) {
   const [fx, setFx] = useState<{ up: string[]; down: string[]; delta: Record<string, number>; hp: boolean; key: number }>({ up: [], down: [], delta: {}, hp: false, key: 0 });
   const [diceShown, setDiceShown] = useState<number | null>(null);
   const [editing, setEditing] = useState<{ seq: number; event: TableEvent; current: string } | null>(null);
+  const [receipt, setReceipt] = useState<number | null>(null);
 
   useEffect(() => { const t = setTimeout(() => setDealing(false), 900); return () => clearTimeout(t); }, []);
 
@@ -125,6 +129,8 @@ export default function TableScreen(props: TableScreenProps) {
     const last = lastStep?.event;
     const hp = !!lastStep && last?.type !== 'win' && lastStep.result.lines.some((l) => l.kind === 'settle');
     setFx((f) => ({ up, down, delta, hp, key: f.key + 1 }));
+    // 有人找數（包括斷拉、劈、完場、換人）：全枱彈找數單
+    if (lastStep?.result.lines.some((l) => l.kind === 'settle')) setReceipt(lastStep.seq);
     const art = last ? artOf(last) : null;
     if (art && last?.type === 'special') {
       const rep = last.meta?.repeat ?? 0;
@@ -789,6 +795,49 @@ export default function TableScreen(props: TableScreenProps) {
       )}
 
       {settings && <Settings onClose={() => setSettings(false)} />}
+      {receipt !== null && (() => {
+        const st = c.steps.find((x) => x.seq === receipt);
+        if (!st) return null;
+        const settles = st.result.lines.filter((l) => l.kind === 'settle');
+        const waters = st.result.lines.filter((l) => l.kind === 'water');
+        const waterTotal = waters.reduce((a, l) => a + l.amount, 0);
+        const cash = props.cash;
+        const toCash = (fan: number) => (cash && cash.perUnit > 0 ? `≈ ${money(fan / cash.perUnit)}` : '');
+        const people = Object.entries(st.delta.settled).filter(([, v]) => v).sort((a, b) => a[1] - b[1]);
+        return (
+          <Sheet onClose={() => setReceipt(null)} label="找數單">
+            <div className="between">
+              <h2>找數</h2>
+              <span className="muted small">{describe(st.event, name)}</span>
+            </div>
+            <ul className="receipt">
+              {settles.map((l, i) => (
+                <li key={i}>
+                  <span className="rc-who"><b className="loss">{name(l.from)}</b><span className="muted"> 付 </span><b className="gain">{l.to ? name(l.to) : '水'}</b></span>
+                  <span className="rc-amt"><b className="num">{l.amount}</b> 番<small className="muted">{toCash(l.amount)}</small></span>
+                  <small className="rc-note muted">{l.note}</small>
+                </li>
+              ))}
+              {waters.length > 0 && (
+                <li className="rc-water">
+                  <span className="rc-who">抽水{cash?.waterName ? <span className="muted">（歸 {cash.waterName}）</span> : null}</span>
+                  <span className="rc-amt"><b className="num">{waterTotal}</b> 番<small className="muted">{toCash(waterTotal)}</small></span>
+                  <small className="rc-note muted">{waters.map((l) => `${name(l.from)} ${l.amount}（${l.note}）`).join('、')}</small>
+                </li>
+              )}
+            </ul>
+            {people.length > 0 && (
+              <div className="rc-net">
+                {people.map(([id, v]) => (
+                  <span key={id}>{name(id)} <b className={`num ${v > 0 ? 'gain' : 'loss'}`}>{v > 0 ? `收 ${v}` : `付 ${-v}`}</b></span>
+                ))}
+              </div>
+            )}
+            {cash && <Hint>以 {cash.perUnit} 番 = {cash.currency} $1 換算，最後以埋數頁為準。</Hint>}
+            <button type="button" className="btn big" onClick={() => setReceipt(null)}>好</button>
+          </Sheet>
+        );
+      })()}
       {toast && <div className="toast" role="status">{toast}</div>}
     </main>
   );

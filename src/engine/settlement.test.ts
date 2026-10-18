@@ -63,47 +63,43 @@ test('幾張枱加埋，連水', () => {
   assert.equal(sum(tot), 0);
 });
 
-test('埋數：番換錢、水俾晚餐、剩水平分、GP 合埋、總數為 0', () => {
+test('埋數：麻雀數向上取整，差額入水戶口；開支分開計', () => {
   const r = settleSession({
-    fan: { A: 60, B: 30, C: -42, D: -50 },
+    fan: { A: 61, B: 30, C: -43, D: -50 },
     water: 2,
+    waterTo: 'H',
     perUnit: 6,
-    expenses: [
-      { label: '晚餐', payer: 'A', amount: 80, sharedBy: ['A', 'B', 'C', 'D'] },
-      { label: '汽水（水支付）', payer: 'B', amount: 0.2, sharedBy: [WATER] },
-    ],
-    waterTo: 'split',
+    roundUp: true,
+    expenses: [{ label: '晚餐', payer: 'A', amount: 80, sharedBy: ['A', 'B', 'C', 'D'] }],
     players: ['A', 'B', 'C', 'D'],
     pairs: [['C', 'D']],
   });
-  assert.equal(r.game.A, 10);
-  assert.equal(r.game.B, 5);
-  assert.equal(r.game.C, -7);
-  assert.equal(r.water.collected, 0.33);
-  assert.equal(r.water.left, 0.13);
-  // A：贏 10，俾咗 80 晚餐，自己分 20，分返水 0.04
-  assert.equal(r.net.A, 70.04);
-  assert.equal(r.net.B, -14.77);
-  const sum = Object.values(r.net).reduce((a, b) => a + b, 0);
-  assert.ok(Math.abs(sum) < 1e-9, `總數 ${sum}`);
-  assert.ok('C + D' in r.accounts);
-  const paid = r.transfers.filter((t) => t.from === 'C + D').reduce((a, t) => a + t.amount, 0);
-  assert.ok(Math.abs(paid + r.accounts['C + D']) < 1e-9);
+  // 61/6 = 10.17 → 11；30/6 = 5；−43/6 = −7.17 → −8；−50/6 = −8.33 → −9
+  assert.deepEqual(r.game, { A: 11, B: 5, C: -8, D: -9 });
+  assert.equal(r.water.total, 1);
+  assert.equal(r.water.to, 'H');
+  assert.equal(r.gameLedger.accounts.H, 1);
+  assert.equal(r.gameLedger.accounts['C + D'], -17);
+  assert.deepEqual(r.expense, { A: 60, B: -20, C: -20, D: -20 });
+  assert.equal(r.expenseLedger.accounts['C + D'], -40);
+  assert.equal(r.combined.accounts.A, 71);
+  const sum = (o: Record<string, number>) => Object.values(o).reduce((a, b) => a + b, 0);
+  assert.ok(Math.abs(sum(r.gameLedger.accounts)) < 1e-9);
+  assert.ok(Math.abs(sum(r.combined.accounts)) < 1e-9);
 });
 
-test('埋數：剩水全部歸一個人；水唔夠就由佢補', () => {
+test('埋數：唔取整、水歸今晚其中一個玩家', () => {
   const r = settleSession({
-    fan: { A: 12, B: -12, C: 0, D: 0 },
-    water: 6,
+    fan: { A: 12, B: -15, C: 0, D: 0 },
+    water: 3,
+    waterTo: 'C',
     perUnit: 6,
-    expenses: [{ label: '場租', payer: 'C', amount: 3, sharedBy: [WATER] }],
-    waterTo: 'D',
+    roundUp: false,
+    expenses: [],
     players: ['A', 'B', 'C', 'D'],
     pairs: [],
   });
-  assert.equal(r.water.left, -2);
-  assert.equal(r.waterShare.D, -2);
-  assert.equal(r.waterShare.A, 0);
-  const sum = Object.values(r.net).reduce((a, b) => a + b, 0);
-  assert.ok(Math.abs(sum) < 1e-9);
+  assert.equal(r.game.B, -2.5);
+  assert.equal(r.gameLedger.accounts.C, 0.5);
+  assert.deepEqual(r.gameLedger.transfers.map((t) => [t.from, t.to, t.amount]), [['B', 'A', 2], ['B', 'C', 0.5]]);
 });

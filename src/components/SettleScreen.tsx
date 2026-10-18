@@ -1,8 +1,8 @@
-// 埋數：打牌輸贏換錢，加晚餐等開支、處理水、GP 合計，最後列出最少轉賬
+// 埋數：麻雀數（連水）同晚餐等開支分開計，亦可以合併；GP 合計；最少轉賬
 import { useMemo, useState } from 'react';
-import { WATER, settleSession } from '../engine/settlement.ts';
+import { settleSession } from '../engine/settlement.ts';
 import type { Expense } from '../engine/settlement.ts';
-import { DEFAULT_SETTLE, isGuest, pairActive } from '../lib/data.ts';
+import { isGuest, pairActive } from '../lib/data.ts';
 import type { ExpenseDoc, PairDoc, SettleConfig } from '../lib/data.ts';
 import { Hint, Sheet, TopBar, message } from '../ui.tsx';
 
@@ -15,12 +15,16 @@ export interface SettleScreenProps {
   title: string;
   back: string;
   players: Player[];
-  /** 每人番數（已找 + 枱面） */
+  /** 每人番數（已找 + 枱面，已扣水） */
   fan: Record<string, number>;
   water: number;
   /** 未完場嘅枱數 */
   unfinished: number;
-  config?: SettleConfig;
+  config: SettleConfig;
+  /** 局主先改到設定 */
+  canEdit: boolean;
+  /** 可以收水嘅人（成員 + 今晚玩家） */
+  accounts: Player[];
   expenses: ExpenseDoc[];
   pairs: PairDoc[];
   me: string | null;
@@ -43,16 +47,19 @@ export function money(n: number, signed = false): string {
 }
 
 const tone = (n: number) => (n > 0.004 ? 'gain' : n < -0.004 ? 'loss' : 'even');
+const fanTxt = (n: number) => (n > 0 ? `+${n}` : n < 0 ? `−${-n}` : '0');
 
-type SheetKind = null | 'rate' | 'expense' | 'pair';
+type SheetKind = null | 'config' | 'expense' | 'pair';
+type View = 'game' | 'expense' | 'combined';
 
 export default function SettleScreen(p: SettleScreenProps) {
-  const cfg = { ...DEFAULT_SETTLE, ...p.config };
+  const cfg = p.config;
   const ids = p.players.map((x) => x.id);
-  const nameOf = (id: string) => (id === WATER ? '水' : p.players.find((x) => x.id === id)?.name ?? '玩家');
+  const nameOf = (id: string) => p.players.find((x) => x.id === id)?.name ?? p.accounts.find((x) => x.id === id)?.name ?? '玩家';
   const accountName = (key: string) => key.split(' + ').map(nameOf).join(' + ');
 
   const [sheet, setSheet] = useState<SheetKind>(null);
+  const [view, setView] = useState<View>('game');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
   const [copied, setCopied] = useState(false);
@@ -62,13 +69,20 @@ export default function SettleScreen(p: SettleScreenProps) {
 
   const result = useMemo(() => {
     try {
-      return { r: settleSession({ fan: p.fan, water: p.water, perUnit: cfg.perUnit, expenses, waterTo: cfg.waterTo, players: ids, pairs: activePairs }), error: '' };
+      return {
+        r: settleSession({
+          fan: p.fan, water: p.water, waterTo: cfg.waterTo, perUnit: cfg.perUnit, roundUp: cfg.roundUp,
+          expenses, players: ids, pairs: activePairs,
+        }),
+        error: '',
+      };
     } catch (err) {
       return { r: null, error: message(err) };
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [p.fan, p.water, cfg.perUnit, cfg.waterTo, JSON.stringify(expenses), ids.join(','), JSON.stringify(activePairs)]);
+  }, [p.fan, p.water, cfg.perUnit, cfg.waterTo, cfg.roundUp, JSON.stringify(expenses), ids.join(','), JSON.stringify(activePairs)]);
   const r = result.r;
+  const led = r ? (view === 'game' ? r.gameLedger : view === 'expense' ? r.expenseLedger : r.combined) : null;
 
   async function run(task: () => Promise<void>) {
     setBusy(true);
@@ -85,10 +99,16 @@ export default function SettleScreen(p: SettleScreenProps) {
 
   function shareText(): string {
     if (!r) return '';
-    const lines = [`${p.title} 埋數（${cfg.perUnit} 番 = ${cfg.currency} $1）`];
-    for (const t of r.transfers) lines.push(`${accountName(t.from)} → ${accountName(t.to)} ${money(t.amount)}`);
-    if (!r.transfers.length) lines.push('不用轉賬');
-    return lines.join('\n');
+    const out = [`${p.title} 埋數（${cfg.perUnit} 番 = ${cfg.currency} $1${cfg.roundUp ? '，向上取整' : ''}）`];
+    const block = (title: string, ts: { from: string; to: string; amount: number }[]) => {
+      out.push('', `【${title}】`);
+      if (!ts.length) out.push('不用轉賬');
+      for (const t of ts) out.push(`${accountName(t.from)} → ${accountName(t.to)} ${money(t.amount)}`);
+    };
+    block('麻雀（連水）', r.gameLedger.transfers);
+    if (p.expenses.length) block('開支', r.expenseLedger.transfers);
+    out.push('', `水：${p.water} 番，${money(r.water.total)} 歸 ${nameOf(r.water.to)}`);
+    return out.join('\n');
   }
 
   async function share() {
@@ -101,7 +121,7 @@ export default function SettleScreen(p: SettleScreenProps) {
     } catch { /* 用戶取消 */ }
   }
 
-  const rows = r ? p.players.map((pl) => ({ ...pl, game: r.game[pl.id] ?? 0, expense: r.expense[pl.id] ?? 0, water: r.waterShare[pl.id] ?? 0, net: r.net[pl.id] ?? 0 })).sort((a, b) => b.net - a.net) : [];
+  const gameRows = r ? p.players.map((pl) => ({ ...pl, fan: p.fan[pl.id] ?? 0, cash: r.game[pl.id] ?? 0 })).sort((a, b) => b.fan - a.fan) : [];
 
   return (
     <main className="page">
@@ -109,24 +129,30 @@ export default function SettleScreen(p: SettleScreenProps) {
 
       {p.unfinished > 0 && <p className="banner calm small">有 {p.unfinished} 枱未完場，枱面（拉住未找）已計入。</p>}
 
-      <button type="button" className="rate" onClick={() => setSheet('rate')}>
+      <button type="button" className="rate" onClick={() => setSheet('config')}>
         <span className="rate-fan"><b className="num">{cfg.perUnit}</b> 番</span>
         <span className="rate-eq">=</span>
         <span className="rate-cash"><b className="num">$1</b> {cfg.currency}</span>
-        <span className="rate-edit">修改</span>
+        <span className="rate-edit">{p.canEdit ? '設定' : '查看'}</span>
       </button>
+      <p className="rate-note muted small">{cfg.roundUp ? '每人金額向上取整' : '計到仙'} · 水歸 {nameOf(cfg.waterTo)}</p>
 
       {result.error && <p className="error">{result.error}</p>}
 
-      {r && (
+      {r && led && (
         <section className="stack">
           <div className="section-head">
             <h2>轉賬</h2>
             <button type="button" className="textbtn" onClick={share}>{copied ? '已複製' : '分享'}</button>
           </div>
-          {r.transfers.length ? (
+          <div className="seg wide" role="group" aria-label="轉賬類別">
+            <button type="button" aria-pressed={view === 'game'} onClick={() => setView('game')}>麻雀＋水</button>
+            <button type="button" aria-pressed={view === 'expense'} onClick={() => setView('expense')}>開支</button>
+            <button type="button" aria-pressed={view === 'combined'} onClick={() => setView('combined')}>合併</button>
+          </div>
+          {led.transfers.length ? (
             <ol className="transfers">
-              {r.transfers.map((t, i) => (
+              {led.transfers.map((t, i) => (
                 <li key={i}>
                   <span className="tf-from ellipsis">{accountName(t.from)}</span>
                   <span className="tf-arrow" aria-label="付給">
@@ -138,30 +164,33 @@ export default function SettleScreen(p: SettleScreenProps) {
               ))}
             </ol>
           ) : (
-            <p className="muted">不用轉賬。</p>
+            <p className="muted">{view === 'expense' && !p.expenses.length ? '未有開支。' : '不用轉賬。'}</p>
           )}
-          <Hint>已用最少轉賬次數計算。</Hint>
+          <Hint>{view === 'combined' ? '麻雀、水同開支一次過轉，次數最少。' : '已用最少轉賬次數計算。'}</Hint>
         </section>
       )}
 
       {r && (
         <section className="stack">
-          <h2>每人明細</h2>
+          <h2>麻雀</h2>
           <div className="ledger settle-table">
-            <div className="st-row st-head">
-              <span>玩家</span><span>打牌</span><span>開支</span><span>水</span><span>合計</span>
-            </div>
-            {rows.map((row) => (
-              <div key={row.id} className={`st-row${row.id === p.me ? ' me' : ''}`}>
+            <div className="st-row st-head three"><span>玩家</span><span>番</span><span>金額</span></div>
+            {gameRows.map((row) => (
+              <div key={row.id} className={`st-row three${row.id === p.me ? ' me' : ''}`}>
                 <span className="ellipsis">{row.name}</span>
-                <span className={`num ${tone(row.game)}`}>{money(row.game, true)}</span>
-                <span className={`num ${tone(row.expense)}`}>{Math.abs(row.expense) > 0.004 ? money(row.expense, true) : '·'}</span>
-                <span className={`num ${tone(row.water)}`}>{Math.abs(row.water) > 0.004 ? money(row.water, true) : '·'}</span>
-                <b className={`num ${tone(row.net)}`}>{money(row.net, true)}</b>
+                <span className={`num ${tone(row.fan)}`}>{fanTxt(row.fan)}</span>
+                <b className={`num ${tone(row.cash)}`}>{money(row.cash, true)}</b>
               </div>
             ))}
+            <div className="st-row three st-water">
+              <span className="ellipsis">水 → {nameOf(r.water.to)}</span>
+              <span className="num">{p.water}</span>
+              <b className="num">{money(r.water.total, true)}</b>
+            </div>
           </div>
-          <Hint>開支：自己付了的錢為正，要分擔的為負。</Hint>
+          {cfg.roundUp && Math.abs(r.water.rounding) > 0.004 && (
+            <Hint>水 {money(r.water.raw)}，取整差額 {money(r.water.rounding, true)}，合共 {money(r.water.total)}。</Hint>
+          )}
         </section>
       )}
 
@@ -178,9 +207,7 @@ export default function SettleScreen(p: SettleScreenProps) {
                 <span className="grow exp-text">
                   <span>{e.kind === 'transfer' ? `${nameOf(e.payer)} 已付 ${nameOf(e.sharedBy[0] ?? '')}` : e.label}</span>
                   <small className="muted">
-                    {e.kind === 'transfer'
-                      ? '已轉賬'
-                      : `${nameOf(e.payer)} 付款 · ${e.sharedBy[0] === WATER ? '由水支付' : e.sharedBy.length === ids.length ? '全部人分' : `${e.sharedBy.length} 人分`}`}
+                    {e.kind === 'transfer' ? '已轉賬' : `${nameOf(e.payer)} 付款 · ${e.sharedBy.length === ids.length ? '全部人分' : `${e.sharedBy.length} 人分`}`}
                   </small>
                 </span>
                 <b className="num">{money(e.amount)}</b>
@@ -191,34 +218,16 @@ export default function SettleScreen(p: SettleScreenProps) {
             ))}
           </ul>
         ) : (
-          <p className="muted">未有開支。晚餐、的士、場租等可在此分。</p>
+          <p className="muted">未有開支。晚餐、的士、場租等在此分，與麻雀數分開。</p>
+        )}
+        {r && p.expenses.length > 0 && (
+          <div className="exp-net">
+            {p.players.filter((pl) => Math.abs(r.expense[pl.id] ?? 0) > 0.004).map((pl) => (
+              <span key={pl.id}>{pl.name} <b className={`num ${tone(r.expense[pl.id])}`}>{money(r.expense[pl.id], true)}</b></span>
+            ))}
+          </div>
         )}
       </section>
-
-      {r && p.water > 0 && (
-        <section className="panel">
-          <div className="between">
-            <h3>水</h3>
-            <span className="muted small">抽 {p.water} 番 = {money(r.water.collected)}</span>
-          </div>
-          <div className="water-bar">
-            <span>已用 <b className="num">{money(r.water.spent)}</b></span>
-            <span>{r.water.left >= 0 ? '剩' : '不足'} <b className={`num ${r.water.left < 0 ? 'loss' : ''}`}>{money(Math.abs(r.water.left))}</b></span>
-          </div>
-          <div className="row">
-            <span className="grow small muted">{r.water.left >= 0 ? '剩水給' : '不足由'}</span>
-            <select
-              className="input small-select"
-              value={cfg.waterTo}
-              aria-label="剩水分配"
-              onChange={(e) => run(() => p.onSaveConfig({ ...cfg, waterTo: e.target.value }))}
-            >
-              <option value="split">全部人平分</option>
-              {p.players.map((pl) => <option key={pl.id} value={pl.id}>{pl.name}</option>)}
-            </select>
-          </div>
-        </section>
-      )}
 
       <section className="stack">
         <div className="section-head">
@@ -251,8 +260,8 @@ export default function SettleScreen(p: SettleScreenProps) {
 
       {error && !sheet && <p className="error" role="alert">{error}</p>}
 
-      {sheet === 'rate' && <RateSheet cfg={cfg} busy={busy} error={error} onClose={() => setSheet(null)} onSave={(c) => run(() => p.onSaveConfig(c))} />}
-      {sheet === 'expense' && <ExpenseSheet players={p.players} me={p.me} hasWater={p.water > 0} busy={busy} error={error} onClose={() => setSheet(null)} onSave={(e) => run(() => p.onAddExpense(e))} />}
+      {sheet === 'config' && <ConfigSheet cfg={cfg} canEdit={p.canEdit} accounts={p.accounts} busy={busy} error={error} onClose={() => setSheet(null)} onSave={(c) => run(() => p.onSaveConfig(c))} />}
+      {sheet === 'expense' && <ExpenseSheet players={p.players} me={p.me} busy={busy} error={error} onClose={() => setSheet(null)} onSave={(e) => run(() => p.onAddExpense(e))} />}
       {sheet === 'pair' && (
         <PairSheet
           players={p.players.filter((pl) => !p.pairs.some((pr) => pr.a === pl.id || pr.b === pl.id))}
@@ -266,29 +275,51 @@ export default function SettleScreen(p: SettleScreenProps) {
   );
 }
 
-function RateSheet({ cfg, busy, error, onClose, onSave }: { cfg: SettleConfig; busy: boolean; error: string; onClose: () => void; onSave: (c: SettleConfig) => void }) {
+function ConfigSheet({ cfg, canEdit, accounts, busy, error, onClose, onSave }: {
+  cfg: SettleConfig; canEdit: boolean; accounts: Player[]; busy: boolean; error: string; onClose: () => void; onSave: (c: SettleConfig) => void;
+}) {
   const [per, setPer] = useState(String(cfg.perUnit));
   const [cur, setCur] = useState(cfg.currency);
+  const [waterTo, setWaterTo] = useState(cfg.waterTo);
+  const [roundUp, setRoundUp] = useState(cfg.roundUp);
   const n = Number(per);
+  const d = !canEdit;
   return (
-    <Sheet onClose={onClose} label="匯率">
-      <h2>匯率</h2>
-      <div className="rate-edit-row">
-        <input className="input num big-input" inputMode="decimal" value={per} onChange={(e) => setPer(e.target.value)} aria-label="幾多番" />
-        <span>番 = $1</span>
+    <Sheet onClose={onClose} label="埋數設定">
+      <h2>埋數設定</h2>
+      {!canEdit && <p className="muted small">只有局主可修改。</p>}
+      <div className="field">
+        <span>匯率</span>
+        <div className="rate-edit-row">
+          <input className="input num big-input" inputMode="decimal" value={per} disabled={d} onChange={(e) => setPer(e.target.value)} aria-label="幾多番" />
+          <span>番 = $1</span>
+        </div>
       </div>
-      <div className="seg" role="group" aria-label="貨幣">
-        {CURRENCIES.map((c) => <button key={c} type="button" aria-pressed={cur === c} onClick={() => setCur(c)}>{c}</button>)}
-        <input className="seg-input" value={CURRENCIES.includes(cur) ? '' : cur} placeholder="其他" maxLength={6} onChange={(e) => setCur(e.target.value.toUpperCase())} aria-label="其他貨幣" />
+      <div className="field">
+        <span>貨幣</span>
+        <div className="seg" role="group" aria-label="貨幣">
+          {CURRENCIES.map((c) => <button key={c} type="button" disabled={d} aria-pressed={cur === c} onClick={() => setCur(c)}>{c}</button>)}
+          <input className="seg-input" value={CURRENCIES.includes(cur) ? '' : cur} disabled={d} placeholder="其他" maxLength={6} onChange={(e) => setCur(e.target.value.toUpperCase())} aria-label="其他貨幣" />
+        </div>
+      </div>
+      <div className="field">
+        <span>水歸</span>
+        <select className="input" value={waterTo} disabled={d} onChange={(e) => setWaterTo(e.target.value)} aria-label="水歸">
+          {accounts.map((a) => <option key={a.id} value={a.id}>{a.name}</option>)}
+        </select>
+      </div>
+      <div className="rule-row flat-row">
+        <span className="grow">向上取整<small>每人金額取整數，差額計入水</small></span>
+        <button type="button" role="switch" className="switch" aria-checked={roundUp} aria-label="向上取整" disabled={d} onClick={() => setRoundUp((v) => !v)} />
       </div>
       {error && <p className="error">{error}</p>}
-      <button type="button" className="btn big" disabled={busy || !(n > 0) || !cur.trim()} onClick={() => onSave({ ...cfg, perUnit: n, currency: cur.trim() })}>儲存</button>
+      {canEdit && <button type="button" className="btn big" disabled={busy || !(n > 0) || !cur.trim()} onClick={() => onSave({ perUnit: n, currency: cur.trim(), waterTo, roundUp })}>儲存</button>}
     </Sheet>
   );
 }
 
-function ExpenseSheet({ players, me, hasWater, busy, error, onClose, onSave }: {
-  players: Player[]; me: string | null; hasWater: boolean; busy: boolean; error: string; onClose: () => void;
+function ExpenseSheet({ players, me, busy, error, onClose, onSave }: {
+  players: Player[]; me: string | null; busy: boolean; error: string; onClose: () => void;
   onSave: (e: Omit<ExpenseDoc, 'id' | 'at' | 'by'>) => void;
 }) {
   const [kind, setKind] = useState<'expense' | 'transfer'>('expense');
@@ -297,12 +328,11 @@ function ExpenseSheet({ players, me, hasWater, busy, error, onClose, onSave }: {
   const [amount, setAmount] = useState('');
   const [payer, setPayer] = useState(me && players.some((x) => x.id === me) ? me : '');
   const [shared, setShared] = useState<string[]>(players.map((x) => x.id));
-  const [byWater, setByWater] = useState(false);
   const [to, setTo] = useState('');
   const n = Number(amount);
   const finalLabel = label === '其他' ? custom.trim() || '其他' : label;
   const each = shared.length ? n / shared.length : 0;
-  const ok = n > 0 && payer && (kind === 'transfer' ? to && to !== payer : byWater || shared.length > 0);
+  const ok = n > 0 && payer && (kind === 'transfer' ? to && to !== payer : shared.length > 0);
 
   return (
     <Sheet onClose={onClose} label="新增開支">
@@ -353,33 +383,21 @@ function ExpenseSheet({ players, me, hasWater, busy, error, onClose, onSave }: {
         </div>
       ) : (
         <div className="field">
-          <div className="between">
-            <span>誰分</span>
-            {hasWater && (
-              <label className="row small">
-                <span className="muted">由水支付</span>
-                <button type="button" role="switch" className="switch" aria-checked={byWater} aria-label="由水支付" onClick={() => setByWater((v) => !v)} />
-              </label>
-            )}
+          <span>誰分</span>
+          <div className="choices">
+            {players.map((pl) => {
+              const on = shared.includes(pl.id);
+              return (
+                <button key={pl.id} type="button" className="choice" aria-pressed={on} onClick={() => setShared((s) => (on ? s.filter((x) => x !== pl.id) : [...s, pl.id]))}>
+                  <span className="ellipsis">{pl.name}</span>
+                </button>
+              );
+            })}
           </div>
-          {!byWater && (
-            <>
-              <div className="choices">
-                {players.map((pl) => {
-                  const on = shared.includes(pl.id);
-                  return (
-                    <button key={pl.id} type="button" className="choice" aria-pressed={on} onClick={() => setShared((s) => (on ? s.filter((x) => x !== pl.id) : [...s, pl.id]))}>
-                      <span className="ellipsis">{pl.name}</span>
-                    </button>
-                  );
-                })}
-              </div>
-              <div className="between small">
-                <button type="button" className="textbtn" onClick={() => setShared(shared.length === players.length ? [] : players.map((x) => x.id))}>{shared.length === players.length ? '全部取消' : '全選'}</button>
-                {n > 0 && shared.length > 0 && <span className="muted">每人約 {money(each)}</span>}
-              </div>
-            </>
-          )}
+          <div className="between small">
+            <button type="button" className="textbtn" onClick={() => setShared(shared.length === players.length ? [] : players.map((x) => x.id))}>{shared.length === players.length ? '全部取消' : '全選'}</button>
+            {n > 0 && shared.length > 0 && <span className="muted">每人約 {money(each)}</span>}
+          </div>
         </div>
       )}
 
@@ -390,7 +408,7 @@ function ExpenseSheet({ players, me, hasWater, busy, error, onClose, onSave }: {
         disabled={busy || !ok}
         onClick={() => onSave(kind === 'transfer'
           ? { kind, label: '已轉賬', payer, amount: n, sharedBy: [to] }
-          : { kind, label: finalLabel, payer, amount: n, sharedBy: byWater ? [WATER] : shared })}
+          : { kind, label: finalLabel, payer, amount: n, sharedBy: shared })}
       >
         {ok ? `新增 ${money(n)}` : '新增'}
       </button>
