@@ -45,7 +45,7 @@ for (const scheme of ['light', 'dark']) {
       await page.getByRole('dialog').getByRole('button', { name: '加一番' }).click();
       await page.waitForTimeout(700);
       await page.screenshot({ path: `${out}/edit.png` });
-      await page.getByRole('button', { name: '儲存修改' }).click();
+      await page.getByRole('button', { name: '儲存', exact: true }).click();
       await page.waitForTimeout(400);
     });
     await step('settle', async () => {
