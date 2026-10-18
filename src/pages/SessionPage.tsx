@@ -3,7 +3,9 @@ import { rememberTable } from '../lib/nav.ts';
 import type { User } from 'firebase/auth';
 import SessionScreen from '../components/SessionScreen.tsx';
 import Incoming from '../components/Incoming.tsx';
-import { addTable } from '../lib/data.ts';
+import { addTable, deleteSession } from '../lib/data.ts';
+import { useSuperAdmin } from '../lib/admin.ts';
+import { go } from '../lib/router.tsx';
 import { useGroup, useManyEvents, useMembers, useRequests, useSession, useTables } from '../lib/live.ts';
 import { computeTable, rulesOf } from '../lib/score.ts';
 import type { Computed } from '../lib/score.ts';
@@ -15,6 +17,7 @@ export default function SessionPage({ user, groupId, sessionId }: { user: User; 
   const tables = useTables(groupId, sessionId);
   const members = useMembers(groupId);
   const requests = useRequests(groupId, sessionId);
+  const admin = useSuperAdmin(user.uid);
   const events = useManyEvents(groupId, sessionId, tables.data.map((t) => t.id));
   const rules = useMemo(() => rulesOf(group.data, session.data), [group.data, session.data]);
 
@@ -46,6 +49,7 @@ export default function SessionPage({ user, groupId, sessionId }: { user: User; 
       invite={`${window.location.origin}/join/${groupId}/${group.data.inviteCode}/s/${sessionId}`}
       rulesHref={`/g/${groupId}/s/${sessionId}/rules`}
       settleHref={`/g/${groupId}/s/${sessionId}/settle`}
+      onDeleteSession={group.data.ownerId === user.uid || admin ? async () => { await deleteSession(groupId, sessionId); go(`/g/${groupId}`); } : undefined}
       notice={<Incoming user={user} groupId={groupId} sessionId={sessionId} requests={requests.data} tables={tables.data} computed={computed} />}
       candidates={candidates}
       onAddTable={async (people) => {

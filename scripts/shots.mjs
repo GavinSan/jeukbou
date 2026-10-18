@@ -108,8 +108,7 @@ for (const scheme of ['light', 'dark']) {
       await page.waitForTimeout(250);
       await page.screenshot({ path: `${out}/special-flower.png` });
       await page.getByRole('dialog').getByRole('button', { name: /被追/ }).click();
-      await page.getByRole('dialog').getByRole('button', { name: '即摸', exact: true }).click();
-      await page.getByRole('dialog').getByRole('button', { name: '+2' }).click();
+      for (let k = 0; k < 3; k++) { await page.locator('.instant-btn').click(); await page.waitForTimeout(120); }
       await page.getByRole('dialog').getByRole('button', { name: 'Ivan', exact: true }).click();
       await page.waitForTimeout(400);
       await page.screenshot({ path: `${out}/special-chase.png` });
@@ -152,6 +151,21 @@ for (const scheme of ['light', 'dark']) {
       await page.screenshot({ path: `${out}/expense-sheet.png` });
       await page.getByRole('button', { name: /^新增 \$36/ }).click();
       await page.waitForTimeout(300);
+    });
+    await step('party', async () => {
+      await page.goto(`${base}/demo/t/1`, { waitUntil: 'networkidle' });
+      await page.waitForTimeout(1200);
+      await page.getByRole('button', { name: /^Janice，/ }).click();
+      await page.getByRole('button', { name: 'Sang 出銃' }).click();
+      const chip = page.getByRole('dialog', { name: '入數' }).getByRole('button', { name: '100', exact: true });
+      await chip.scrollIntoViewIfNeeded();
+      await chip.click();
+      await page.waitForTimeout(250);
+      await page.screenshot({ path: `${out}/dock-hot.png` });
+      await page.getByRole('button', { name: /^入數/ }).click();
+      await page.waitForTimeout(1300);
+      await page.screenshot({ path: `${out}/party.png` });
+      await page.waitForTimeout(3500);
     });
     await step('board', async () => {
       await page.goto(`${base}/demo/board`, { waitUntil: 'networkidle' });

@@ -386,3 +386,69 @@ export const fanTableOf = (g: Group | null | undefined): FanTable =>
 export async function saveFanTable(g: string, table: FanTable | null): Promise<void> {
   await updateDoc(doc(fs(), 'groups', g), { fanTable: table ?? deleteField() });
 }
+
+// ---------- 刪除（局主／超級管理員） ----------
+async function deleteRefs(refs: { path: string }[]): Promise<void> {
+  for (let i = 0; i < refs.length; i += 400) {
+    const batch = writeBatch(fs());
+    for (const r of refs.slice(i, i + 400)) batch.delete(doc(fs(), r.path));
+    await batch.commit();
+  }
+}
+
+async function listRefs(...path: string[]): Promise<{ path: string }[]> {
+  const [first, ...rest] = path;
+  const snap = await getDocs(collection(fs(), first, ...rest));
+  return snap.docs.map((d) => ({ path: d.ref.path }));
+}
+
+/** 刪除成個大局：每張枱嘅每一鋪、開支、GP、換人請求，最後大局本身 */
+export async function deleteSession(g: string, s: string): Promise<void> {
+  const base = ['groups', g, 'sessions', s];
+  const tables = await listRefs(...base, 'tables');
+  for (const t of tables) {
+    const id = t.path.split('/').pop() ?? '';
+    await deleteRefs(await listRefs(...base, 'tables', id, 'events'));
+  }
+  await deleteRefs([
+    ...tables,
+    ...(await listRefs(...base, 'expenses')),
+    ...(await listRefs(...base, 'pairs')),
+    ...(await listRefs(...base, 'requests')),
+  ]);
+  await deleteRefs([{ path: base.join('/') }]);
+}
+
+/** 刪除一張枱（連每一鋪） */
+export async function deleteTable(g: string, s: string, t: string): Promise<void> {
+  await deleteRefs(await listRefs('groups', g, 'sessions', s, 'tables', t, 'events'));
+  await deleteRefs([{ path: ['groups', g, 'sessions', s, 'tables', t].join('/') }]);
+}
+
+/** 刪除成個牌友圈：所有大局、成員，最後牌友圈本身 */
+export async function deleteGroup(g: string): Promise<void> {
+  const sessions = await listRefs('groups', g, 'sessions');
+  for (const s of sessions) await deleteSession(g, s.path.split('/').pop() ?? '');
+  await deleteRefs(await listRefs('groups', g, 'members'));
+  await deleteRefs([{ path: `groups/${g}` }]);
+}
+
+export async function removeMember(g: string, uid: string): Promise<void> {
+  await deleteDoc(doc(fs(), 'groups', g, 'members', uid));
+}
+
+/** 讀得到 admin/check 就係超級管理員 */
+export async function checkSuperAdmin(): Promise<boolean> {
+  try {
+    await getDoc(doc(fs(), 'admin', 'check'));
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+/** 超級管理員：列出所有牌友圈 */
+export async function listAllGroups(): Promise<{ id: string; name: string; ownerId: string }[]> {
+  const snap = await getDocs(collection(fs(), 'groups'));
+  return snap.docs.map((d) => ({ id: d.id, name: String(d.data().name ?? ''), ownerId: String(d.data().ownerId ?? '') }));
+}

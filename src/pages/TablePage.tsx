@@ -2,7 +2,9 @@ import { useMemo } from 'react';
 import type { User } from 'firebase/auth';
 import TableScreen from '../components/TableScreen.tsx';
 import Incoming from '../components/Incoming.tsx';
-import { appendEvent, applySwap, cancelSwap, declineSettle, requestSwap, reseat, rollDice, fanTableOf, settleConfigOf } from '../lib/data.ts';
+import { appendEvent, applySwap, cancelSwap, declineSettle, requestSwap, reseat, rollDice, fanTableOf, settleConfigOf, deleteTable } from '../lib/data.ts';
+import { useSuperAdmin } from '../lib/admin.ts';
+import { go } from '../lib/router.tsx';
 import { useGroup, useManyEvents, useMembers, useRequests, useSession, useTables } from '../lib/live.ts';
 import { computeTable, rulesOf } from '../lib/score.ts';
 import type { Computed } from '../lib/score.ts';
@@ -14,6 +16,7 @@ export default function TablePage({ user, groupId, sessionId, tableId }: { user:
   const tables = useTables(groupId, sessionId);
   const members = useMembers(groupId);
   const requests = useRequests(groupId, sessionId);
+  const admin = useSuperAdmin(user.uid);
   const events = useManyEvents(groupId, sessionId, tables.data.map((t) => t.id));
   const rules = useMemo(() => rulesOf(group.data, session.data), [session.data, group.data]);
 
@@ -41,6 +44,7 @@ export default function TablePage({ user, groupId, sessionId, tableId }: { user:
       computed={c}
       rules={rules}
       fanTable={fanTableOf(group.data)}
+      onDeleteTable={group.data && (group.data.ownerId === user.uid || admin) ? async () => { await deleteTable(groupId, sessionId, tableId); go(back); } : undefined}
       onDecline={(key) => declineSettle(groupId, sessionId, tableId, key)}
       cash={(() => {
         const sc = settleConfigOf(group.data);

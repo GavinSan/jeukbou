@@ -174,6 +174,38 @@ export function clampName(s: string): string {
   return out;
 }
 
+/** 刪除確認：要打返個名先撳得 */
+export function ConfirmDelete({ title, detail, word, onConfirm, onClose }: {
+  title: string; detail: string; word: string; onConfirm: () => Promise<void>; onClose: () => void;
+}) {
+  const [text, setText] = useState('');
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState('');
+  return (
+    <Sheet onClose={onClose} label={title}>
+      <h2>{title}</h2>
+      <p className="muted">{detail}</p>
+      <label className="field">
+        <span>輸入「{word}」確認</span>
+        <input value={text} onChange={(e) => setText(e.target.value)} autoComplete="off" />
+      </label>
+      {error && <p className="error">{error}</p>}
+      <button
+        type="button"
+        className="btn big danger"
+        disabled={busy || text.trim() !== word.trim()}
+        onClick={async () => {
+          setBusy(true); setError('');
+          try { await onConfirm(); onClose(); } catch (err) { setError(message(err)); setBusy(false); }
+        }}
+      >
+        {busy ? '刪除中…' : '永久刪除'}
+      </button>
+      <button type="button" className="btn plain" onClick={onClose}>取消</button>
+    </Sheet>
+  );
+}
+
 /** 說明文字：設定入面可以收起 */
 export function Hint({ children, as = 'p', className = 'muted small' }: { children: ReactNode; as?: 'p' | 'small' | 'span'; className?: string }) {
   const { hints } = usePrefs();

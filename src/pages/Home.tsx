@@ -8,6 +8,7 @@ import { useGroup, useUserGroups } from '../lib/live.ts';
 import { Link, go } from '../lib/router.tsx';
 import { Avatar, NameForm, TopBar, message } from '../ui.tsx';
 import { SettingsButton } from '../components/Settings.tsx';
+import { useSuperAdmin } from '../lib/admin.ts';
 
 function GroupRow({ id }: { id: string }) {
   const { data } = useGroup(id);
@@ -27,6 +28,7 @@ export default function Home({ user, refresh }: { user: User; refresh: () => voi
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
   const name = displayName(user);
+  const admin = useSuperAdmin(user.uid);
 
   async function create(e: FormEvent) {
     e.preventDefault();
@@ -86,6 +88,7 @@ export default function Home({ user, refresh }: { user: User; refresh: () => voi
         </form>
         {error && <p className="error" role="alert">{error}</p>}
       </section>
+      {admin && <Link to="/admin" className="listrow list"><span className="grow">超級管理員</span><span className="muted small">所有牌友圈</span></Link>}
     </main>
   );
 }

@@ -14,6 +14,7 @@ import TablePage from './pages/TablePage.tsx';
 const RulesPage = lazy(() => import('./pages/RulesPage.tsx'));
 const SettlePage = lazy(() => import('./pages/SettlePage.tsx'));
 const BoardPage = lazy(() => import('./pages/BoardPage.tsx'));
+const AdminPage = lazy(() => import('./pages/AdminPage.tsx'));
 import TabBar, { appTabs } from './components/TabBar.tsx';
 import { navContext } from './lib/nav.ts';
 const Demo = lazy(() => import('./demo.tsx'));
@@ -22,6 +23,7 @@ function Routes({ user, refresh }: { user: User; refresh: () => void }) {
   const path = usePath();
   let m: Record<string, string> | null;
 
+  if (path === '/admin') return <AdminPage user={user} />;
   if ((m = match('/join/:g/:code/s/:s', path))) return <Join user={user} groupId={m.g} code={m.code} sessionId={m.s} />;
   if ((m = match('/join/:g/:code', path))) return <Join user={user} groupId={m.g} code={m.code} />;
   if ((m = match('/g/:g/new', path))) return <NewSession user={user} groupId={m.g} />;

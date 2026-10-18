@@ -6,7 +6,7 @@ import { Link } from '../lib/router.tsx';
 import type { Computed } from '../lib/score.ts';
 import { ago, describe, netOf, trendOf } from '../lib/score.ts';
 import { Sparkline } from './Charts.tsx';
-import { Avatar, Chips, CopyLink, Hint, RollingNumber, fmt, Sheet, TopBar, message, tone, useNow, clampName } from '../ui.tsx';
+import { Avatar, Chips, ConfirmDelete, CopyLink, Hint, RollingNumber, fmt, Sheet, TopBar, message, tone, useNow, clampName } from '../ui.tsx';
 import type { Candidate } from './TableScreen.tsx';
 import { shuffle } from './SeatDraw.tsx';
 
@@ -21,14 +21,17 @@ export interface SessionScreenProps {
   invite: string | null;
   rulesHref?: string;
   settleHref?: string;
+  /** 局主／管理員：刪除成個大局 */
+  onDeleteSession?: () => Promise<void>;
   notice?: ReactNode;
   candidates?: Candidate[];
   onAddTable?: (seats: Candidate[]) => Promise<void>;
 }
 
-export default function SessionScreen({ title, back, tables, computed, tableHref, invite, rulesHref, settleHref, notice, candidates = [], onAddTable }: SessionScreenProps) {
+export default function SessionScreen({ title, back, tables, computed, tableHref, invite, rulesHref, settleHref, onDeleteSession, notice, candidates = [], onAddTable }: SessionScreenProps) {
   const now = useNow();
   const [adding, setAdding] = useState(false);
+  const [delSession, setDelSession] = useState(false);
   const [picked, setPicked] = useState<Candidate[]>([]);
   const [guest, setGuest] = useState('');
   const [busy, setBusy] = useState(false);
@@ -196,6 +199,16 @@ export default function SessionScreen({ title, back, tables, computed, tableHref
             ))}
           </ul>
         </section>
+      )}
+
+      {onDeleteSession && (
+        <section className="danger-zone">
+          <h3>危險操作</h3>
+          <button type="button" className="btn danger" onClick={() => setDelSession(true)}>刪除此大局</button>
+        </section>
+      )}
+      {delSession && onDeleteSession && (
+        <ConfirmDelete title="刪除大局" detail={`會永久刪除「${title}」所有枱、紀錄、開支同 GP，無法復原。`} word={title} onConfirm={onDeleteSession} onClose={() => setDelSession(false)} />
       )}
 
       {invite && (

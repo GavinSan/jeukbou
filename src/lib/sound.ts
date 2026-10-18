@@ -68,15 +68,173 @@ function ping(c: AudioContext, at: number, freq: number, gain = 0.18) {
   o.stop(at + 0.3);
 }
 
+/** 一粒音：可以滑音 */
+function tone(c: AudioContext, at: number, freq: number, dur: number, opts: { type?: OscillatorType; gain?: number; to?: number; attack?: number } = {}) {
+  const o = c.createOscillator();
+  o.type = opts.type ?? 'sine';
+  o.frequency.setValueAtTime(freq, at);
+  if (opts.to) o.frequency.exponentialRampToValueAtTime(opts.to, at + dur);
+  const g = c.createGain();
+  const peak = opts.gain ?? 0.2;
+  g.gain.setValueAtTime(0.0001, at);
+  g.gain.exponentialRampToValueAtTime(peak, at + (opts.attack ?? 0.006));
+  g.gain.exponentialRampToValueAtTime(0.0001, at + dur);
+  o.connect(g).connect(c.destination);
+  o.start(at);
+  o.stop(at + dur + 0.02);
+}
+
+/** 一嚿噪音：沙沙、嘭 */
+function hiss(c: AudioContext, at: number, dur: number, opts: { type?: BiquadFilterType; freq?: number; to?: number; q?: number; gain?: number } = {}) {
+  const src = c.createBufferSource();
+  src.buffer = noiseBuffer(c, dur + 0.05);
+  const f = c.createBiquadFilter();
+  f.type = opts.type ?? 'bandpass';
+  f.frequency.setValueAtTime(opts.freq ?? 1200, at);
+  if (opts.to) f.frequency.exponentialRampToValueAtTime(opts.to, at + dur);
+  f.Q.value = opts.q ?? 1;
+  const g = c.createGain();
+  g.gain.setValueAtTime(opts.gain ?? 0.3, at);
+  g.gain.exponentialRampToValueAtTime(0.0001, at + dur);
+  src.connect(f).connect(g).connect(c.destination);
+  src.start(at);
+  src.stop(at + dur + 0.05);
+}
+
+const jitter = (x: number, pct = 0.06) => x * (1 + (Math.random() * 2 - 1) * pct);
+const PENTA = [523.25, 587.33, 659.25, 783.99, 880, 1046.5, 1174.66, 1318.5];
+
 export const sfx = {
-  /** 推牌：食糊 */
-  win() {
+  /** 推牌：食糊；每次略有不同，番數高就多一下「叮」 */
+  win(fan = 0) {
     const c = ready();
     if (!c) return;
     const t = c.currentTime;
-    clack(c, t, 0.55, 2600);
-    clack(c, t + 0.07, 0.45, 2200);
-    clack(c, t + 0.13, 0.4, 2400);
+    const n = 3 + Math.floor(Math.random() * 2);
+    for (let i = 0; i < n; i++) clack(c, t + i * jitter(0.065, 0.2), jitter(0.5 - i * 0.05), jitter(2400, 0.15));
+    if (fan >= 20) {
+      const notes = fan >= 70 ? [0, 2, 4, 5, 7] : fan >= 40 ? [0, 2, 4] : [0, 3];
+      notes.forEach((k, i) => tone(c, t + 0.25 + i * 0.07, PENTA[k], 0.5, { type: 'triangle', gain: 0.14 }));
+    }
+  },
+  /** 自摸：一下翻牌 + 清脆兩粒音 */
+  selfDraw() {
+    const c = ready();
+    if (!c) return;
+    const t = c.currentTime;
+    hiss(c, t, 0.12, { type: 'highpass', freq: 3000, gain: 0.18 });
+    clack(c, t + 0.1, 0.6, 2800);
+    tone(c, t + 0.2, 1046.5, 0.35, { type: 'triangle', gain: 0.16 });
+    tone(c, t + 0.29, 1568, 0.45, { type: 'triangle', gain: 0.14 });
+  },
+  /** 雙響／三響：連環推牌 */
+  multi(n = 2) {
+    const c = ready();
+    if (!c) return;
+    const t = c.currentTime;
+    for (let k = 0; k < n; k++) {
+      for (let i = 0; i < 3; i++) clack(c, t + k * 0.22 + i * 0.05, 0.5, jitter(2200 + k * 300));
+      tone(c, t + k * 0.22 + 0.12, 660 * (k + 1) ** 0.5, 0.25, { type: 'square', gain: 0.05 });
+    }
+  },
+  /** 特別事項：每款唔同 */
+  special(art: string) {
+    const c = ready();
+    if (!c) return;
+    const t = c.currentTime;
+    switch (art) {
+      case 'flower': // 風鈴
+        [0, 2, 4, 6, 7].forEach((k, i) => tone(c, t + i * jitter(0.08), PENTA[k], 0.7, { type: 'sine', gain: 0.12 }));
+        break;
+      case 'grass': // 沙沙
+        hiss(c, t, 0.5, { type: 'bandpass', freq: 5000, to: 2500, q: 0.8, gain: 0.2 });
+        hiss(c, t + 0.15, 0.4, { type: 'bandpass', freq: 4000, to: 2000, q: 0.8, gain: 0.14 });
+        break;
+      case 'kong': // 四隻牌重重哋
+        for (let i = 0; i < 4; i++) clack(c, t + i * 0.09, 0.6, 1500 + i * 120);
+        tone(c, t + 0.36, 110, 0.3, { type: 'sine', gain: 0.4, to: 60 });
+        break;
+      case 'triple':
+      case 'dice123':
+        for (let i = 0; i < 7; i++) clack(c, t + i * 0.06 + Math.random() * 0.03, 0.3, 1800 + Math.random() * 1500);
+        tone(c, t + 0.5, art === 'triple' ? 880 : 300, 0.4, { type: 'triangle', gain: 0.15, to: art === 'triple' ? 1320 : 200 });
+        break;
+      case 'pong': // 錯誤「咘」
+        tone(c, t, 220, 0.18, { type: 'square', gain: 0.08 });
+        tone(c, t + 0.2, 165, 0.3, { type: 'square', gain: 0.08 });
+        break;
+      case 'chase':
+        hiss(c, t, 0.35, { type: 'bandpass', freq: 600, to: 3000, q: 2, gain: 0.25 });
+        clack(c, t + 0.3, 0.6, 2600);
+        break;
+      default:
+        [2900, 3400, 3100].forEach((f, i) => ping(c, t + i * 0.06, jitter(f, 0.03)));
+    }
+  },
+  /** 詐糊：嗡嗡 */
+  falseWin() {
+    const c = ready();
+    if (!c) return;
+    const t = c.currentTime;
+    tone(c, t, 140, 0.5, { type: 'sawtooth', gain: 0.09 });
+    tone(c, t, 147, 0.5, { type: 'sawtooth', gain: 0.07 });
+  },
+  /** 流局：兩粒向下嘅音 */
+  draw() {
+    const c = ready();
+    if (!c) return;
+    const t = c.currentTime;
+    tone(c, t, 659.25, 0.3, { type: 'triangle', gain: 0.14 });
+    tone(c, t + 0.18, 493.88, 0.45, { type: 'triangle', gain: 0.14 });
+    hiss(c, t, 0.4, { type: 'lowpass', freq: 800, gain: 0.08 });
+  },
+  /** 完場：小小號角 */
+  end() {
+    const c = ready();
+    if (!c) return;
+    const t = c.currentTime;
+    [523.25, 659.25, 783.99, 1046.5].forEach((f, i) => tone(c, t + i * 0.12, f, i === 3 ? 0.8 : 0.25, { type: 'triangle', gain: 0.15 }));
+  },
+  /** 撤回：倒吸一口氣 */
+  undo() {
+    const c = ready();
+    if (!c) return;
+    const t = c.currentTime;
+    hiss(c, t, 0.25, { type: 'bandpass', freq: 3000, to: 500, q: 1.5, gain: 0.2 });
+    tone(c, t, 700, 0.2, { type: 'sine', gain: 0.1, to: 350 });
+  },
+  /** 即摸連撳：每撳一下音高一級，越嚟越急 */
+  ramp(level: number) {
+    const c = ready();
+    if (!c) return;
+    const t = c.currentTime;
+    const base = [392, 523.25, 659.25, 880][Math.max(0, Math.min(3, level))];
+    tone(c, t, base, 0.18 + level * 0.06, { type: 'square', gain: 0.06 + level * 0.015, to: base * 1.5 });
+    for (let i = 0; i < level; i++) tone(c, t + 0.06 * (i + 1), base * (1.25 + i * 0.25), 0.15, { type: 'triangle', gain: 0.1 });
+    if (level >= 3) hiss(c, t + 0.1, 0.4, { type: 'highpass', freq: 2000, gain: 0.15 });
+  },
+  /** 煙花：咻……嘭 */
+  firework(power = 1) {
+    const c = ready();
+    if (!c) return;
+    const t = c.currentTime;
+    const n = Math.min(8, Math.max(1, Math.round(power)));
+    for (let i = 0; i < n; i++) {
+      const at = t + i * jitter(0.28, 0.3);
+      tone(c, at, jitter(900), 0.5, { type: 'sine', gain: 0.05, to: jitter(2600) });
+      hiss(c, at + 0.5, 0.6, { type: 'lowpass', freq: 1800, to: 200, gain: 0.45 });
+      tone(c, at + 0.5, 90, 0.35, { type: 'sine', gain: 0.35, to: 40 });
+      for (let k = 0; k < 4; k++) hiss(c, at + 0.6 + k * 0.05 + Math.random() * 0.1, 0.06, { type: 'highpass', freq: 5000, gain: 0.12 });
+    }
+  },
+  /** 彩炮：啪 */
+  popper() {
+    const c = ready();
+    if (!c) return;
+    const t = c.currentTime;
+    hiss(c, t, 0.15, { type: 'highpass', freq: 1500, gain: 0.5 });
+    tone(c, t, 180, 0.12, { type: 'sine', gain: 0.3, to: 80 });
+    for (let k = 0; k < 6; k++) hiss(c, t + 0.1 + k * 0.04, 0.05, { type: 'highpass', freq: 6000, gain: 0.1 });
   },
   /** 籌碼：找數、特別事項 */
   chips() {

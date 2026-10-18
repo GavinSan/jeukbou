@@ -828,3 +828,47 @@ body.entering .page { padding-bottom: calc(52vh + 24px); }
 .ghost.gain { color: var(--tile-gain); } .ghost.loss { color: var(--tile-loss); }
 @keyframes ghostIn { from { transform: scale(1.4); opacity: 0; } to { transform: none; opacity: 1; } }
 @media (prefers-reduced-motion: reduce) { .tile.pickable, .dock, .ghost { animation: none; } }
+
+/* 刪除／管理 */
+.listrow-wrap { display: flex; align-items: center; border-top: 1px solid var(--line); }
+.listrow-wrap:first-child { border-top: none; }
+.listrow-wrap .listrow { flex: 1; border-top: none; min-width: 0; }
+.row-del { margin-right: 12px; border: none; background: var(--loss-soft); color: var(--loss); border-radius: 8px; min-height: 34px; padding: 0 12px; font: inherit; font-weight: 600; cursor: pointer; }
+.member { position: relative; }
+.member-del { position: absolute; top: -6px; right: -4px; width: 24px; height: 24px; border-radius: 50%; border: none; background: var(--loss); color: #FFF; font-size: 12px; cursor: pointer; }
+.danger-zone { border: 1.5px solid color-mix(in srgb, var(--loss) 40%, transparent); border-radius: 16px; padding: 14px 16px; display: flex; flex-direction: column; gap: 8px; }
+.danger-zone h3 { color: var(--loss); }
+.danger-zone .btn { align-self: flex-start; }
+
+/* 即摸：一粒掣，連撳加熱 */
+.instant-row { align-items: center; }
+.instant-btn { display: inline-flex; align-items: center; gap: 6px; justify-content: center; min-width: 96px; animation: imPop .32s cubic-bezier(.3,1.6,.5,1); }
+.instant-btn b { font-size: 18px; }
+.instant-btn.heat-1 { background: #E5703A; border-color: #C85A28; color: #FFF; box-shadow: 0 1px 0 #A9471C, inset 0 2px 4px rgba(0,0,0,.2); transform: translateY(2px); }
+.instant-btn.heat-2 { background: linear-gradient(180deg, #F0703A, #D9482A); border-color: #B23A1F; color: #FFF; box-shadow: 0 0 12px rgba(229,112,58,.55), inset 0 2px 4px rgba(0,0,0,.2); transform: translateY(2px); }
+.instant-btn.heat-3 { background: linear-gradient(180deg, #F2563A, #B82222); border-color: #8E1A1A; color: #FFF; box-shadow: 0 0 18px rgba(230,70,50,.7), inset 0 2px 4px rgba(0,0,0,.25); transform: translateY(2px); }
+.instant-btn.heat-4 { background: linear-gradient(180deg, #FFB347, #E5372A 55%, #8E1A1A); border-color: #6E1010; color: #FFF; box-shadow: 0 0 24px rgba(255,120,40,.85), 0 0 4px #FFD66B, inset 0 2px 4px rgba(0,0,0,.25); transform: translateY(2px); animation: imPop .32s cubic-bezier(.3,1.6,.5,1), imFlame .5s ease-in-out .32s infinite alternate; }
+@keyframes imPop { 0% { transform: scale(.85); } 60% { transform: scale(1.15); } 100% { transform: scale(1) translateY(2px); } }
+@keyframes imFlame { from { box-shadow: 0 0 18px rgba(255,120,40,.7), 0 0 4px #FFD66B; } to { box-shadow: 0 0 30px rgba(255,90,30,.95), 0 0 8px #FFD66B; } }
+
+/* 快捷番數：高番變熱 */
+.dock-quick button.hot1 { border-color: #E5703A; color: #C85A28; }
+.dock-quick button.hot2 { border-color: #D9482A; color: #FFF; background: linear-gradient(180deg, #F0703A, #D9482A); }
+.dock-quick button.hot3 { border-color: #8E1A1A; color: #FFF; background: linear-gradient(180deg, #FFB347, #B82222); }
+.dock-quick button.hot2[aria-pressed="true"], .dock-quick button.hot3[aria-pressed="true"] { box-shadow: 0 0 0 2px var(--felt); }
+
+/* 高番慶祝 */
+.party { position: fixed; inset: 0; z-index: 40; pointer-events: none; display: flex; align-items: center; justify-content: center; }
+.party-canvas { position: absolute; inset: 0; width: 100%; height: 100%; }
+.party-text { position: relative; display: flex; align-items: baseline; gap: 6px; padding: 12px 22px; border-radius: 20px; background: rgba(20, 30, 25, .55); color: #FFF; -webkit-backdrop-filter: blur(6px); backdrop-filter: blur(6px); animation: partyIn .6s cubic-bezier(.2,1.6,.4,1) both, partyOut .5s ease-in 1.7s forwards; }
+.party-text .num { font-size: 56px; line-height: 1; color: #FFD66B; text-shadow: 0 2px 0 #8E1A1A, 0 0 18px rgba(255,214,107,.6); }
+.party-text span { font-family: var(--font-kai); font-size: 22px; }
+.party-text em { font-style: normal; font-family: var(--font-kai); font-weight: 700; font-size: 26px; margin-left: 6px; }
+.party.tier-爆棚 .party-text, .party.tier-百番 .party-text, .party.tier-神糊 .party-text { animation: partyIn .6s cubic-bezier(.2,1.6,.4,1) both, partyOut .6s ease-in 2.6s forwards; }
+.party.tier-百番 .party-text .num { font-size: 72px; }
+.party.tier-神糊 .party-text .num { font-size: 84px; color: #FFF3C4; text-shadow: 0 0 24px #FFD66B, 0 0 48px #FF8A5B, 0 3px 0 #8E1A1A; }
+@keyframes partyIn { from { transform: scale(.3) rotate(-8deg); opacity: 0; } to { transform: none; opacity: 1; } }
+@keyframes partyOut { to { transform: scale(1.2); opacity: 0; } }
+body.shake .page { animation: screenShake .5s ease-in-out 2; }
+@keyframes screenShake { 10%, 90% { transform: translateX(-2px); } 20%, 80% { transform: translateX(4px); } 30%, 50%, 70% { transform: translateX(-7px) rotate(-.4deg); } 40%, 60% { transform: translateX(7px) rotate(.4deg); } }
+@media (prefers-reduced-motion: reduce) { .instant-btn, .party-text, body.shake .page { animation: none !important; } }

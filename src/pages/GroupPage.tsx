@@ -1,7 +1,11 @@
+import { useState } from 'react';
 import type { User } from 'firebase/auth';
+import { deleteGroup, deleteSession, removeMember } from '../lib/data.ts';
+import { useSuperAdmin } from '../lib/admin.ts';
+import { go } from '../lib/router.tsx';
 import { useGroup, useMembers, useSessions } from '../lib/live.ts';
 import { Link } from '../lib/router.tsx';
-import { Avatar, CopyLink, Hint, Loading, TopBar } from '../ui.tsx';
+import { Avatar, ConfirmDelete, CopyLink, Hint, Loading, TopBar } from '../ui.tsx';
 import { SettingsButton } from '../components/Settings.tsx';
 import { Leaderboard } from '../components/Charts.tsx';
 import { useBoard } from '../lib/history.ts';
@@ -12,6 +16,9 @@ export default function GroupPage({ user, groupId }: { user: User; groupId: stri
   const sessions = useSessions(groupId);
   const memberNames = Object.fromEntries(members.data.map((m) => [m.uid, m.name]));
   const board = useBoard(group.data, sessions.loading ? [] : sessions.data, memberNames);
+  const admin = useSuperAdmin(user.uid);
+  const [manage, setManage] = useState(false);
+  const [confirm, setConfirm] = useState<null | { title: string; detail: string; word: string; run: () => Promise<void> }>(null);
 
   if (group.error) return <main className="page"><TopBar back="/" /><p className="error">{group.error}</p></main>;
   if (!group.data) return <main className="page"><TopBar back="/" /><Loading /></main>;
@@ -19,6 +26,7 @@ export default function GroupPage({ user, groupId }: { user: User; groupId: stri
   const g = group.data;
   const invite = `${window.location.origin}/join/${groupId}/${g.inviteCode}`;
   const list = [...sessions.data].reverse();
+  const canManage = g.ownerId === user.uid || admin;
 
   return (
     <main className="page">
@@ -32,15 +40,28 @@ export default function GroupPage({ user, groupId }: { user: User; groupId: stri
       </section>
 
       <section className="stack">
-        <h2 className="section-head">大局</h2>
+        <div className="section-head">
+          <h2>大局</h2>
+          {canManage && list.length > 0 && <button type="button" className="textbtn" onClick={() => setManage((v) => !v)}>{manage ? '完成' : '管理'}</button>}
+        </div>
         {list.length ? (
           <div className="list">
             {list.map((s) => (
-              <Link key={s.id} to={`/g/${groupId}/s/${s.id}`} className="listrow">
-                <span className="grow">{s.name}</span>
-                <span className="muted small">{s.createdAt ? s.createdAt.toDate().toLocaleDateString('zh-HK') : ''}</span>
-                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" aria-hidden="true"><path d="M9 6l6 6-6 6" /></svg>
-              </Link>
+              <div key={s.id} className="listrow-wrap">
+                <Link to={`/g/${groupId}/s/${s.id}`} className="listrow">
+                  <span className="grow">{s.name}</span>
+                  <span className="muted small">{s.createdAt ? s.createdAt.toDate().toLocaleDateString('zh-HK') : ''}</span>
+                  {!manage && <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" aria-hidden="true"><path d="M9 6l6 6-6 6" /></svg>}
+                </Link>
+                {manage && (
+                  <button
+                    type="button"
+                    className="row-del"
+                    aria-label={`刪除 ${s.name}`}
+                    onClick={() => setConfirm({ title: '刪除大局', detail: `會永久刪除「${s.name}」所有枱、每一鋪、開支同 GP，無法復原。`, word: s.name, run: () => deleteSession(groupId, s.id) })}
+                  >刪除</button>
+                )}
+              </div>
             ))}
           </div>
         ) : (
@@ -75,12 +96,35 @@ export default function GroupPage({ user, groupId }: { user: User; groupId: stri
             <div key={m.uid} className="member">
               <Avatar name={m.name} photo={m.photoURL} size="sm" />
               <span className="ellipsis">{m.name}</span>
+              {manage && m.uid !== g.ownerId && (
+                <button
+                  type="button"
+                  className="member-del"
+                  aria-label={`移除 ${m.name}`}
+                  onClick={() => setConfirm({ title: '移除成員', detail: `${m.name} 會離開牌友圈，佢以前嘅紀錄會保留。`, word: m.name, run: () => removeMember(groupId, m.uid) })}
+                >✕</button>
+              )}
             </div>
           ))}
         </div>
         <Hint>把連結傳給牌友，登入後會自動加入。</Hint>
         <CopyLink url={invite} />
+        {canManage && !manage && <button type="button" className="textbtn" onClick={() => setManage(true)}>管理成員</button>}
       </section>
+
+      {canManage && (
+        <section className="danger-zone">
+          <h3>危險操作</h3>
+          <p className="muted small">{admin && g.ownerId !== user.uid ? '你以超級管理員身份操作。' : '只有局主可以做。'}</p>
+          <button
+            type="button"
+            className="btn danger"
+            onClick={() => setConfirm({ title: '刪除牌友圈', detail: `會永久刪除「${g.name}」所有大局、紀錄同成員名單，無法復原。`, word: g.name, run: async () => { await deleteGroup(groupId); go('/'); } })}
+          >刪除牌友圈</button>
+        </section>
+      )}
+
+      {confirm && <ConfirmDelete title={confirm.title} detail={confirm.detail} word={confirm.word} onConfirm={confirm.run} onClose={() => setConfirm(null)} />}
     </main>
   );
 }

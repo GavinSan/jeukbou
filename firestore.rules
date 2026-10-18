@@ -11,11 +11,22 @@ service cloud.firestore {
     function groupDoc(g) {
       return get(/databases/$(database)/documents/groups/$(g));
     }
+    // 超級管理員：email 喺部署時由 GitHub Secret SUPER_ADMIN_EMAIL 填入（repo 入面只有佔位字）
+    function isSuperAdmin() {
+      return signedIn() && request.auth.token.email_verified == true
+        && request.auth.token.email == '__SUPER_ADMIN_EMAIL__';
+    }
     function isMember(g) {
-      return signedIn() && exists(/databases/$(database)/documents/groups/$(g)/members/$(request.auth.uid));
+      return isSuperAdmin() || (signedIn() && exists(/databases/$(database)/documents/groups/$(g)/members/$(request.auth.uid)));
     }
     function isOwner(g) {
-      return signedIn() && groupDoc(g).data.ownerId == request.auth.uid;
+      return isSuperAdmin() || (signedIn() && groupDoc(g).data.ownerId == request.auth.uid);
+    }
+
+    // 用嚟俾 app 知自己係咪超級管理員：讀得到就係
+    match /admin/{doc} {
+      allow read: if isSuperAdmin();
+      allow write: if false;
     }
 
     // 玩家資料：登入咗就睇到名同頭像；淨係自己改到自己
@@ -28,10 +39,12 @@ service cloud.firestore {
 
     // 牌友圈
     match /groups/{g} {
-      allow read: if isMember(g);
+      allow get: if isMember(g);
+      allow list: if isSuperAdmin();
       allow create: if signedIn() && request.resource.data.ownerId == request.auth.uid;
       allow update: if isOwner(g);
-      allow delete: if false;
+      // 刪除牌友圈：局主或者超級管理員（app 會先刪晒入面嘅大局同成員）
+      allow delete: if isOwner(g);
 
       // 成員：自己用邀請碼加入，或者由局主加
       match /members/{uid} {
@@ -55,7 +68,7 @@ service cloud.firestore {
         // 換人請求：同局成員都睇到、發到、答到
         match /requests/{r} {
           allow read, create, update: if isMember(g);
-          allow delete: if false;
+          allow delete: if isOwner(g);
         }
 
         // 埋數：開支同 GP，同局成員都可以加、改、刪
@@ -77,7 +90,9 @@ service cloud.firestore {
             allow read: if isMember(g);
             allow create: if isMember(g) && request.resource.data.by == request.auth.uid
               && request.resource.data.seq is int;
-            allow update, delete: if false;
+            allow update: if false;
+            // 只有刪除成個大局／枱時，局主先可以清走
+            allow delete: if isOwner(g);
           }
         }
       }

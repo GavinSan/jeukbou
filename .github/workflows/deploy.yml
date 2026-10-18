@@ -34,10 +34,18 @@ jobs:
       - name: 部署（網站 + 資料庫規則）
         env:
           FIREBASE_SERVICE_ACCOUNT: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
+          SUPER_ADMIN_EMAIL: ${{ secrets.SUPER_ADMIN_EMAIL }}
         run: |
           if [ -z "$FIREBASE_SERVICE_ACCOUNT" ]; then
             echo "::error::搵唔到 FIREBASE_SERVICE_ACCOUNT secret。去 Settings → Secrets and variables → Actions → Secrets 加返，名要一模一樣。"
             exit 1
+          fi
+          # 超級管理員 email 由 Secret 填入規則（冇設定就冇人係超級管理員）
+          if [ -n "$SUPER_ADMIN_EMAIL" ]; then
+            ADMIN="$SUPER_ADMIN_EMAIL" node -e "const fs=require('fs');const e=process.env.ADMIN.replace(/[^A-Za-z0-9._%+@-]/g,'');fs.writeFileSync('firestore.rules',fs.readFileSync('firestore.rules','utf8').replace('__SUPER_ADMIN_EMAIL__',e))"
+            echo "::notice::已設定超級管理員"
+          else
+            echo "::warning::未設定 SUPER_ADMIN_EMAIL secret，暫時冇超級管理員"
           fi
           umask 077
           printf '%s' "$FIREBASE_SERVICE_ACCOUNT" > "$RUNNER_TEMP/sa.json"

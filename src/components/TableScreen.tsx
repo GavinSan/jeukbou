@@ -8,6 +8,7 @@ import type { SwapRequest, TableDoc, LogEvent } from '../lib/data.ts';
 import type { Computed } from '../lib/score.ts';
 import { ago, describe, netOf, trendOf } from '../lib/score.ts';
 import { TrendChart } from './Charts.tsx';
+import Celebrate from './Celebrate.tsx';
 import { FanPicker } from './FanTable.tsx';
 import type { FanTable } from '../lib/fanTable.ts';
 import { money } from './SettleScreen.tsx';
@@ -16,7 +17,7 @@ import { buzz } from '../lib/haptics.ts';
 import { setPref, usePrefs } from '../lib/prefs.ts';
 import Settings from './Settings.tsx';
 import { Link } from '../lib/router.tsx';
-import { Chips, Hint, NumInput, RollingNumber, Sheet, TopBar, fmt, message, useNow, clampName } from '../ui.tsx';
+import { Chips, ConfirmDelete, Hint, NumInput, RollingNumber, Sheet, TopBar, fmt, message, useNow, clampName } from '../ui.tsx';
 import FanWheel from './FanWheel.tsx';
 import DiceRoll, { Die } from './Dice.tsx';
 import SeatDraw from './SeatDraw.tsx';
@@ -24,7 +25,7 @@ import { CHASE_MAX_REPEAT, SPECIAL_ITEMS, SpecialArt, SpecialBurst, artOf, chase
 import type { Art } from './Specials.tsx';
 
 const SPOTS = ['s-bottom', 's-right', 's-top', 's-left'];
-const QUICK_FANS = [5, 8, 10, 13, 15, 20, 25, 30, 40, 50];
+const QUICK_FANS = [5, 8, 10, 13, 15, 20, 25, ...Array.from({ length: 28 }, (_, i) => 30 + i * 10)];
 const KIND: Record<Line['kind'], string> = { pending: '枱面', settle: '找數', instant: '即時', water: '抽水' };
 
 interface Entry {
@@ -61,6 +62,8 @@ export interface TableScreenProps {
   onCancelSwap?: (id: string) => Promise<void>;
   onReseat?: (seats: string[]) => Promise<void>;
   onDice?: () => Promise<void>;
+  /** 局主／管理員：刪除呢張枱 */
+  onDeleteTable?: () => Promise<void>;
   /** 牌友圈番數表：入番數時可以撳牌型加 */
   fanTable?: FanTable;
   /** 夠拉時揀「不找」（全枱同步） */
@@ -106,6 +109,8 @@ export default function TableScreen(props: TableScreenProps) {
   const [diceShown, setDiceShown] = useState<number | null>(null);
   const [editing, setEditing] = useState<{ seq: number; event: TableEvent; current: string } | null>(null);
   const [receipt, setReceipt] = useState<number | null>(null);
+  const [delTable, setDelTable] = useState(false);
+  const [party, setParty] = useState<{ fan: number; key: number } | null>(null);
   const [picking, setPicking] = useState(false);
   const [pickedNote, setPickedNote] = useState('');
 
@@ -144,8 +149,12 @@ export default function TableScreen(props: TableScreenProps) {
       else if (d < 0) down.push(id);
       if (d) delta[id] = d;
     }
-    if (!up.length && !down.length) return;
     const lastStep = c.steps[c.steps.length - 1];
+    const isNew = !!lastStep && lastStep.seq > before.lastSeq;
+    if (!up.length && !down.length) {
+      if (isNew && lastStep.event.type === 'draw') { sfx.draw(); buzz('tap'); }
+      return;
+    }
     const last = lastStep?.event;
     const hp = !!lastStep && last?.type !== 'win' && lastStep.result.lines.some((l) => l.kind === 'settle');
     setFx((f) => ({ up, down, delta, hp, key: f.key + 1 }));
@@ -157,9 +166,19 @@ export default function TableScreen(props: TableScreenProps) {
       const rep = last.meta?.repeat ?? 0;
       setBurst((b) => ({ art, text: art === 'chase' ? (rep > 0 ? `追 ×${rep + 1}` : '追') : undefined, key: (b?.key ?? 0) + 1 }));
     }
-    if (last?.type === 'win') { sfx.win(); buzz('win'); }
+    if (!isNew && lastStep && lastStep.seq < before.lastSeq) sfx.undo();
+    else if (last?.type === 'win') {
+      const top = Math.max(...last.winners.map((w) => w.fan));
+      if (last.winners.length > 1) sfx.multi(last.winners.length);
+      else if (last.loser === null) sfx.selfDraw();
+      else sfx.win(top);
+      buzz('win');
+      if (isNew && top >= 30) setParty((p) => ({ fan: top, key: (p?.key ?? 0) + 1 }));
+    }
     else if (hp) { sfx.settle(); buzz('hit'); }
-    else if (last?.type === 'special' || last?.type === 'falseWin' || last?.type === 'end') { sfx.chips(); buzz('tap'); }
+    else if (last?.type === 'special') { sfx.special(art ?? ''); buzz('tap'); }
+    else if (last?.type === 'falseWin') { sfx.falseWin(); buzz('hit'); }
+    else if (last?.type === 'end') { sfx.end(); buzz('win'); }
     else sfx.tap();
     const t = setTimeout(() => setFx((f) => ({ ...f, up: [], down: [], delta: {} })), hp ? 1300 : 1000);
     return () => clearTimeout(t);
@@ -592,7 +611,13 @@ export default function TableScreen(props: TableScreenProps) {
               </div>
               <div className="dock-quick" role="group" aria-label="快捷番數">
                 {QUICK_FANS.map((n) => (
-                  <button key={n} type="button" aria-pressed={(entry.fans[entry.current] ?? 0) === n} onClick={() => { setFan(entry.current, n); setPickedNote(''); }}>{n}</button>
+                  <button
+                    key={n}
+                    type="button"
+                    className={n >= 200 ? 'hot3' : n >= 100 ? 'hot2' : n >= 70 ? 'hot1' : ''}
+                    aria-pressed={(entry.fans[entry.current] ?? 0) === n}
+                    onClick={() => { setFan(entry.current, n); setPickedNote(''); if (n >= 70) sfx.ramp(n >= 200 ? 3 : n >= 100 ? 2 : 1); }}
+                  >{n}</button>
                 ))}
               </div>
               <div className="dock-tools">
@@ -644,6 +669,7 @@ export default function TableScreen(props: TableScreenProps) {
                 <button type="button" className="choice" onClick={() => { setMore(null); setSettings(true); }}>設定<small>提示、震動</small></button>
               </div>
               {rulesHref && <Link to={rulesHref} className="textbtn center-text">家規</Link>}
+              {props.onDeleteTable && <button type="button" className="textbtn loss center-text" onClick={() => { setMore(null); setDelTable(true); }}>刪除此枱（局主）</button>}
             </>
           )}
           {more === 'falseWin' && (
@@ -701,23 +727,26 @@ export default function TableScreen(props: TableScreenProps) {
                       </div>
                     </div>
                     <div className="row instant-row">
+                      <span className="grow">
+                        <span className="small muted">{!instant ? '即摸？按右邊' : repeat === 0 ? '即摸，再按 = 同一隻再追' : `同一隻再追 ${repeat} 次`}</span>
+                      </span>
                       <button
+                        key={`im-${instant ? repeat + 1 : 0}`}
                         type="button"
-                        className={`instant-btn${instant ? ' on' : ''}`}
+                        className={`instant-btn heat-${instant ? repeat + 1 : 0}`}
                         aria-pressed={instant}
-                        onClick={() => { const on = !instant; setInstant(on); if (!on) setRepeat(0); sfx.tap(); }}
+                        aria-label={!instant ? '即摸' : `即摸，同一隻再追 ${repeat} 次，再按${repeat >= CHASE_MAX_REPEAT ? '取消' : '加一'}`}
+                        onClick={() => {
+                          if (!instant) { setInstant(true); setRepeat(0); sfx.ramp(0); return; }
+                          if (repeat >= CHASE_MAX_REPEAT) { setInstant(false); setRepeat(0); sfx.undo(); return; }
+                          setRepeat(repeat + 1);
+                          sfx.ramp(repeat + 1);
+                          buzz('tap');
+                        }}
                       >
-                        即摸
+                        <span>即摸</span>
+                        {instant && repeat > 0 && <b className="num">+{repeat}</b>}
                       </button>
-                      {instant ? (
-                        <div className="seg" role="group" aria-label="同一隻再追幾次">
-                          {Array.from({ length: CHASE_MAX_REPEAT }, (_, i) => i + 1).map((r) => (
-                            <button key={r} type="button" aria-pressed={repeat === r} onClick={() => { const v = repeat === r ? 0 : r; setRepeat(v); if (v > 0) sfx.chips(); }}>+{r}</button>
-                          ))}
-                        </div>
-                      ) : (
-                        <Hint as="span" className="small muted grow">即摸先計同一隻再追</Hint>
-                      )}
                     </div>
                     {instant && repeat > 0 && <p className={`chase-note heat-${repeat}`}>再追 {repeat} 次：{chaseAmount(chaseKind, 0)} + {5 * repeat} = 每家 {amount}{repeat === CHASE_MAX_REPEAT ? '（封頂）' : ''}</p>}
                   </div>
@@ -893,6 +922,10 @@ export default function TableScreen(props: TableScreenProps) {
       )}
 
       {settings && <Settings onClose={() => setSettings(false)} />}
+      {party && <Celebrate key={party.key} fan={party.fan} onDone={() => setParty(null)} />}
+      {delTable && props.onDeleteTable && (
+        <ConfirmDelete title="刪除此枱" detail={`會永久刪除「${table.name}」所有紀錄，無法復原。`} word={table.name} onConfirm={props.onDeleteTable} onClose={() => setDelTable(false)} />
+      )}
       {receipt !== null && (() => {
         const st = c.steps.find((x) => x.seq === receipt);
         if (!st) return null;
