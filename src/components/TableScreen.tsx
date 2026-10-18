@@ -105,13 +105,13 @@ export default function TableScreen(props: TableScreenProps) {
 
   // 任何人嘅數有變（包括其他手機入嘅）就郁：升嘅推牌，跌嘅震
   const snapshot = seats.map((id) => `${id}:${totalOf(c, id)}:${c.state.settled[id] ?? 0}`).join('|') + `#${c.steps.length}`;
-  const prev = useRef<{ snap: string; settled: Record<string, number>; total: Record<string, number> } | null>(null);
+  const prev = useRef<{ snap: string; settled: Record<string, number>; total: Record<string, number>; lastSeq: number } | null>(null);
   useEffect(() => {
     const settledNow: Record<string, number> = {};
     const totalNow: Record<string, number> = {};
     for (const id of seats) { settledNow[id] = c.state.settled[id] ?? 0; totalNow[id] = totalOf(c, id); }
     const before = prev.current;
-    prev.current = { snap: snapshot, settled: settledNow, total: totalNow };
+    prev.current = { snap: snapshot, settled: settledNow, total: totalNow, lastSeq: c.steps[c.steps.length - 1]?.seq ?? 0 };
     if (!before || before.snap === snapshot) return;
     const up: string[] = [];
     const down: string[] = [];
@@ -130,7 +130,8 @@ export default function TableScreen(props: TableScreenProps) {
     const hp = !!lastStep && last?.type !== 'win' && lastStep.result.lines.some((l) => l.kind === 'settle');
     setFx((f) => ({ up, down, delta, hp, key: f.key + 1 }));
     // 有人找數（包括斷拉、劈、完場、換人）：全枱彈找數單
-    if (lastStep?.result.lines.some((l) => l.kind === 'settle')) setReceipt(lastStep.seq);
+    // 淨係新入嘅一鋪先彈（改舊數唔彈）
+    if (lastStep && lastStep.seq > before.lastSeq && lastStep.result.lines.some((l) => l.kind === 'settle')) setReceipt(lastStep.seq);
     const art = last ? artOf(last) : null;
     if (art && last?.type === 'special') {
       const rep = last.meta?.repeat ?? 0;
