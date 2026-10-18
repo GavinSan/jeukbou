@@ -6,7 +6,7 @@ import type { NewTable } from '../lib/data.ts';
 import { useGroup, useMembers } from '../lib/live.ts';
 import { go } from '../lib/router.tsx';
 import { shuffle } from '../components/SeatDraw.tsx';
-import { Hint, Loading, TopBar, message } from '../ui.tsx';
+import { Hint, Loading, TopBar, message, clampName } from '../ui.tsx';
 
 const WINDS = ['東', '南', '西', '北'];
 const GUEST = '__guest__';
@@ -121,9 +121,8 @@ export default function NewSession({ user, groupId }: { user: User; groupId: str
                     <input
                       id={`guest-${ti}-${si}`}
                       value={s.guestName}
-                      onChange={(e) => setSeat(ti, si, { guestName: e.target.value })}
+                      onChange={(e) => setSeat(ti, si, { guestName: clampName(e.target.value) })}
                       placeholder="訪客名"
-                      maxLength={20}
                       aria-label={`第 ${ti + 1} 枱${WINDS[si]}位訪客名`}
                     />
                   )}

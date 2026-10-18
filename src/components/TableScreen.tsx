@@ -16,7 +16,7 @@ import { buzz } from '../lib/haptics.ts';
 import { setPref, usePrefs } from '../lib/prefs.ts';
 import Settings from './Settings.tsx';
 import { Link } from '../lib/router.tsx';
-import { Chips, Hint, RollingNumber, Sheet, TopBar, fmt, message, useNow } from '../ui.tsx';
+import { Chips, Hint, NumInput, RollingNumber, Sheet, TopBar, fmt, message, useNow, clampName } from '../ui.tsx';
 import FanWheel from './FanWheel.tsx';
 import DiceRoll, { Die } from './Dice.tsx';
 import SeatDraw from './SeatDraw.tsx';
@@ -110,6 +110,18 @@ export default function TableScreen(props: TableScreenProps) {
   const [pickedNote, setPickedNote] = useState('');
 
   useEffect(() => { const t = setTimeout(() => setDealing(false), 900); return () => clearTimeout(t); }, []);
+
+  // 入數時：收埋底部 tab，枱面捲返上嚟，保持睇到張枱
+  const entering = !!entry;
+  useEffect(() => {
+    if (!entering) return;
+    document.body.classList.add('entering');
+    const felt = document.querySelector('.felt') as HTMLElement | null;
+    if (felt) window.scrollTo({ top: Math.max(0, felt.getBoundingClientRect().top + window.scrollY - 64), behavior: 'smooth' });
+    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') setEntry(null); };
+    window.addEventListener('keydown', onKey);
+    return () => { document.body.classList.remove('entering'); window.removeEventListener('keydown', onKey); };
+  }, [entering]);
 
   // 任何人嘅數有變（包括其他手機入嘅）就郁：升嘅推牌，跌嘅震
   const snapshot = seats.map((id) => `${id}:${totalOf(c, id)}:${c.state.settled[id] ?? 0}`).join('|') + `#${c.steps.length}`;
@@ -225,6 +237,31 @@ export default function TableScreen(props: TableScreenProps) {
     setPickedNote('');
   }
 
+  function chooseLoser(id: string) {
+    if (!entry) return;
+    setEntry({ ...entry, loser: id, step: 'fan', current: entry.winners[0] });
+    sfx.tap();
+  }
+
+  /** 入數期間撳枱上嘅牌 */
+  function tapDuringEntry(id: string) {
+    if (!entry) return;
+    if (entry.step === 'who') {
+      if (entry.winners.includes(id)) { setEntry(null); return; }
+      chooseLoser(id);
+      return;
+    }
+    // 番數步驟：撳其他人 = 一炮多響（加／減贏家）
+    if (id === entry.loser || entry.loser === null) return;
+    if (id === entry.winners[0]) { setEntry({ ...entry, current: id }); return; }
+    const has = entry.winners.includes(id);
+    if (!has && entry.winners.length >= 3) return;
+    const winners = has ? entry.winners.filter((x) => x !== id) : [...entry.winners, id];
+    setEntry({ ...entry, winners, current: has ? entry.winners[0] : id });
+    flash(has ? `取消 ${name(id)}` : `一炮多響：加 ${name(id)}`);
+    sfx.tap();
+  }
+
   const draft: TableEvent | null = useMemo(() => {
     if (!entry || entry.loser === undefined) return null;
     return { type: 'win', winners: entry.winners.map((w) => ({ player: w, fan: entry.fans[w] ?? 0 })), loser: entry.loser };
@@ -238,6 +275,15 @@ export default function TableScreen(props: TableScreenProps) {
       return { lines: [], error: message(err) };
     }
   }, [draft, c.state, rules]);
+
+  const previewNet = useMemo(() => {
+    const out: Record<string, number> = {};
+    for (const l of preview.lines) {
+      out[l.from] = (out[l.from] ?? 0) - l.amount;
+      if (l.to) out[l.to] = (out[l.to] ?? 0) + l.amount;
+    }
+    return out;
+  }, [preview]);
 
   function setFan(id: string, v: number) {
     setEntry((e) => (e ? { ...e, fans: { ...e.fans, [id]: Math.max(0, Math.min(500, Math.round(v))) } } : e));
@@ -346,9 +392,23 @@ export default function TableScreen(props: TableScreenProps) {
           const isDealer = c.info.dealer === id && !ended;
           const up = fx.up.includes(id);
           const down = fx.down.includes(id);
-          const cls = ['tile', spotOf(i), up ? 'won' : '', down ? 'hit' : '', down && fx.hp ? 'hp' : ''].filter(Boolean).join(' ');
+          const isWinner = !!entry && entry.winners.includes(id);
+          const isLoser = !!entry && entry.loser === id;
+          const pickable = !!entry && entry.step === 'who' && !isWinner;
+          const ghost = entry ? previewNet[id] ?? 0 : 0;
+          const cls = ['tile', spotOf(i), up ? 'won' : '', down ? 'hit' : '', down && fx.hp ? 'hp' : '', isWinner ? 'is-winner' : '', isLoser ? 'is-loser' : '', pickable ? 'pickable' : ''].filter(Boolean).join(' ');
           return (
-            <button key={id} type="button" className={cls} onClick={() => startWin(id)} disabled={ended} aria-label={`${name(id)}，${settled} 番，按此記錄食糊`}>
+            <button
+              key={id}
+              type="button"
+              className={cls}
+              onClick={() => (entry ? tapDuringEntry(id) : startWin(id))}
+              disabled={ended}
+              aria-label={entry ? (pickable ? `${name(id)} 出銃` : name(id)) : `${name(id)}，${settled} 番，按此記錄食糊`}
+            >
+              {isWinner && <span className="t-badge win">{entry?.loser === null ? '摸' : '食'}</span>}
+              {isLoser && <span className="t-badge lose">銃</span>}
+              {entry && ghost !== 0 && <span key={`g${ghost}`} className={`ghost ${ghost > 0 ? 'gain' : 'loss'}`}>{fmt(ghost)}</span>}
               <span className="t-name"><span className="ellipsis">{name(id)}</span>{isDealer && <span className="dealer-mark">莊{c.state.streak ? c.state.streak : ''}</span>}</span>
               <RollingNumber value={settled} className={`t-score t-${tone2(settled)}`} />
               <span className="t-foot">
@@ -474,102 +534,81 @@ export default function TableScreen(props: TableScreenProps) {
       )}
 
       {entry && (
-        <Sheet onClose={() => setEntry(null)} label="入數">
+        <div className="dock" role="dialog" aria-label="入數" aria-modal="false">
           {entry.step === 'who' ? (
             <>
-              <h2>{entry.winners.map(name).join('、')} 食糊</h2>
-              <div className="field">
-                <span>出銃</span>
-                <div className="choices">
-                  {seats.filter((s) => !entry.winners.includes(s)).map((s) => (
-                    <button key={s} type="button" className="choice loser" aria-pressed={entry.loser === s} onClick={() => setEntry({ ...entry, loser: s })}>
-                      <span className="ellipsis">{name(s)}</span>
-                      {c.state.chains.some((ch) => ch.pulled === s && entry.winners.includes(ch.puller)) && <small>被拉中</small>}
-                    </button>
-                  ))}
-                  {entry.winners.length === 1 && (
-                    <button type="button" className="choice" aria-pressed={entry.loser === null} onClick={() => setEntry({ ...entry, loser: null })}>自摸<small>三家付</small></button>
-                  )}
-                </div>
+              <div className="dock-head">
+                <h2>{entry.winners.map(name).join('、')} 食糊</h2>
+                <button type="button" className="iconbtn small" aria-label="取消入數" onClick={() => setEntry(null)}>
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18" /></svg>
+                </button>
               </div>
-              {entry.loser && (
-                <div className="field">
-                  <span>一炮多響：加選其他贏家</span>
-                  <div className="choices">
-                    {seats.filter((s) => s !== entry.loser && s !== entry.winners[0]).map((s) => (
-                      <button
-                        key={s}
-                        type="button"
-                        className="choice"
-                        aria-pressed={entry.winners.includes(s)}
-                        onClick={() => setEntry({ ...entry, winners: entry.winners.includes(s) ? entry.winners.filter((x) => x !== s) : [...entry.winners, s] })}
-                      >
-                        <span className="ellipsis">{name(s)}</span>
-                      </button>
-                    ))}
-                  </div>
-                </div>
-              )}
-              <button type="button" className="btn big" disabled={entry.loser === undefined} onClick={() => setEntry({ ...entry, step: 'fan', current: entry.winners[0] })}>
-                下一步：番數
-              </button>
+              <p className="dock-ask">按枱上<b>出銃</b>的人，或者：</p>
+              <div className="dock-chips">
+                {entry.winners.length === 1 && (
+                  <button type="button" className="pill big-pill" onClick={() => { setEntry({ ...entry, loser: null, step: 'fan', current: entry.winners[0] }); sfx.tap(); }}>自摸<small>三家付</small></button>
+                )}
+                {seats.filter((x) => !entry.winners.includes(x)).map((x) => (
+                  <button key={x} type="button" className="pill" onClick={() => chooseLoser(x)}>
+                    {name(x)}
+                    {c.state.chains.some((ch) => ch.pulled === x && entry.winners.includes(ch.puller)) && <small>被拉中</small>}
+                  </button>
+                ))}
+              </div>
             </>
-          ) : picking && props.fanTable ? (
-            <FanPicker
-              table={props.fanTable}
-              onClose={() => setPicking(false)}
-              onUse={(fan, picked) => { setFan(entry.current, fan); setPickedNote(picked.map((p) => p.name).join('、')); setPicking(false); sfx.tap(); }}
-            />
           ) : (
             <>
-              <div className="between">
+              <div className="dock-head">
                 <h2>{entry.loser === null ? `${name(entry.winners[0])} 自摸` : `${entry.winners.map(name).join('、')} 食 ${name(entry.loser ?? '')}`}</h2>
-                <button type="button" className="textbtn" onClick={() => setEntry({ ...entry, step: 'who' })}>修改</button>
+                <button type="button" className="textbtn" onClick={() => setEntry({ ...entry, step: 'who', loser: undefined, winners: [entry.winners[0]] })}>修改</button>
+                <button type="button" className="iconbtn small" aria-label="取消入數" onClick={() => setEntry(null)}>
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18" /></svg>
+                </button>
               </div>
               {entry.winners.length > 1 && (
-                <div className="choices">
+                <div className="dock-chips">
                   {entry.winners.map((w) => (
-                    <button key={w} type="button" className="choice" aria-pressed={entry.current === w} onClick={() => setEntry({ ...entry, current: w })}>
-                      <span className="ellipsis">{name(w)}</span><small>{entry.fans[w] ?? 0} 番</small>
+                    <button key={w} type="button" className="pill" aria-pressed={entry.current === w} onClick={() => setEntry({ ...entry, current: w })}>
+                      {name(w)} <b className="num">{entry.fans[w] ?? 0}</b> 番
                     </button>
                   ))}
                 </div>
               )}
-              <div className="fan-row">
-                <button type="button" className="stepper" aria-label="減一番" onClick={() => setFan(entry.current, (entry.fans[entry.current] ?? 0) - 1)}>−</button>
-                <FanWheel key={entry.current} value={entry.fans[entry.current] ?? 0} onChange={(v) => setFan(entry.current, v)} label={`${name(entry.current)} 番數`} />
-                <button type="button" className="stepper" aria-label="加一番" onClick={() => setFan(entry.current, (entry.fans[entry.current] ?? 0) + 1)}>+</button>
+              <div className="dock-fan">
+                <button type="button" className="stepper" aria-label="減一番" onClick={() => { setFan(entry.current, (entry.fans[entry.current] ?? 0) - 1); setPickedNote(''); }}>−</button>
+                <div className="dock-num">
+                  <NumInput
+                    key={entry.current}
+                    className="dock-input num"
+                    value={entry.fans[entry.current] ?? 0}
+                    min={0}
+                    max={500}
+                    onChange={(v) => { setFan(entry.current, v); setPickedNote(''); }}
+                    label={`${name(entry.current)} 番數`}
+                  />
+                  <span>番</span>
+                </div>
+                <button type="button" className="stepper" aria-label="加一番" onClick={() => { setFan(entry.current, (entry.fans[entry.current] ?? 0) + 1); setPickedNote(''); }}>+</button>
               </div>
-              <div className="quick">
+              <div className="dock-quick" role="group" aria-label="快捷番數">
                 {QUICK_FANS.map((n) => (
                   <button key={n} type="button" aria-pressed={(entry.fans[entry.current] ?? 0) === n} onClick={() => { setFan(entry.current, n); setPickedNote(''); }}>{n}</button>
                 ))}
               </div>
-              {props.fanTable && (
-                <button type="button" className="btn plain fan-table-btn" onClick={() => setPicking(true)}>
-                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" aria-hidden="true"><rect x="4" y="3" width="16" height="18" rx="2" /><path d="M8 8h8M8 12h8M8 16h5" /></svg>
-                  用番數表計番
-                </button>
-              )}
-              {pickedNote && <p className="center-text small muted">{pickedNote}</p>}
-              <Hint className="center-text muted small">轉動或按快捷數字；按中間可直接輸入。</Hint>
-              <div className="auto-row" aria-label="自動計">
-                <span className="muted small">自動計</span>
-                {autoChips(rules).map((x) => <span key={x.label} className={`auto-chip${x.on ? ' on' : ''}`}>{x.on ? '✓' : '✕'} {x.label}</span>)}
-                {rulesHref && <Link to={rulesHref} className="textbtn small">更改</Link>}
+              <div className="dock-tools">
+                {props.fanTable && (
+                  <button type="button" className="pill" onClick={() => setPicking(true)}>
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" aria-hidden="true"><rect x="4" y="3" width="16" height="18" rx="2" /><path d="M8 8h8M8 12h8M8 16h5" /></svg>
+                    番數表
+                  </button>
+                )}
+                {entry.loser && entry.winners.length < 3 && <span className="muted small">一炮多響：再按枱上其他贏家</span>}
+                <span className="auto-mini">
+                  {autoChips(rules).filter((x) => x.on).map((x) => x.label).join('・') || '無自動計'}
+                  {rulesHref && <> · <Link to={rulesHref} className="textbtn small">家規</Link></>}
+                </span>
               </div>
-              {preview.lines.length > 0 && (
-                <div className="preview" aria-live="polite">
-                  {preview.lines.filter((l) => l.kind !== 'water').map((l, i) => (
-                    <div key={i} className="pv">
-                      <span className={`tag ${l.kind}`}>{KIND[l.kind]}</span>
-                      <span>{name(l.from)} → {l.to ? name(l.to) : '水'}</span>
-                      <span className="pv-note">{l.note}</span>
-                      <span className="num">{l.amount}</span>
-                    </div>
-                  ))}
-                </div>
-              )}
+              {pickedNote && <p className="small muted">{pickedNote}</p>}
               {preview.error && <p className="error">{preview.error}</p>}
               <button type="button" className="btn big" disabled={busy || !draft || !!preview.error} onClick={() => draft && push(draft, '已入數')}>
                 入數{draft ? `，共 ${sum(preview.lines)}` : ''}
@@ -577,6 +616,15 @@ export default function TableScreen(props: TableScreenProps) {
             </>
           )}
           {error && <p className="error" role="alert">{error}</p>}
+        </div>
+      )}
+      {entry && picking && props.fanTable && (
+        <Sheet onClose={() => setPicking(false)} label="番數表">
+          <FanPicker
+            table={props.fanTable}
+            onClose={() => setPicking(false)}
+            onUse={(fan, picked) => { setFan(entry.current, fan); setPickedNote(picked.map((p) => p.name).join('、')); setPicking(false); sfx.tap(); }}
+          />
         </Sheet>
       )}
 
@@ -744,7 +792,7 @@ export default function TableScreen(props: TableScreenProps) {
                   <button type="button" className="choice" aria-pressed={swapIn === '__guest'} onClick={() => setSwapIn('__guest')}>訪客<small>無帳戶</small></button>
                 </div>
                 {swapIn === '__guest' && (
-                  <input id="swap-guest" className="input" value={guestName} onChange={(e) => setGuestName(e.target.value)} placeholder="訪客名" maxLength={20} aria-label="訪客名" />
+                  <input id="swap-guest" className="input" value={guestName} onChange={(e) => setGuestName(clampName(e.target.value))} placeholder="訪客名" aria-label="訪客名" />
                 )}
                 {free.length === 0 && <p className="muted small">沒有空閒成員。可用大局邀請連結邀請新人。</p>}
               </div>

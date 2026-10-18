@@ -115,6 +115,7 @@ export default function Demo() {
         pairs={pairs}
         me="gavin"
         onSaveConfig={async (c) => setSettleCfg(c)}
+        settingsHref="/demo/rules#settle"
         onAddExpense={async (e) => setExpenses((l) => [...l, { ...e, id: `e${l.length + 1}-${Date.now()}`, by: 'gavin', at: Date.now() }])}
         onDeleteExpense={async (id) => setExpenses((l) => l.filter((x) => x.id !== id))}
         onProposePair={async (a, b) => setPairs((l) => [...l, { id: `p${Date.now()}`, a, b, by: 'gavin', accepted: [a, b].filter((x) => x === 'gavin') }])}

@@ -777,3 +777,54 @@ body.has-tabbar .toast { bottom: calc(96px + env(safe-area-inset-bottom, 0px)); 
 .pick-opts button[aria-pressed="true"] { border-color: var(--felt); background: var(--gain-soft); font-weight: 700; }
 
 .picker-scroll { max-height: 52vh; overflow-y: auto; display: flex; flex-direction: column; gap: 12px; padding: 2px; margin: 0 -2px; overscroll-behavior: contain; }
+
+/* 唔准雙擊放大 */
+html, body { touch-action: manipulation; }
+
+/* ---------- 入數面板：唔遮枱 ---------- */
+body.entering .tabbar { transform: translate(-50%, 140%); opacity: 0; pointer-events: none; }
+.tabbar { transition: transform .3s ease, opacity .3s ease; }
+body.entering .page { padding-bottom: calc(52vh + 24px); }
+.dock {
+  position: fixed; left: 0; right: 0; bottom: 0; z-index: 18; max-height: 50vh; overflow-y: auto; overscroll-behavior: contain;
+  background: color-mix(in srgb, var(--surface) 92%, transparent);
+  -webkit-backdrop-filter: blur(18px) saturate(170%); backdrop-filter: blur(18px) saturate(170%);
+  border-radius: 22px 22px 0 0; border-top: 1px solid rgba(255,255,255,.6);
+  box-shadow: 0 -10px 30px rgba(10,30,22,.18);
+  padding: 12px 16px calc(14px + env(safe-area-inset-bottom, 0px));
+  display: flex; flex-direction: column; gap: 10px; animation: dockIn .28s cubic-bezier(.2,.9,.3,1.1);
+}
+.dock > * { max-width: 600px; width: 100%; margin-inline: auto; }
+@keyframes dockIn { from { transform: translateY(40%); opacity: 0; } to { transform: none; opacity: 1; } }
+.dock-head { display: flex; align-items: center; gap: 8px; }
+.dock-head h2 { flex: 1; min-width: 0; font-size: 19px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.dock-ask { margin: 0; color: var(--muted); }
+.dock-ask b { color: var(--loss); }
+.dock-chips { display: flex; flex-wrap: wrap; gap: 8px; }
+.pill small { margin-left: 4px; font-size: 11px; color: var(--muted); font-weight: 400; }
+.big-pill { min-height: 44px; padding: 0 18px; font-weight: 700; }
+.dock-fan { display: flex; align-items: center; justify-content: center; gap: 14px; }
+.dock-num { display: flex; align-items: baseline; gap: 6px; }
+.dock-num span { color: var(--muted); font-family: var(--font-kai); }
+.dock-input { width: 110px; text-align: center; font-family: var(--font-num); font-weight: 700; font-size: 40px !important; line-height: 1; padding: 4px 0; border: none; border-bottom: 2px solid var(--line); background: none; color: var(--ink); border-radius: 0; }
+.dock-input:focus { outline: none; border-bottom-color: var(--gain); }
+.dock-quick { display: flex; gap: 6px; overflow-x: auto; scrollbar-width: none; padding-bottom: 2px; }
+.dock-quick::-webkit-scrollbar { display: none; }
+.dock-quick button { flex: none; min-width: 52px; min-height: 42px; border-radius: 10px; border: 1.5px solid var(--line); background: var(--surface); font-family: var(--font-num); font-weight: 700; font-size: 17px; color: var(--ink); cursor: pointer; }
+.dock-quick button[aria-pressed="true"] { border-color: var(--felt); background: var(--gain-soft); }
+.dock-tools { display: flex; align-items: center; flex-wrap: wrap; gap: 8px 12px; }
+.dock-tools .pill { display: inline-flex; align-items: center; gap: 6px; }
+.auto-mini { margin-left: auto; font-size: 12px; color: var(--muted); }
+
+/* 入數時枱面 */
+.tile.is-winner { box-shadow: 0 0 0 3px #F2C14E, 0 4px 0 var(--tile-back), 0 6px 0 var(--tile-back-deep), 0 10px 18px rgba(0,0,0,.25); }
+.tile.is-loser { box-shadow: 0 0 0 3px var(--tile-loss), 0 4px 0 var(--tile-back), 0 6px 0 var(--tile-back-deep), 0 10px 18px rgba(0,0,0,.25); }
+.tile.pickable { animation: pickPulse 1.4s ease-in-out infinite; }
+@keyframes pickPulse { 50% { box-shadow: 0 0 0 3px rgba(242,193,78,.0), 0 0 0 6px rgba(255,255,255,.35), 0 4px 0 var(--tile-back), 0 6px 0 var(--tile-back-deep); } }
+.t-badge { position: absolute; top: -9px; left: -7px; width: 26px; height: 26px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-family: var(--font-kai); font-weight: 700; font-size: 14px; color: #FFF; box-shadow: 0 2px 4px rgba(0,0,0,.25); z-index: 2; }
+.t-badge.win { background: #C8961E; }
+.t-badge.lose { background: var(--tile-loss); }
+.ghost { position: absolute; right: 8px; top: 34px; font-family: var(--font-num); font-weight: 700; font-size: 20px; padding: 0 6px; border-radius: 8px; background: rgba(255,255,255,.85); animation: ghostIn .25s ease-out; z-index: 2; }
+.ghost.gain { color: var(--tile-gain); } .ghost.loss { color: var(--tile-loss); }
+@keyframes ghostIn { from { transform: scale(1.4); opacity: 0; } to { transform: none; opacity: 1; } }
+@media (prefers-reduced-motion: reduce) { .tile.pickable, .dock, .ghost { animation: none; } }

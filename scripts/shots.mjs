@@ -32,18 +32,17 @@ for (const scheme of ['light', 'dark']) {
       await page.getByRole('button', { name: /^Athena，/ }).click();
       await page.waitForTimeout(400);
       await page.screenshot({ path: `${out}/sheet-who.png` });
-      await page.getByRole('dialog').getByRole('button', { name: /Viola/ }).first().click();
-      await page.getByRole('button', { name: '下一步：番數' }).click();
+      await page.getByRole('button', { name: 'Viola 出銃' }).click();
       await page.waitForTimeout(300);
-      await page.getByRole('dialog').getByRole('button', { name: '13', exact: true }).click();
+      await page.getByRole('dialog', { name: '入數' }).getByRole('button', { name: '13', exact: true }).click();
       await page.waitForTimeout(700);
       await page.screenshot({ path: `${out}/sheet-fan.png` });
       try {
-        await page.getByRole('button', { name: '用番數表計番' }).click({ timeout: 4000 });
+        await page.getByRole('dialog', { name: '入數' }).getByRole('button', { name: '番數表' }).click({ timeout: 4000 });
         await page.waitForTimeout(300);
         await page.screenshot({ path: `${out}/picker-open.png` });
         for (const re of [/^清一色/, /^對對糊/]) {
-          await page.getByRole('dialog').getByRole('button', { name: re }).first().click({ timeout: 4000 });
+          await page.getByRole('dialog', { name: '番數表' }).getByRole('button', { name: re }).first().click({ timeout: 4000 });
         }
         await page.waitForTimeout(200);
         await page.screenshot({ path: `${out}/picker.png` });
@@ -76,9 +75,8 @@ for (const scheme of ['light', 'dark']) {
       for (let k = 0; k < 3; k++) {
         await page.waitForTimeout(1200);
         await page.getByRole('button', { name: /^Gavin，/ }).click();
-        await page.getByRole('dialog').getByRole('button', { name: /Ivan/ }).first().click();
-        await page.getByRole('button', { name: '下一步：番數' }).click();
-        await page.getByRole('dialog').getByRole('button', { name: '10', exact: true }).click();
+        await page.getByRole('button', { name: 'Ivan 出銃' }).click();
+        await page.getByRole('dialog', { name: '入數' }).getByRole('button', { name: '10', exact: true }).click();
         await page.getByRole('button', { name: /^入數/ }).click();
         await closeReceipt();
       }

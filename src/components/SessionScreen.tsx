@@ -6,7 +6,7 @@ import { Link } from '../lib/router.tsx';
 import type { Computed } from '../lib/score.ts';
 import { ago, describe, netOf, trendOf } from '../lib/score.ts';
 import { Sparkline } from './Charts.tsx';
-import { Avatar, Chips, CopyLink, Hint, RollingNumber, fmt, Sheet, TopBar, message, tone, useNow } from '../ui.tsx';
+import { Avatar, Chips, CopyLink, Hint, RollingNumber, fmt, Sheet, TopBar, message, tone, useNow, clampName } from '../ui.tsx';
 import type { Candidate } from './TableScreen.tsx';
 import { shuffle } from './SeatDraw.tsx';
 
@@ -220,7 +220,7 @@ export default function SessionScreen({ title, back, tables, computed, tableHref
           <div className="row" style={{ alignItems: 'flex-end' }}>
             <label className="field grow">
               <span>加訪客（無帳戶）</span>
-              <input id="add-guest" value={guest} onChange={(e) => setGuest(e.target.value)} placeholder="訪客名" maxLength={20} />
+              <input id="add-guest" value={guest} onChange={(e) => setGuest(clampName(e.target.value))} placeholder="訪客名" />
             </label>
             <button
               type="button"

@@ -116,6 +116,64 @@ export function Sheet({ onClose, label, children }: { onClose: () => void; label
   );
 }
 
+/** 數字輸入：打嘅時候可以清空、唔會變 01；離開先檢查，唔啱就用 fallback（預設 = 最細值） */
+export function NumInput({ value, onChange, min = 0, max = 99999, decimal = false, fallback, className = 'mini-num', label, disabled, big }: {
+  value: number; onChange: (v: number) => void; min?: number; max?: number; decimal?: boolean; fallback?: number;
+  className?: string; label: string; disabled?: boolean; big?: boolean;
+}) {
+  const [draft, setDraft] = useState(String(value));
+  const [focused, setFocused] = useState(false);
+  useEffect(() => { if (!focused) setDraft(String(value)); }, [value, focused]);
+  const clean = (raw: string) => {
+    let t = raw.replace(decimal ? /[^0-9.]/g : /[^0-9]/g, '');
+    if (decimal) { const i = t.indexOf('.'); if (i >= 0) t = t.slice(0, i + 1) + t.slice(i + 1).replace(/\./g, ''); }
+    // 去走前面多餘嘅 0：「01」→「1」，「0.5」照留
+    t = t.replace(/^0+(?=\d)/, '');
+    return t;
+  };
+  const valid = (n: number) => Number.isFinite(n) && n >= min && n <= max;
+  return (
+    <input
+      className={`${className}${big ? ' big-input' : ''}`}
+      type="text"
+      inputMode={decimal ? 'decimal' : 'numeric'}
+      value={draft}
+      disabled={disabled}
+      aria-label={label}
+      onFocus={(e) => { setFocused(true); e.currentTarget.select(); }}
+      onChange={(e) => {
+        const t = clean(e.target.value);
+        setDraft(t);
+        const n = Number(t);
+        if (t !== '' && valid(n)) onChange(n);
+      }}
+      onBlur={() => {
+        setFocused(false);
+        const n = Number(draft);
+        const ok = draft !== '' && valid(n) ? n : (fallback ?? min);
+        setDraft(String(ok));
+        if (ok !== value) onChange(ok);
+      }}
+      onKeyDown={(e) => { if (e.key === 'Enter') (e.currentTarget as HTMLInputElement).blur(); }}
+    />
+  );
+}
+
+/** 名字長度：中文字當 2，英文數字當 1，最多 12（即 6 個中文字或 12 個英文字母），枱面先顯示得晒 */
+export const NAME_UNITS = 12;
+const unitOf = (ch: string) => (/[\u0000-\u00ff]/.test(ch) ? 1 : 2);
+export function clampName(s: string): string {
+  let used = 0;
+  let out = '';
+  for (const ch of Array.from(s)) {
+    const u = unitOf(ch);
+    if (used + u > NAME_UNITS) break;
+    used += u;
+    out += ch;
+  }
+  return out;
+}
+
 /** 說明文字：設定入面可以收起 */
 export function Hint({ children, as = 'p', className = 'muted small' }: { children: ReactNode; as?: 'p' | 'small' | 'span'; className?: string }) {
   const { hints } = usePrefs();
@@ -159,7 +217,7 @@ export function NameForm({ user, initial, onDone, onCancel }: { user: User; init
     e.preventDefault();
     const name = value.trim();
     if (!name) { setError('請輸入名稱'); return; }
-    if (name.length > 20) { setError('名最多 20 個字'); return; }
+    
     setBusy(true);
     setError('');
     try {
@@ -177,7 +235,8 @@ export function NameForm({ user, initial, onDone, onCancel }: { user: User; init
     <form className="stack" onSubmit={save}>
       <label className="field">
         <span>顯示名稱</span>
-        <input id="display-name" value={value} onChange={(e) => setValue(e.target.value)} maxLength={20} autoComplete="nickname" />
+        <input id="display-name" value={value} onChange={(e) => setValue(clampName(e.target.value))} autoComplete="nickname" />
+        <small className="muted">最多 6 個中文字或 12 個英文字母</small>
       </label>
       <div className="row">
         <button type="submit" className="btn" disabled={busy}>儲存</button>

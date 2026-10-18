@@ -46,6 +46,7 @@ export default function SettlePage({ user, groupId, sessionId }: { user: User; g
       pairs={pairs.data}
       me={user.uid}
       onSaveConfig={(c) => saveSettleConfig(groupId, c)}
+      settingsHref={`/g/${groupId}/s/${sessionId}/rules#settle`}
       onAddExpense={(e) => addExpense(groupId, sessionId, { ...e, by: user.uid })}
       onDeleteExpense={(id) => deleteExpense(groupId, sessionId, id)}
       onProposePair={(a, b) => proposePair(groupId, sessionId, { a, b, by: user.uid, accepted: [a, b].filter((x) => x === user.uid) })}

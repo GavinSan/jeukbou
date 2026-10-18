@@ -5,7 +5,8 @@ import type { MoneyRounding } from '../engine/settlement.ts';
 import type { Expense } from '../engine/settlement.ts';
 import { isGuest, pairActive } from '../lib/data.ts';
 import type { ExpenseDoc, PairDoc, SettleConfig } from '../lib/data.ts';
-import { Hint, Sheet, TopBar, message } from '../ui.tsx';
+import { Hint, NumInput, Sheet, TopBar, message } from '../ui.tsx';
+import { go } from '../lib/router.tsx';
 
 export interface Player {
   id: string;
@@ -30,6 +31,8 @@ export interface SettleScreenProps {
   pairs: PairDoc[];
   me: string | null;
   onSaveConfig: (c: SettleConfig) => Promise<void>;
+  /** 埋數設定喺家規頁 */
+  settingsHref?: string;
   onAddExpense: (e: Omit<ExpenseDoc, 'id' | 'at' | 'by'>) => Promise<void>;
   onDeleteExpense: (id: string) => Promise<void>;
   onProposePair: (a: string, b: string) => Promise<void>;
@@ -40,6 +43,14 @@ export interface SettleScreenProps {
 const LABELS = ['晚餐', '宵夜', '飲品', '的士', '場租', '其他'];
 const CURRENCIES = ['CAD', 'HKD', 'USD'];
 const ROUND_LABEL: Record<MoneyRounding, string> = { up: '每人金額向上取整', round: '每人金額四捨五入', none: '' };
+
+/** 金額輸入：淨係數字同一個小數點，最多兩位小數，唔會有「01」 */
+function cleanMoney(raw: string): string {
+  let t = raw.replace(/[^0-9.]/g, '');
+  const i = t.indexOf('.');
+  if (i >= 0) t = t.slice(0, i + 1) + t.slice(i + 1).replace(/\./g, '').slice(0, 2);
+  return t.replace(/^0+(?=\d)/, '');
+}
 
 export function money(n: number, signed = false): string {
   const abs = Math.abs(Math.round(n * 100) / 100);
@@ -131,11 +142,11 @@ export default function SettleScreen(p: SettleScreenProps) {
 
       {p.unfinished > 0 && <p className="banner calm small">有 {p.unfinished} 枱未完場，枱面（拉住未找）已計入。</p>}
 
-      <button type="button" className="rate" onClick={() => setSheet('config')}>
+      <button type="button" className="rate" onClick={() => (p.settingsHref ? go(p.settingsHref) : setSheet('config'))}>
         <span className="rate-fan"><b className="num">{cfg.perUnit}</b> 番</span>
         <span className="rate-eq">=</span>
         <span className="rate-cash"><b className="num">$1</b> {cfg.currency}</span>
-        <span className="rate-edit">{p.canEdit ? '設定' : '查看'}</span>
+        <span className="rate-edit">{p.canEdit ? '在家規修改' : '家規'}</span>
       </button>
       <p className="rate-note muted small">{ROUND_LABEL[cfg.rounding] || '計到仙'} · 水由 {nameOf(cfg.waterTo)} 保管</p>
 
@@ -292,11 +303,11 @@ function ConfigSheet({ cfg, canEdit, accounts, busy, error, onClose, onSave }: {
 export function SettleConfigForm({ cfg, canEdit, accounts, busy, error, onSave }: {
   cfg: SettleConfig; canEdit: boolean; accounts: Player[]; busy: boolean; error: string; onSave: (c: SettleConfig) => void;
 }) {
-  const [per, setPer] = useState(String(cfg.perUnit));
+  const [per, setPer] = useState(cfg.perUnit);
   const [cur, setCur] = useState(cfg.currency);
   const [waterTo, setWaterTo] = useState(cfg.waterTo);
   const [rounding, setRounding] = useState<MoneyRounding>(cfg.rounding);
-  const n = Number(per);
+  const n = per;
   const d = !canEdit;
   const list = accounts.some((a) => a.id === waterTo) ? accounts : [...accounts, { id: waterTo, name: '（已離開的成員）' }];
   return (
@@ -312,7 +323,7 @@ export function SettleConfigForm({ cfg, canEdit, accounts, busy, error, onSave }
       <div className="field">
         <span>匯率</span>
         <div className="rate-edit-row">
-          <input className="input num big-input" inputMode="decimal" value={per} disabled={d} onChange={(e) => setPer(e.target.value)} aria-label="幾多番" />
+          <NumInput className="input num" big decimal value={per} min={0.01} max={10000} fallback={cfg.perUnit || 6} disabled={d} onChange={setPer} label="幾多番" />
           <span>番 = $1</span>
         </div>
       </div>
@@ -374,7 +385,7 @@ function ExpenseSheet({ players, me, busy, error, onClose, onSave }: {
         <span>金額</span>
         <div className="money-input">
           <span>$</span>
-          <input className="input num big-input" inputMode="decimal" value={amount} onChange={(e) => setAmount(e.target.value.replace(/[^0-9.]/g, ''))} placeholder="0" aria-label="金額" />
+          <input className="input num big-input" inputMode="decimal" value={amount} onChange={(e) => setAmount(cleanMoney(e.target.value))} placeholder="0" aria-label="金額" />
         </div>
       </div>
 

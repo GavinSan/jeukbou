@@ -4,26 +4,14 @@ import type { ReactNode } from 'react';
 import { DEFAULT_RULES, withRules } from '../engine/rules.ts';
 import type { Rules } from '../engine/rules.ts';
 import type { RulesPatch } from '../lib/data.ts';
-import { message } from '../ui.tsx';
+import { NumInput, message } from '../ui.tsx';
 
 function Switch({ on, onChange, label, disabled }: { on: boolean; onChange: (v: boolean) => void; label: string; disabled: boolean }) {
   return <button type="button" role="switch" className="switch" aria-checked={on} aria-label={label} disabled={disabled} onClick={() => onChange(!on)} />;
 }
 
-function Num({ value, onChange, label, disabled, step = 1 }: { value: number; onChange: (v: number) => void; label: string; disabled: boolean; step?: number }) {
-  return (
-    <input
-      className="mini-num"
-      type="number"
-      inputMode="numeric"
-      min={0}
-      step={step}
-      value={value}
-      disabled={disabled}
-      aria-label={label}
-      onChange={(e) => onChange(Math.max(0, Number(e.target.value) || 0))}
-    />
-  );
+function Num({ value, onChange, label, disabled, min = 0 }: { value: number; onChange: (v: number) => void; label: string; disabled: boolean; min?: number }) {
+  return <NumInput value={value} onChange={onChange} label={label} disabled={disabled} min={min} max={9999} />;
 }
 
 function Row({ title, note, children }: { title: string; note?: string; children: ReactNode }) {
@@ -69,7 +57,7 @@ export default function RulesEditor({ initial, canEdit, onSave, scopeNote }: {
       <h2>自動計</h2>
       <div className="list">
         <Row title="底" note={r.base > 0 ? `每個輸家每鋪付 ${r.base}` : '不計底'}>
-          {r.base > 0 && <Num value={r.base} onChange={(v) => set({ base: v })} label="底" disabled={d} />}
+          {r.base > 0 && <Num value={r.base} onChange={(v) => set({ base: v })} label="底" disabled={d} min={1} />}
           <Switch on={r.base > 0} onChange={(v) => set({ base: v ? DEFAULT_RULES.base : 0 })} label="自動計底" disabled={d} />
         </Row>
         <Row title="莊番" note="2n + 1（n = 連莊次數），只在莊家食糊或出銃時加">
@@ -97,7 +85,7 @@ export default function RulesEditor({ initial, canEdit, onSave, scopeNote }: {
         </Row>
         {r.la.enabled && (
           <Row title="每幾拉可找數" note={`第 ${r.la.settleEvery}、${r.la.settleEvery * 2}、${r.la.settleEvery * 3}… 拉由輸家決定`}>
-            <Num value={r.la.settleEvery} onChange={(v) => set({ la: { ...r.la, settleEvery: Math.max(1, v) } })} label="每幾拉可找數" disabled={d} />
+            <Num value={r.la.settleEvery} onChange={(v) => set({ la: { ...r.la, settleEvery: Math.max(1, v) } })} label="每幾拉可找數" disabled={d} min={1} />
           </Row>
         )}
         <Row title="÷ 2 的小數">
@@ -117,7 +105,7 @@ export default function RulesEditor({ initial, canEdit, onSave, scopeNote }: {
         {r.water.enabled && (
           <>
             <Row title="每幾番抽一次">
-              <Num value={r.water.per} onChange={(v) => set({ water: { ...r.water, per: Math.max(1, v) } })} label="每幾番" disabled={d} />
+              <Num value={r.water.per} onChange={(v) => set({ water: { ...r.water, per: Math.max(1, v) } })} label="每幾番" disabled={d} min={1} />
             </Row>
             <Row title="每次抽">
               <Num value={r.water.take} onChange={(v) => set({ water: { ...r.water, take: v } })} label="每次抽" disabled={d} />

@@ -3,6 +3,12 @@ import { createRoot } from 'react-dom/client';
 import App from './App.tsx';
 import './styles.css';
 
+// 唔准縮放（iOS Safari 唔理 user-scalable=no，要自己擋雙指手勢；雙擊放大由 CSS touch-action 處理）
+for (const type of ['gesturestart', 'gesturechange', 'gestureend']) {
+  document.addEventListener(type, (e) => e.preventDefault(), { passive: false });
+}
+document.addEventListener('touchmove', (e) => { if (e.touches.length > 1) e.preventDefault(); }, { passive: false });
+
 const root = document.getElementById('root');
 if (root) {
   createRoot(root).render(

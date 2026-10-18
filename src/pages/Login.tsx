@@ -8,7 +8,7 @@ import {
   updateProfile,
 } from 'firebase/auth';
 import { auth } from '../firebase.ts';
-import { Logo, message, saveProfile } from '../ui.tsx';
+import { Logo, message, saveProfile, clampName } from '../ui.tsx';
 
 export default function Login({ refresh, joining }: { refresh: () => void; joining: boolean }) {
   const [mode, setMode] = useState<'in' | 'up'>('in');
@@ -72,7 +72,7 @@ export default function Login({ refresh, joining }: { refresh: () => void; joini
           {mode === 'up' && (
             <label className="field">
               <span>顯示名稱</span>
-              <input id="name" value={name} onChange={(e) => setName(e.target.value)} autoComplete="nickname" maxLength={20} required />
+              <input id="name" value={name} onChange={(e) => setName(clampName(e.target.value))} autoComplete="nickname" required />
             </label>
           )}
           <label className="field">

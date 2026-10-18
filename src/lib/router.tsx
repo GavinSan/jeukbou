@@ -13,7 +13,7 @@ export function usePath(): string {
 }
 
 export function go(path: string) {
-  if (path === window.location.pathname) return;
+  if (path === window.location.pathname + window.location.hash) return;
   window.history.pushState(null, '', path);
   window.dispatchEvent(new PopStateEvent('popstate'));
   window.scrollTo(0, 0);

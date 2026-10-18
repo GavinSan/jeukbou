@@ -82,11 +82,12 @@ export default function FanWheel({ value, onChange, label }: { value: number; on
       {typing && (
         <input
           className="wheel-input"
-          type="number"
+          type="text"
           inputMode="numeric"
           autoFocus
           value={draft}
-          onChange={(e) => setDraft(e.target.value)}
+          onFocus={(e) => e.currentTarget.select()}
+          onChange={(e) => setDraft(e.target.value.replace(/[^0-9]/g, '').replace(/^0+(?=\d)/, '').slice(0, 3))}
           onBlur={commitDraft}
           onKeyDown={(e) => { if (e.key === 'Enter') commitDraft(); }}
           aria-label={label}
