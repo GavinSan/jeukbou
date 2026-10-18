@@ -1,2 +1,2 @@
-light: overflow 0px, errors ["edit: locator.click: Timeout 30000ms exceeded.","settle: locator.click: Timeout 30000ms exceeded.","dice: locator.click: Timeout 30000ms exceeded.","special: locator.click: Timeout 30000ms exceeded.","swap: locator.click: Timeout 30000ms exceeded."]
+light: overflow 0px, errors ["special: locator.click: Timeout 30000ms exceeded.","swap: locator.click: Timeout 30000ms exceeded."]
 dark: overflow 0px, errors []
