@@ -66,6 +66,7 @@ for (const scheme of ['light', 'dark']) {
         await closeReceipt();
       }
       await page.waitForTimeout(1400);
+      await page.screenshot({ path: `${out}/locked.png` });
       await page.getByRole('button', { name: '找數', exact: true }).click();
       await page.waitForTimeout(180);
       await page.screenshot({ path: `${out}/settle-hit.png` });
@@ -92,7 +93,7 @@ for (const scheme of ['light', 'dark']) {
       await page.waitForTimeout(250);
       await page.screenshot({ path: `${out}/special-flower.png` });
       await page.getByRole('dialog').getByRole('button', { name: /被追/ }).click();
-      await page.getByRole('dialog').getByRole('switch', { name: '即摸' }).click();
+      await page.getByRole('dialog').getByRole('button', { name: '即摸', exact: true }).click();
       await page.getByRole('dialog').getByRole('button', { name: '+2' }).click();
       await page.getByRole('dialog').getByRole('button', { name: 'Ivan', exact: true }).click();
       await page.waitForTimeout(400);

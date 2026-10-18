@@ -16,6 +16,7 @@ import type { Firestore, Timestamp } from 'firebase/firestore';
 import type { User } from 'firebase/auth';
 import { db } from '../firebase.ts';
 import type { TableEvent } from '../engine/table.ts';
+import type { Rounding } from '../engine/settlement.ts';
 import { withRules } from '../engine/rules.ts';
 
 export type RulesPatch = Parameters<typeof withRules>[0];
@@ -51,16 +52,20 @@ export interface SettleConfig {
   currency: string;
   /** 幾多番 = 1 個貨幣單位 */
   perUnit: number;
-  /** 水歸邊個戶口；空白 = 局主 */
+  /** 水由誰保管（入佢個數）；空白 = 局主 */
   waterTo: string;
-  /** 金額向上取整 */
-  roundUp: boolean;
+  /** 金額取整：向上、四捨五入、不變 */
+  rounding: Rounding;
 }
 
-export const DEFAULT_SETTLE: SettleConfig = { currency: 'CAD', perUnit: 6, waterTo: '', roundUp: true };
+export const DEFAULT_SETTLE: SettleConfig = { currency: 'CAD', perUnit: 6, waterTo: '', rounding: 'up' };
 
 export function settleConfigOf(g: Group | null | undefined): SettleConfig {
-  const c = { ...DEFAULT_SETTLE, ...(g?.settle ?? {}) };
+  const raw = (g?.settle ?? {}) as Partial<SettleConfig> & { roundUp?: boolean };
+  const c = { ...DEFAULT_SETTLE, ...raw };
+  // 舊設定只有 roundUp
+  if (!raw.rounding && raw.roundUp !== undefined) c.rounding = raw.roundUp ? 'up' : 'none';
+  delete (c as { roundUp?: boolean }).roundUp;
   if (!c.waterTo && g) c.waterTo = g.ownerId;
   return c;
 }
@@ -104,6 +109,8 @@ export interface TableDoc {
   names: Record<string, string>;
   /** 最近一次擲骰（全枱見到） */
   dice?: Dice | null;
+  /** 夠拉時輸家揀咗「不找」：`puller>pulled#count`，全枱同步 */
+  declined?: string[];
 }
 
 /** 換人請求：換入嚟嘅人接受先生效 */
@@ -361,3 +368,8 @@ export async function deletePair(g: string, s: string, id: string): Promise<void
 /** pair 生效：兩個人入面，有帳戶嘅都同意咗 */
 export const pairActive = (p: Pick<PairDoc, 'a' | 'b' | 'accepted'>) =>
   [p.a, p.b].every((id) => isGuest(id) || p.accepted.includes(id));
+
+/** 輸家揀「不找」：記低，全枱唔再問，可以繼續入數 */
+export async function declineSettle(g: string, s: string, t: string, key: string): Promise<void> {
+  await updateDoc(doc(fs(), 'groups', g, 'sessions', s, 'tables', t), { declined: arrayUnion(key) });
+}

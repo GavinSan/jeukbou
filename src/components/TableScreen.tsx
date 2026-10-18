@@ -59,6 +59,8 @@ export interface TableScreenProps {
   onCancelSwap?: (id: string) => Promise<void>;
   onReseat?: (seats: string[]) => Promise<void>;
   onDice?: () => Promise<void>;
+  /** 夠拉時揀「不找」（全枱同步） */
+  onDecline?: (key: string) => Promise<void>;
   /** 找數單用嚟換算金額 */
   cash?: { perUnit: number; currency: string; waterName?: string };
 }
@@ -168,8 +170,13 @@ export default function TableScreen(props: TableScreenProps) {
 
   const every = rules.la.settleEvery;
   const settleable = rules.la.enabled && every > 0 && !ended
-    ? c.state.chains.filter((ch) => ch.count % every === 0 && !dismissed.includes(`${ch.puller}>${ch.pulled}#${ch.count}`))
+    ? c.state.chains.filter((ch) => {
+      const key = `${ch.puller}>${ch.pulled}#${ch.count}`;
+      return ch.count % every === 0 && !dismissed.includes(key) && !(table.declined ?? []).includes(key);
+    })
     : [];
+  // 有人夠拉未決定找唔找：先鎖住入數
+  const locked = settleable.length > 0;
 
   function flash(text: string) {
     setToast(text);
@@ -204,6 +211,7 @@ export default function TableScreen(props: TableScreenProps) {
   function startWin(id: string) {
     unlock();
     if (ended) return;
+    if (locked) { flash('請先決定是否找數'); sfx.tap(); return; }
     setError('');
     sfx.tap();
     setEntry({ winners: [id], loser: undefined, fans: {}, step: 'who', current: id });
@@ -279,6 +287,7 @@ export default function TableScreen(props: TableScreenProps) {
 
   function openSpecial() {
     unlock();
+    if (locked) { flash('請先決定是否找數'); return; }
     setError('');
     setSpArt('');
     setWho('');
@@ -307,14 +316,23 @@ export default function TableScreen(props: TableScreenProps) {
       ))}
 
       {settleable.map((ch) => (
-        <div key={ch.puller + ch.pulled} className="banner">
+        <div key={ch.puller + ch.pulled} className="banner settle-ask">
           <span className="grow">第 {ch.count} 拉：{name(ch.pulled)} 欠 {name(ch.puller)} <b className="num">{ch.owed}</b>，由 {name(ch.pulled)} 決定是否找數。</span>
           <button type="button" className="btn danger" disabled={busy} onClick={() => push({ type: 'settle', puller: ch.puller, pulled: ch.pulled }, '已找數')}>找數</button>
-          <button type="button" className="textbtn loss" onClick={() => setDismissed((d) => [...d, `${ch.puller}>${ch.pulled}#${ch.count}`])}>不找</button>
+          <button
+            type="button"
+            className="textbtn loss"
+            disabled={busy}
+            onClick={() => {
+              const key = `${ch.puller}>${ch.pulled}#${ch.count}`;
+              if (props.onDecline) run(() => props.onDecline!(key), '');
+              else setDismissed((d) => [...d, key]);
+            }}
+          >不找</button>
         </div>
       ))}
 
-      <section className={`felt${dealing ? ' deal' : ''}`} aria-label="枱面">
+      <section className={`felt${dealing ? ' deal' : ''}${locked ? ' locked' : ''}`} aria-label="枱面">
         {seats.map((id, i) => {
           const settled = c.state.settled[id] ?? 0;
           const isDealer = c.info.dealer === id && !ended;
@@ -351,15 +369,15 @@ export default function TableScreen(props: TableScreenProps) {
         </div>
       </section>
 
-      {!ended && pf.hints && (
+      {!ended && (pf.hints || locked) && (
         <div className="actions">
-          <span className="hint">按贏家入數</span>
+          <span className={`hint${locked ? ' loss' : ''}`}>{locked ? '有人夠拉，決定找數後才可再入數' : '按贏家入數'}</span>
         </div>
       )}
       {!ended && (
         <div className="acts">
-          <button type="button" className="act" onClick={openSpecial}><span>特別事項</span><small>花草槓骰追</small></button>
-          <button type="button" className="act" onClick={() => { unlock(); setError(''); setMore('draw'); }}><span>流局</span><small>無人食糊</small></button>
+          <button type="button" className="act" disabled={locked} onClick={openSpecial}><span>特別事項</span><small>花草槓骰追</small></button>
+          <button type="button" className="act" disabled={locked} onClick={() => { unlock(); setError(''); setMore('draw'); }}><span>流局</span><small>無人食糊</small></button>
           <button type="button" className="act end" onClick={() => { unlock(); setError(''); setMore('end'); }}><span>完場</span><small>結算全部</small></button>
         </div>
       )}
@@ -513,7 +531,12 @@ export default function TableScreen(props: TableScreenProps) {
                   <button key={n} type="button" aria-pressed={(entry.fans[entry.current] ?? 0) === n} onClick={() => setFan(entry.current, n)}>{n}</button>
                 ))}
               </div>
-              <Hint className="center-text muted small">轉動或按快捷數字；按中間可直接輸入。{autoNote(rules)}</Hint>
+              <Hint className="center-text muted small">轉動或按快捷數字；按中間可直接輸入。</Hint>
+              <div className="auto-row" aria-label="自動計">
+                <span className="muted small">自動計</span>
+                {autoChips(rules).map((x) => <span key={x.label} className={`auto-chip${x.on ? ' on' : ''}`}>{x.on ? '✓' : '✕'} {x.label}</span>)}
+                {rulesHref && <Link to={rulesHref} className="textbtn small">更改</Link>}
+              </div>
               {preview.lines.length > 0 && (
                 <div className="preview" aria-live="polite">
                   {preview.lines.filter((l) => l.kind !== 'water').map((l, i) => (
@@ -545,7 +568,7 @@ export default function TableScreen(props: TableScreenProps) {
                 {props.onSwap && !ended && <button type="button" className="choice" onClick={() => { setSwapOut(''); setSwapIn(''); setGuestName(''); setMore('swap'); }}>換人<small>有人加入</small></button>}
                 {props.onDice && !ended && <button type="button" className="choice" onClick={() => run(() => props.onDice!(), '')}>擲骰<small>三粒骰</small></button>}
                 {props.onReseat && !ended && c.steps.length === 0 && <button type="button" className="choice" onClick={() => setMore('reseat')}>掉位<small>抽風牌</small></button>}
-                {!ended && <button type="button" className="choice" onClick={() => setMore('falseWin')}>詐糊<small>付每家 {rules.falseWinPenalty}</small></button>}
+                {!ended && <button type="button" className="choice" disabled={locked} onClick={() => setMore('falseWin')}>詐糊<small>付每家 {rules.falseWinPenalty}</small></button>}
                 <button type="button" className="choice" aria-pressed={pf.sound} onClick={() => { unlock(); setPref('sound', !pf.sound); if (!pf.sound) setTimeout(() => sfx.tap(), 30); }}>
                   聲效<small>{pf.sound ? '開' : '關'}</small>
                 </button>
@@ -608,20 +631,25 @@ export default function TableScreen(props: TableScreenProps) {
                         ))}
                       </div>
                     </div>
-                    <div className="row">
-                      <span className="grow">即摸<Hint as="small" className="block muted">同一隻再追，每次加 5</Hint></span>
-                      <button type="button" role="switch" className="switch" aria-checked={instant} aria-label="即摸" onClick={() => { const on = !instant; setInstant(on); if (!on) setRepeat(0); sfx.tap(); }} />
-                    </div>
-                    {instant && (
-                      <div className="row">
-                        <span className="grow small muted">同一隻再追{suggestRepeat(lastStep?.event, chaseKind) > 0 ? '（上鋪亦是）' : ''}</span>
+                    <div className="row instant-row">
+                      <button
+                        type="button"
+                        className={`instant-btn${instant ? ' on' : ''}`}
+                        aria-pressed={instant}
+                        onClick={() => { const on = !instant; setInstant(on); if (!on) setRepeat(0); sfx.tap(); }}
+                      >
+                        即摸
+                      </button>
+                      {instant ? (
                         <div className="seg" role="group" aria-label="同一隻再追幾次">
                           {Array.from({ length: CHASE_MAX_REPEAT }, (_, i) => i + 1).map((r) => (
                             <button key={r} type="button" aria-pressed={repeat === r} onClick={() => { const v = repeat === r ? 0 : r; setRepeat(v); if (v > 0) sfx.chips(); }}>+{r}</button>
                           ))}
                         </div>
-                      </div>
-                    )}
+                      ) : (
+                        <Hint as="span" className="small muted grow">即摸先計同一隻再追</Hint>
+                      )}
+                    </div>
                     {instant && repeat > 0 && <p className={`chase-note heat-${repeat}`}>再追 {repeat} 次：{chaseAmount(chaseKind, 0)} + {5 * repeat} = 每家 {amount}{repeat === CHASE_MAX_REPEAT ? '（封頂）' : ''}</p>}
                   </div>
                 )}
@@ -821,7 +849,7 @@ export default function TableScreen(props: TableScreenProps) {
               ))}
               {waters.length > 0 && (
                 <li className="rc-water">
-                  <span className="rc-who">抽水{cash?.waterName ? <span className="muted">（歸 {cash.waterName}）</span> : null}</span>
+                  <span className="rc-who">抽水{cash?.waterName ? <span className="muted">（{cash.waterName} 保管）</span> : null}</span>
                   <span className="rc-amt"><b className="num">{waterTotal}</b> 番<small className="muted">{toCash(waterTotal)}</small></span>
                   <small className="rc-note muted">{waters.map((l) => `${name(l.from)} ${l.amount}（${l.note}）`).join('、')}</small>
                 </li>
@@ -856,11 +884,11 @@ function idleDice(id: string): number[] {
   return [h % 6 + 1, Math.floor(h / 6) % 6 + 1, Math.floor(h / 36) % 6 + 1];
 }
 
-function autoNote(r: Rules): string {
-  const parts: string[] = [];
-  if (r.base) parts.push(`底 ${r.base}`);
-  if (r.dealer.enabled) parts.push('莊番');
-  if (r.multiWinBonus.double || r.multiWinBonus.triple) parts.push('雙響');
-  if (r.reverse.enabled) parts.push('反雙響');
-  return parts.length ? `已自動計${parts.join('、')}。` : '';
+function autoChips(r: Rules): { label: string; on: boolean }[] {
+  return [
+    { label: r.base ? `底 ${r.base}` : '底', on: r.base > 0 },
+    { label: '莊', on: r.dealer.enabled },
+    { label: '雙三響', on: !!(r.multiWinBonus.double || r.multiWinBonus.triple) },
+    { label: '反雙響', on: r.reverse.enabled },
+  ];
 }

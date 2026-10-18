@@ -68,6 +68,7 @@ const toDice = (d: DocumentData | undefined): Dice | null =>
 export const toTable = (id: string, d: DocumentData): TableDoc => ({
   id, name: String(d.name ?? ''), order: Number(d.order ?? 0), seats: Array.isArray(d.seats) ? d.seats.map(String) : [], names: d.names ?? {},
   dice: toDice(d.dice),
+  declined: Array.isArray(d.declined) ? d.declined.map(String) : [],
 });
 const toRequest = (id: string, d: DocumentData): SwapRequest => ({
   id, tableId: String(d.tableId ?? ''), out: String(d.out ?? ''), in: String(d.in ?? ''), inName: String(d.inName ?? ''),

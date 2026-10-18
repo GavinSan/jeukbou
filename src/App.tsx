@@ -13,6 +13,9 @@ import SessionPage from './pages/SessionPage.tsx';
 import TablePage from './pages/TablePage.tsx';
 const RulesPage = lazy(() => import('./pages/RulesPage.tsx'));
 const SettlePage = lazy(() => import('./pages/SettlePage.tsx'));
+const BoardPage = lazy(() => import('./pages/BoardPage.tsx'));
+import TabBar, { appTabs } from './components/TabBar.tsx';
+import { navContext } from './lib/nav.ts';
 const Demo = lazy(() => import('./demo.tsx'));
 
 function Routes({ user, refresh }: { user: User; refresh: () => void }) {
@@ -26,6 +29,7 @@ function Routes({ user, refresh }: { user: User; refresh: () => void }) {
   if ((m = match('/g/:g/s/:s/settle', path))) return <SettlePage user={user} groupId={m.g} sessionId={m.s} />;
   if ((m = match('/g/:g/s/:s/rules', path))) return <RulesPage user={user} groupId={m.g} sessionId={m.s} />;
   if ((m = match('/g/:g/s/:s', path))) return <SessionPage user={user} groupId={m.g} sessionId={m.s} />;
+  if ((m = match('/g/:g/board', path))) return <BoardPage user={user} groupId={m.g} />;
   if ((m = match('/g/:g/rules', path))) return <RulesPage user={user} groupId={m.g} />;
   if ((m = match('/g/:g', path))) return <GroupPage user={user} groupId={m.g} />;
   return <Home user={user} refresh={refresh} />;
@@ -38,6 +42,13 @@ export default function App() {
   const refresh = () => setTick((t) => t + 1);
   const path = usePath();
 
+  // 大局頁記低我坐邊張枱之後，tab 要更新
+  useEffect(() => {
+    const on = () => setTick((t) => t + 1);
+    window.addEventListener('jeukbou-nav', on);
+    return () => window.removeEventListener('jeukbou-nav', on);
+  }, []);
+
   useEffect(() => {
     if (!auth) return;
     return onAuthStateChanged(auth, (u) => {
@@ -46,7 +57,22 @@ export default function App() {
     });
   }, []);
 
-  if (path === '/demo' || path.startsWith('/demo/')) return <Suspense fallback={<main className="page narrow"><Loading /></main>}><Demo /></Suspense>;
+  if (path === '/demo' || path.startsWith('/demo/')) {
+    const demoTabs = [
+      { key: 'table', label: '枱', href: '/demo/t/0' },
+      { key: 'session', label: '大局', href: '/demo' },
+      { key: 'settle', label: '埋數', href: '/demo/settle' },
+      { key: 'board', label: '龍虎榜', href: '/demo/board' },
+      { key: 'rules', label: '家規', href: '/demo/rules' },
+    ];
+    const active = path.startsWith('/demo/t/') ? 'table' : path === '/demo/settle' ? 'settle' : path === '/demo/board' ? 'board' : path === '/demo/rules' ? 'rules' : 'session';
+    return (
+      <>
+        <Suspense fallback={<main className="page narrow"><Loading /></main>}><Demo /></Suspense>
+        <TabBar tabs={demoTabs} active={active} />
+      </>
+    );
+  }
   if (configError) {
     return (
       <main className="page narrow">
@@ -69,5 +95,11 @@ export default function App() {
       </main>
     );
   }
-  return <Suspense fallback={<main className="page narrow"><Loading /></main>}><Routes user={user} refresh={refresh} /></Suspense>;
+  const nav = appTabs(navContext(path), path);
+  return (
+    <>
+      <Suspense fallback={<main className="page narrow"><Loading /></main>}><Routes user={user} refresh={refresh} /></Suspense>
+      {!path.startsWith('/join/') && <TabBar tabs={nav.tabs} active={nav.active} />}
+    </>
+  );
 }

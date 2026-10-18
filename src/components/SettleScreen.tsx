@@ -1,6 +1,7 @@
 // 埋數：麻雀數（連水）同晚餐等開支分開計，亦可以合併；GP 合計；最少轉賬
 import { useMemo, useState } from 'react';
 import { settleSession } from '../engine/settlement.ts';
+import type { Rounding } from '../engine/settlement.ts';
 import type { Expense } from '../engine/settlement.ts';
 import { isGuest, pairActive } from '../lib/data.ts';
 import type { ExpenseDoc, PairDoc, SettleConfig } from '../lib/data.ts';
@@ -38,6 +39,7 @@ export interface SettleScreenProps {
 
 const LABELS = ['晚餐', '宵夜', '飲品', '的士', '場租', '其他'];
 const CURRENCIES = ['CAD', 'HKD', 'USD'];
+const ROUND_LABEL: Record<Rounding, string> = { up: '每人金額向上取整', round: '每人金額四捨五入', none: '' };
 
 export function money(n: number, signed = false): string {
   const abs = Math.abs(Math.round(n * 100) / 100);
@@ -71,7 +73,7 @@ export default function SettleScreen(p: SettleScreenProps) {
     try {
       return {
         r: settleSession({
-          fan: p.fan, water: p.water, waterTo: cfg.waterTo, perUnit: cfg.perUnit, roundUp: cfg.roundUp,
+          fan: p.fan, water: p.water, waterTo: cfg.waterTo, perUnit: cfg.perUnit, rounding: cfg.rounding,
           expenses, players: ids, pairs: activePairs,
         }),
         error: '',
@@ -80,7 +82,7 @@ export default function SettleScreen(p: SettleScreenProps) {
       return { r: null, error: message(err) };
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [p.fan, p.water, cfg.perUnit, cfg.waterTo, cfg.roundUp, JSON.stringify(expenses), ids.join(','), JSON.stringify(activePairs)]);
+  }, [p.fan, p.water, cfg.perUnit, cfg.waterTo, cfg.rounding, JSON.stringify(expenses), ids.join(','), JSON.stringify(activePairs)]);
   const r = result.r;
   const led = r ? (view === 'game' ? r.gameLedger : view === 'expense' ? r.expenseLedger : r.combined) : null;
 
@@ -99,7 +101,7 @@ export default function SettleScreen(p: SettleScreenProps) {
 
   function shareText(): string {
     if (!r) return '';
-    const out = [`${p.title} 埋數（${cfg.perUnit} 番 = ${cfg.currency} $1${cfg.roundUp ? '，向上取整' : ''}）`];
+    const out = [`${p.title} 埋數（${cfg.perUnit} 番 = ${cfg.currency} $1${ROUND_LABEL[cfg.rounding] ? `，${ROUND_LABEL[cfg.rounding]}` : ''}）`];
     const block = (title: string, ts: { from: string; to: string; amount: number }[]) => {
       out.push('', `【${title}】`);
       if (!ts.length) out.push('不用轉賬');
@@ -107,7 +109,7 @@ export default function SettleScreen(p: SettleScreenProps) {
     };
     block('麻雀（連水）', r.gameLedger.transfers);
     if (p.expenses.length) block('開支', r.expenseLedger.transfers);
-    out.push('', `水：${p.water} 番，${money(r.water.total)} 歸 ${nameOf(r.water.to)}`);
+    out.push('', `水：${p.water} 番，${money(r.water.total)} 由 ${nameOf(r.water.to)} 保管`);
     return out.join('\n');
   }
 
@@ -135,7 +137,7 @@ export default function SettleScreen(p: SettleScreenProps) {
         <span className="rate-cash"><b className="num">$1</b> {cfg.currency}</span>
         <span className="rate-edit">{p.canEdit ? '設定' : '查看'}</span>
       </button>
-      <p className="rate-note muted small">{cfg.roundUp ? '每人金額向上取整' : '計到仙'} · 水歸 {nameOf(cfg.waterTo)}</p>
+      <p className="rate-note muted small">{ROUND_LABEL[cfg.rounding] || '計到仙'} · 水由 {nameOf(cfg.waterTo)} 保管</p>
 
       {result.error && <p className="error">{result.error}</p>}
 
@@ -183,12 +185,12 @@ export default function SettleScreen(p: SettleScreenProps) {
               </div>
             ))}
             <div className="st-row three st-water">
-              <span className="ellipsis">水 → {nameOf(r.water.to)}</span>
+              <span className="ellipsis">水（{nameOf(r.water.to)} 保管）</span>
               <span className="num">{p.water}</span>
               <b className="num">{money(r.water.total, true)}</b>
             </div>
           </div>
-          {cfg.roundUp && Math.abs(r.water.rounding) > 0.004 && (
+          {cfg.rounding !== 'none' && Math.abs(r.water.rounding) > 0.004 && (
             <Hint>水 {money(r.water.raw)}，取整差額 {money(r.water.rounding, true)}，合共 {money(r.water.total)}。</Hint>
           )}
         </section>
@@ -281,7 +283,7 @@ function ConfigSheet({ cfg, canEdit, accounts, busy, error, onClose, onSave }: {
   const [per, setPer] = useState(String(cfg.perUnit));
   const [cur, setCur] = useState(cfg.currency);
   const [waterTo, setWaterTo] = useState(cfg.waterTo);
-  const [roundUp, setRoundUp] = useState(cfg.roundUp);
+  const [rounding, setRounding] = useState<Rounding>(cfg.rounding);
   const n = Number(per);
   const d = !canEdit;
   return (
@@ -303,17 +305,21 @@ function ConfigSheet({ cfg, canEdit, accounts, busy, error, onClose, onSave }: {
         </div>
       </div>
       <div className="field">
-        <span>水歸</span>
-        <select className="input" value={waterTo} disabled={d} onChange={(e) => setWaterTo(e.target.value)} aria-label="水歸">
+        <span>水由誰保管</span>
+        <select className="input" value={waterTo} disabled={d} onChange={(e) => setWaterTo(e.target.value)} aria-label="水由誰保管">
           {accounts.map((a) => <option key={a.id} value={a.id}>{a.name}</option>)}
         </select>
       </div>
-      <div className="rule-row flat-row">
-        <span className="grow">向上取整<small>每人金額取整數，差額計入水</small></span>
-        <button type="button" role="switch" className="switch" aria-checked={roundUp} aria-label="向上取整" disabled={d} onClick={() => setRoundUp((v) => !v)} />
+      <div className="field">
+        <span>金額取整（差額計入水）</span>
+        <div className="seg wide" role="group" aria-label="金額取整">
+          {(['up', 'round', 'none'] as const).map((k) => (
+            <button key={k} type="button" disabled={d} aria-pressed={rounding === k} onClick={() => setRounding(k)}>{k === 'up' ? '向上' : k === 'round' ? '四捨五入' : '不變'}</button>
+          ))}
+        </div>
       </div>
       {error && <p className="error">{error}</p>}
-      {canEdit && <button type="button" className="btn big" disabled={busy || !(n > 0) || !cur.trim()} onClick={() => onSave({ perUnit: n, currency: cur.trim(), waterTo, roundUp })}>儲存</button>}
+      {canEdit && <button type="button" className="btn big" disabled={busy || !(n > 0) || !cur.trim()} onClick={() => onSave({ perUnit: n, currency: cur.trim(), waterTo, rounding })}>儲存</button>}
     </Sheet>
   );
 }

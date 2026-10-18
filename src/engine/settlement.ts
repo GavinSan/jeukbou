@@ -126,13 +126,15 @@ export interface SettleInput {
   waterTo: PlayerId;
   /** 幾多番 = 1 個貨幣單位 */
   perUnit: number;
-  /** 每人金額向上取整（輸家多付、贏家多收），差額由水戶口吸收 */
-  roundUp: boolean;
+  /** 每人金額點取整：up = 向上（絕對值）、round = 四捨五入、none = 計到仙；差額由水戶口吸收 */
+  rounding: Rounding;
   /** 開支（晚餐等），同麻雀數分開計 */
   expenses: Expense[];
   players: PlayerId[];
   pairs: [PlayerId, PlayerId][];
 }
+
+export type Rounding = 'up' | 'round' | 'none';
 
 export interface Ledger {
   /** 每個戶口（已合 pair） */
@@ -156,6 +158,7 @@ export interface SettleResult {
 }
 
 const ceilAbs = (cents: number) => Math.sign(cents) * Math.ceil(Math.abs(cents) / 100 - 1e-9) * 100;
+const roundAbs = (cents: number) => Math.sign(cents) * Math.round(Math.abs(cents) / 100) * 100;
 
 function ledger(balances: Record<string, number>, pairs: [PlayerId, PlayerId][]): Ledger {
   const accounts = mergePairs(balances, pairs);
@@ -174,10 +177,10 @@ export function settleSession(input: SettleInput): SettleResult {
   const gameCents: Record<string, number> = {};
   for (const p of players) {
     const c = toCents(money[p] ?? 0);
-    gameCents[p] = input.roundUp ? ceilAbs(c) : c;
+    gameCents[p] = input.rounding === 'up' ? ceilAbs(c) : input.rounding === 'round' ? roundAbs(c) : c;
   }
   const rawWater = toCents(money[WATER] ?? 0);
-  const waterTotal = -Object.values(gameCents).reduce((a, b) => a + b, 0);
+  const waterTotal = 0 - Object.values(gameCents).reduce((a, b) => a + b, 0) || 0;
 
   const game: Record<string, number> = {};
   for (const p of players) game[p] = fromCents(gameCents[p]);

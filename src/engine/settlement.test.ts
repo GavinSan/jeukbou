@@ -69,7 +69,7 @@ test('埋數：麻雀數向上取整，差額入水戶口；開支分開計', ()
     water: 2,
     waterTo: 'H',
     perUnit: 6,
-    roundUp: true,
+    rounding: 'up',
     expenses: [{ label: '晚餐', payer: 'A', amount: 80, sharedBy: ['A', 'B', 'C', 'D'] }],
     players: ['A', 'B', 'C', 'D'],
     pairs: [['C', 'D']],
@@ -94,7 +94,7 @@ test('埋數：唔取整、水歸今晚其中一個玩家', () => {
     water: 3,
     waterTo: 'C',
     perUnit: 6,
-    roundUp: false,
+    rounding: 'none',
     expenses: [],
     players: ['A', 'B', 'C', 'D'],
     pairs: [],
@@ -102,4 +102,14 @@ test('埋數：唔取整、水歸今晚其中一個玩家', () => {
   assert.equal(r.game.B, -2.5);
   assert.equal(r.gameLedger.accounts.C, 0.5);
   assert.deepEqual(r.gameLedger.transfers.map((t) => [t.from, t.to, t.amount]), [['B', 'A', 2], ['B', 'C', 0.5]]);
+});
+
+test('埋數：四捨五入', () => {
+  const r = settleSession({
+    fan: { A: 63, B: -21, C: -42, D: 0 }, water: 0, waterTo: 'A', perUnit: 6, rounding: 'round', expenses: [], players: ['A', 'B', 'C', 'D'], pairs: [],
+  });
+  // 10.5 → 11；−3.5 → −4；−7 → −7；水戶口（A）吸收 0
+  assert.deepEqual(r.game, { A: 11, B: -4, C: -7, D: 0 });
+  assert.equal(r.water.total, 0);
+  assert.equal(r.gameLedger.accounts.A, 11);
 });

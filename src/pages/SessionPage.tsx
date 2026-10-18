@@ -1,4 +1,5 @@
-import { useMemo } from 'react';
+import { useEffect, useMemo } from 'react';
+import { rememberTable } from '../lib/nav.ts';
 import type { User } from 'firebase/auth';
 import SessionScreen from '../components/SessionScreen.tsx';
 import Incoming from '../components/Incoming.tsx';
@@ -22,6 +23,10 @@ export default function SessionPage({ user, groupId, sessionId }: { user: User; 
     for (const t of tables.data) out[t.id] = computeTable(t, events[t.id] ?? [], rules);
     return out;
   }, [tables.data, events, rules]);
+
+  // 記低我坐緊邊張枱，底部「枱」tab 用
+  const myTable = tables.data.find((t) => { const c = computed[t.id]; return c && !c.state.ended && c.state.seats.includes(user.uid); })?.id ?? null;
+  useEffect(() => { rememberTable(groupId, sessionId, myTable); }, [groupId, sessionId, myTable]);
 
   const back = `/g/${groupId}`;
   if (session.error || group.error) return <main className="page"><TopBar back={back} /><p className="error">{session.error ?? group.error}</p></main>;
