@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { Suspense, lazy, useEffect, useState } from 'react';
 import { onAuthStateChanged } from 'firebase/auth';
 import type { User } from 'firebase/auth';
 import { auth, configError } from './firebase.ts';
@@ -6,13 +6,13 @@ import { match, usePath } from './lib/router.tsx';
 import { Loading, NameForm, TopBar, saveProfile } from './ui.tsx';
 import Login from './pages/Login.tsx';
 import Home from './pages/Home.tsx';
-import Join from './pages/Join.tsx';
+const Join = lazy(() => import('./pages/Join.tsx'));
 import GroupPage from './pages/GroupPage.tsx';
-import NewSession from './pages/NewSession.tsx';
+const NewSession = lazy(() => import('./pages/NewSession.tsx'));
 import SessionPage from './pages/SessionPage.tsx';
 import TablePage from './pages/TablePage.tsx';
-import RulesPage from './pages/RulesPage.tsx';
-import Demo from './demo.tsx';
+const RulesPage = lazy(() => import('./pages/RulesPage.tsx'));
+const Demo = lazy(() => import('./demo.tsx'));
 
 function Routes({ user, refresh }: { user: User; refresh: () => void }) {
   const path = usePath();
@@ -44,7 +44,7 @@ export default function App() {
     });
   }, []);
 
-  if (path === '/demo' || path.startsWith('/demo/')) return <Demo />;
+  if (path === '/demo' || path.startsWith('/demo/')) return <Suspense fallback={<main className="page narrow"><Loading /></main>}><Demo /></Suspense>;
   if (configError) {
     return (
       <main className="page narrow">
@@ -60,12 +60,12 @@ export default function App() {
       <main className="page">
         <TopBar />
         <section className="panel">
-          <h2>改個名俾牌友認到你</h2>
-          <p className="muted">枱面、龍虎榜同埋數都會用呢個名，之後可以再改。</p>
+          <h2>設定顯示名稱</h2>
+          <p className="muted">枱面、龍虎榜和埋數會顯示此名稱，之後可修改。</p>
           <NameForm user={user} initial="" onDone={refresh} />
         </section>
       </main>
     );
   }
-  return <Routes user={user} refresh={refresh} />;
+  return <Suspense fallback={<main className="page narrow"><Loading /></main>}><Routes user={user} refresh={refresh} /></Suspense>;
 }

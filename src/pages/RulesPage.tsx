@@ -23,7 +23,7 @@ export default function RulesPage({ user, groupId, sessionId }: { user: User; gr
         key={sessionId ?? 'group'}
         initial={initial}
         canEdit={canEdit}
-        scopeNote={sessionId ? '只影響呢個大局，改完會由頭再計晒所有枱。' : '新開嘅大局會用呢套；已經開咗嘅大局唔受影響。'}
+        scopeNote={sessionId ? '只影響這個大局，修改後所有枱會重新計算。' : '適用於之後新開的大局。'}
         onSave={(r) => saveRules(sessionId ? ['groups', groupId, 'sessions', sessionId] : ['groups', groupId], r)}
       />
     </main>

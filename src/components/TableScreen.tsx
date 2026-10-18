@@ -6,10 +6,14 @@ import type { Line, TableEvent } from '../engine/table.ts';
 import type { Rules } from '../engine/rules.ts';
 import type { SwapRequest, TableDoc, LogEvent } from '../lib/data.ts';
 import type { Computed } from '../lib/score.ts';
-import { ago, describe, netOf } from '../lib/score.ts';
-import { setSoundOn, sfx, soundOn, unlock } from '../lib/sound.ts';
+import { ago, describe, netOf, trendOf } from '../lib/score.ts';
+import { TrendChart } from './Charts.tsx';
+import { sfx, unlock } from '../lib/sound.ts';
+import { buzz } from '../lib/haptics.ts';
+import { setPref, usePrefs } from '../lib/prefs.ts';
+import Settings from './Settings.tsx';
 import { Link } from '../lib/router.tsx';
-import { Chips, RollingNumber, Sheet, TopBar, fmt, message, useNow } from '../ui.tsx';
+import { Chips, Hint, RollingNumber, Sheet, TopBar, fmt, message, useNow } from '../ui.tsx';
 import FanWheel from './FanWheel.tsx';
 import DiceRoll, { Die } from './Dice.tsx';
 import SeatDraw from './SeatDraw.tsx';
@@ -87,7 +91,8 @@ export default function TableScreen(props: TableScreenProps) {
   const [showAll, setShowAll] = useState(false);
   const [dismissed, setDismissed] = useState<string[]>([]);
   const [dealing, setDealing] = useState(true);
-  const [sound, setSound] = useState(soundOn);
+  const pf = usePrefs();
+  const [settings, setSettings] = useState(false);
   const [fx, setFx] = useState<{ up: string[]; down: string[]; delta: Record<string, number>; hp: boolean; key: number }>({ up: [], down: [], delta: {}, hp: false, key: 0 });
   const [diceShown, setDiceShown] = useState<number | null>(null);
   const [editing, setEditing] = useState<{ seq: number; event: TableEvent; current: string } | null>(null);
@@ -117,6 +122,9 @@ export default function TableScreen(props: TableScreenProps) {
     }
     if (!up.length && !down.length) return;
     const lastStep = c.steps[c.steps.length - 1];
+  // 骰跟住莊家：莊坐邊，骰就喺佢隔籬個角
+  const dealerSpot = c.info.dealer && !ended && seats.includes(c.info.dealer) ? spotOf(seats.indexOf(c.info.dealer)) : 's-bottom';
+  const diceCorner = ({ 's-bottom': 'bl', 's-right': 'br', 's-top': 'tr', 's-left': 'tl' } as Record<string, string>)[dealerSpot] ?? 'bl';
     const last = lastStep?.event;
     const hp = !!lastStep && last?.type !== 'win' && lastStep.result.lines.some((l) => l.kind === 'settle');
     setFx((f) => ({ up, down, delta, hp, key: f.key + 1 }));
@@ -125,9 +133,9 @@ export default function TableScreen(props: TableScreenProps) {
       const rep = last.meta?.repeat ?? 0;
       setBurst((b) => ({ art, text: art === 'chase' ? (rep > 0 ? `追 ×${rep + 1}` : '追') : undefined, key: (b?.key ?? 0) + 1 }));
     }
-    if (last?.type === 'win') sfx.win();
-    else if (hp) sfx.settle();
-    else if (last?.type === 'special' || last?.type === 'falseWin' || last?.type === 'end') sfx.chips();
+    if (last?.type === 'win') { sfx.win(); buzz('win'); }
+    else if (hp) { sfx.settle(); buzz('hit'); }
+    else if (last?.type === 'special' || last?.type === 'falseWin' || last?.type === 'end') { sfx.chips(); buzz('tap'); }
     else sfx.tap();
     const t = setTimeout(() => setFx((f) => ({ ...f, up: [], down: [], delta: {} })), hp ? 1300 : 1000);
     return () => clearTimeout(t);
@@ -217,6 +225,10 @@ export default function TableScreen(props: TableScreenProps) {
 
   const lastStep = c.steps[c.steps.length - 1];
   const log = [...c.steps].reverse().slice(0, showAll ? undefined : 5);
+  const trend = useMemo(() => {
+    const t = trendOf(c, seats);
+    return seats.map((id) => ({ id, name: name(id), values: t[id] }));
+  }, [c, seats, name]);
   // 紀錄表嘅欄：開枱嗰四個，之後換入嚟嘅排後面
   const cols = useMemo(() => {
     const out = [...table.seats];
@@ -254,7 +266,7 @@ export default function TableScreen(props: TableScreenProps) {
       replay(table.seats, c.steps.filter((x) => x.seq !== editing.seq).map((x) => x.event), rules);
       return '';
     } catch (err) {
-      return `刪除唔到：${message(err)}`;
+      return `不能刪除：${message(err)}`;
     }
   }, [editing, c, rules, table.seats]);
 
@@ -282,16 +294,16 @@ export default function TableScreen(props: TableScreenProps) {
 
       {myPending.map((r) => (
         <div key={r.id} className="banner calm">
-          <span className="grow">等緊 {r.inName} 接受，換 {name(r.out)}</span>
+          <span className="grow">等待 {r.inName} 接受（換 {name(r.out)}）</span>
           {props.onCancelSwap && <button type="button" className="textbtn" onClick={() => run(() => props.onCancelSwap!(r.id), '已取消')}>取消</button>}
         </div>
       ))}
 
       {settleable.map((ch) => (
         <div key={ch.puller + ch.pulled} className="banner">
-          <span className="grow">第 {ch.count} 拉，{name(ch.pulled)} 欠 {name(ch.puller)} <b className="num">{ch.owed}</b>。{name(ch.pulled)} 揀找唔找。</span>
+          <span className="grow">第 {ch.count} 拉：{name(ch.pulled)} 欠 {name(ch.puller)} <b className="num">{ch.owed}</b>，由 {name(ch.pulled)} 決定是否找數。</span>
           <button type="button" className="btn danger" disabled={busy} onClick={() => push({ type: 'settle', puller: ch.puller, pulled: ch.pulled }, '已找數')}>找數</button>
-          <button type="button" className="textbtn loss" onClick={() => setDismissed((d) => [...d, `${ch.puller}>${ch.pulled}#${ch.count}`])}>唔找</button>
+          <button type="button" className="textbtn loss" onClick={() => setDismissed((d) => [...d, `${ch.puller}>${ch.pulled}#${ch.count}`])}>不找</button>
         </div>
       ))}
 
@@ -303,7 +315,7 @@ export default function TableScreen(props: TableScreenProps) {
           const down = fx.down.includes(id);
           const cls = ['tile', spotOf(i), up ? 'won' : '', down ? 'hit' : '', down && fx.hp ? 'hp' : ''].filter(Boolean).join(' ');
           return (
-            <button key={id} type="button" className={cls} onClick={() => startWin(id)} disabled={ended} aria-label={`${name(id)}，${settled} 番，撳嚟入佢食糊`}>
+            <button key={id} type="button" className={cls} onClick={() => startWin(id)} disabled={ended} aria-label={`${name(id)}，${settled} 番，按此記錄食糊`}>
               <span className="t-name"><span className="ellipsis">{name(id)}</span>{isDealer && <span className="dealer-mark">莊{c.state.streak ? c.state.streak : ''}</span>}</span>
               <RollingNumber value={settled} className={`t-score t-${tone2(settled)}`} />
               <span className="t-foot">
@@ -318,10 +330,10 @@ export default function TableScreen(props: TableScreenProps) {
         {burst && <SpecialBurst key={burst.key} art={burst.art} text={burst.text} />}
         <button
           type="button"
-          className="felt-dice"
+          className={`felt-dice at-${diceCorner}`}
           disabled={!props.onDice || ended || busy}
           onClick={() => props.onDice && run(() => props.onDice!(), '')}
-          aria-label={corner ? `今場骰：${corner.values.join('、')}，撳嚟再擲` : '今場未擲骰，撳嚟擲'}
+          aria-label={corner ? `骰：${corner.values.join('、')}，按此再擲` : '按此擲骰'}
         >
           {(corner?.values ?? idleDice(table.id)).map((v, i) => <Die key={i} value={v} rolling={false} size={24} />)}
           {corner && <span className="felt-dice-sum">{corner.values.reduce((a, b) => a + b, 0)}</span>}
@@ -332,16 +344,16 @@ export default function TableScreen(props: TableScreenProps) {
         </div>
       </section>
 
-      {!ended && (
+      {!ended && pf.hints && (
         <div className="actions">
-          <span className="hint">撳食糊嗰個人入數</span>
+          <span className="hint">按贏家入數</span>
         </div>
       )}
       {!ended && (
         <div className="acts">
           <button type="button" className="act" onClick={openSpecial}><span>特別事項</span><small>花草槓骰追</small></button>
-          <button type="button" className="act" onClick={() => { unlock(); setError(''); setMore('draw'); }}><span>流局</span><small>冇人食</small></button>
-          <button type="button" className="act end" onClick={() => { unlock(); setError(''); setMore('end'); }}><span>完場</span><small>全部找數</small></button>
+          <button type="button" className="act" onClick={() => { unlock(); setError(''); setMore('draw'); }}><span>流局</span><small>無人食糊</small></button>
+          <button type="button" className="act end" onClick={() => { unlock(); setError(''); setMore('end'); }}><span>完場</span><small>結算全部</small></button>
         </div>
       )}
 
@@ -349,12 +361,12 @@ export default function TableScreen(props: TableScreenProps) {
         <div className="section-head">
           <h2>紀錄</h2>
           {lastStep && !ended && (
-            <button type="button" className="textbtn loss" disabled={busy} onClick={() => push({ type: 'undo', target: lastStep.seq }, '已撤回')}>撤回最後一鋪</button>
+            <button type="button" className="textbtn loss" disabled={busy} onClick={() => push({ type: 'undo', target: lastStep.seq }, '已撤回')}>撤回上一鋪</button>
           )}
         </div>
-        {c.skipped.length > 0 && <p className="banner small">{c.skipped.map((s) => `第 ${s.seq} 項計唔到：${s.message}`).join('；')}</p>}
+        {c.skipped.length > 0 && <p className="banner small">{c.skipped.map((s) => `第 ${s.seq} 項無法計算：${s.message}`).join('；')}</p>}
         {c.steps.length === 0 ? (
-          <p className="muted">未有紀錄。開始之前可以擲骰或者掉位；開咗就撳上面食糊嗰個人。</p>
+          <p className="muted">未有紀錄。</p>
         ) : (
           <div className="ledger" style={{ '--cols': cols.length } as CSSProperties}>
             <div className="lg-names" aria-hidden="true">
@@ -378,11 +390,13 @@ export default function TableScreen(props: TableScreenProps) {
                       <span className="lg-cells">
                         {cols.map((id) => {
                           const v = net[id] ?? 0;
-                          const cash = st.delta.settled[id] ?? 0;
+                          const water = st.result.lines.filter((l) => l.kind === 'water' && l.from === id).reduce((a, l) => a + l.amount, 0);
+                          const cash = (st.delta.settled[id] ?? 0) + water;
                           return (
                             <span key={id} className={`lg-cell${id === me ? ' me' : ''}`}>
                               {v ? <b className={`num ${tone2(v)}`}>{fmt(v)}</b> : !cash ? <span className="lg-dash">·</span> : null}
                               {cash && cash !== v ? <small className={`lg-pend ${tone2(cash)}`}>找 {fmt(cash)}</small> : null}
+                              {water ? <small className="lg-pend lg-water">水 −{water}</small> : null}
                             </span>
                           );
                         })}
@@ -401,7 +415,7 @@ export default function TableScreen(props: TableScreenProps) {
                 return (
                   <span key={id} className={`lg-cell${id === me ? ' me' : ''}`}>
                     <b className={`num ${tone2(v + p)}`}>{fmt(v + p)}</b>
-                    {p ? <><small className={`lg-pend ${tone2(v)}`}>找咗 {fmt(v)}</small><small className={`lg-pend ${tone2(p)}`}>擺 {fmt(p)}</small></> : null}
+                    {p ? <><small className={`lg-pend ${tone2(v)}`}>袋 {fmt(v)}</small><small className={`lg-pend ${tone2(p)}`}>枱面 {fmt(p)}</small></> : null}
                   </span>
                 );
               })}
@@ -409,11 +423,22 @@ export default function TableScreen(props: TableScreenProps) {
             </div>
           </div>
         )}
-        {c.steps.length > 0 && !ended && <p className="muted small">每格係嗰鋪嘅輸贏（連擺低未找嘅）；細字「找」係嗰鋪真係找咗嘅錢。最底合計 = 找咗 + 擺低。撳任何一鋪可以改番數或者刪除。</p>}
+        {c.steps.length > 0 && !ended && <Hint>每格是該鋪輸贏。「找」是當鋪已找的數，「水」是抽水。合計 =「袋」（已找）+「枱面」（拉住未找）。按任何一鋪可修改或刪除。</Hint>}
         {c.steps.length > 5 && (
-          <button type="button" className="textbtn" onClick={() => setShowAll((v) => !v)}>{showAll ? '收埋' : `睇晒 ${c.steps.length} 鋪`}</button>
+          <button type="button" className="textbtn" onClick={() => setShowAll((v) => !v)}>{showAll ? '收起' : `顯示全部 ${c.steps.length} 項`}</button>
         )}
       </section>
+
+      {c.steps.length > 1 && (
+        <section className="stack">
+          <h2>走勢</h2>
+          <TrendChart
+            series={trend}
+            labels={['開局', ...c.steps.map((st, i) => `第 ${i + 1} 項：${describe(st.event, name)}`)]}
+            me={me}
+          />
+        </section>
+      )}
 
       {entry && (
         <Sheet onClose={() => setEntry(null)} label="入數">
@@ -421,22 +446,22 @@ export default function TableScreen(props: TableScreenProps) {
             <>
               <h2>{entry.winners.map(name).join('、')} 食糊</h2>
               <div className="field">
-                <span>邊個出銃？</span>
+                <span>出銃</span>
                 <div className="choices">
                   {seats.filter((s) => !entry.winners.includes(s)).map((s) => (
                     <button key={s} type="button" className="choice loser" aria-pressed={entry.loser === s} onClick={() => setEntry({ ...entry, loser: s })}>
                       <span className="ellipsis">{name(s)}</span>
-                      {c.state.chains.some((ch) => ch.pulled === s && entry.winners.includes(ch.puller)) && <small>被拉緊</small>}
+                      {c.state.chains.some((ch) => ch.pulled === s && entry.winners.includes(ch.puller)) && <small>被拉中</small>}
                     </button>
                   ))}
                   {entry.winners.length === 1 && (
-                    <button type="button" className="choice" aria-pressed={entry.loser === null} onClick={() => setEntry({ ...entry, loser: null })}>自摸<small>三家俾</small></button>
+                    <button type="button" className="choice" aria-pressed={entry.loser === null} onClick={() => setEntry({ ...entry, loser: null })}>自摸<small>三家付</small></button>
                   )}
                 </div>
               </div>
               {entry.loser && (
                 <div className="field">
-                  <span>一炮多響？撳埋另外食糊嘅人</span>
+                  <span>一炮多響：加選其他贏家</span>
                   <div className="choices">
                     {seats.filter((s) => s !== entry.loser && s !== entry.winners[0]).map((s) => (
                       <button
@@ -460,7 +485,7 @@ export default function TableScreen(props: TableScreenProps) {
             <>
               <div className="between">
                 <h2>{entry.loser === null ? `${name(entry.winners[0])} 自摸` : `${entry.winners.map(name).join('、')} 食 ${name(entry.loser ?? '')}`}</h2>
-                <button type="button" className="textbtn" onClick={() => setEntry({ ...entry, step: 'who' })}>改</button>
+                <button type="button" className="textbtn" onClick={() => setEntry({ ...entry, step: 'who' })}>修改</button>
               </div>
               {entry.winners.length > 1 && (
                 <div className="choices">
@@ -481,7 +506,7 @@ export default function TableScreen(props: TableScreenProps) {
                   <button key={n} type="button" aria-pressed={(entry.fans[entry.current] ?? 0) === n} onClick={() => setFan(entry.current, n)}>{n}</button>
                 ))}
               </div>
-              <p className="center-text muted small">碌滾輪或者撳快捷掣；撳中間個數字可以自己打。{autoNote(rules)}</p>
+              <Hint className="center-text muted small">轉動或按快捷數字；按中間可直接輸入。{autoNote(rules)}</Hint>
               {preview.lines.length > 0 && (
                 <div className="preview" aria-live="polite">
                   {preview.lines.filter((l) => l.kind !== 'water').map((l, i) => (
@@ -510,20 +535,21 @@ export default function TableScreen(props: TableScreenProps) {
             <>
               <h2>其他</h2>
               <div className="choices three">
-                {props.onSwap && !ended && <button type="button" className="choice" onClick={() => { setSwapOut(''); setSwapIn(''); setGuestName(''); setMore('swap'); }}>換人<small>加人入枱</small></button>}
-                {props.onDice && !ended && <button type="button" className="choice" onClick={() => run(() => props.onDice!(), '')}>擲骰<small>三粒</small></button>}
+                {props.onSwap && !ended && <button type="button" className="choice" onClick={() => { setSwapOut(''); setSwapIn(''); setGuestName(''); setMore('swap'); }}>換人<small>有人加入</small></button>}
+                {props.onDice && !ended && <button type="button" className="choice" onClick={() => run(() => props.onDice!(), '')}>擲骰<small>三粒骰</small></button>}
                 {props.onReseat && !ended && c.steps.length === 0 && <button type="button" className="choice" onClick={() => setMore('reseat')}>掉位<small>抽風牌</small></button>}
-                {!ended && <button type="button" className="choice" onClick={() => setMore('falseWin')}>詐糊<small>俾每家 {rules.falseWinPenalty}</small></button>}
-                <button type="button" className="choice" aria-pressed={sound} onClick={() => { unlock(); setSoundOn(!sound); setSound(!sound); if (!sound) setTimeout(() => sfx.tap(), 30); }}>
-                  聲效<small>{sound ? '開緊' : '閂咗'}</small>
+                {!ended && <button type="button" className="choice" onClick={() => setMore('falseWin')}>詐糊<small>付每家 {rules.falseWinPenalty}</small></button>}
+                <button type="button" className="choice" aria-pressed={pf.sound} onClick={() => { unlock(); setPref('sound', !pf.sound); if (!pf.sound) setTimeout(() => sfx.tap(), 30); }}>
+                  聲效<small>{pf.sound ? '開' : '關'}</small>
                 </button>
+                <button type="button" className="choice" onClick={() => { setMore(null); setSettings(true); }}>設定<small>提示、震動</small></button>
               </div>
-              {rulesHref && <Link to={rulesHref} className="textbtn center-text">睇呢個大局嘅家規</Link>}
+              {rulesHref && <Link to={rulesHref} className="textbtn center-text">家規</Link>}
             </>
           )}
           {more === 'falseWin' && (
             <>
-              <h2>邊個詐糊？</h2>
+              <h2>誰詐糊？</h2>
               <div className="choices">
                 {seats.map((s) => (
                   <button key={s} type="button" className="choice loser" aria-pressed={who === s} onClick={() => setWho(s)}>
@@ -549,7 +575,7 @@ export default function TableScreen(props: TableScreenProps) {
             return (
               <>
                 <h2>特別事項</h2>
-                <p className="muted small">即時找數，唔影響拉，唔抽水。</p>
+                <Hint>即時找數，不影響拉，不抽水。</Hint>
                 <div className="sp-grid">
                   {SPECIAL_ITEMS.map((it) => (
                     <button
@@ -561,43 +587,40 @@ export default function TableScreen(props: TableScreenProps) {
                     >
                       <SpecialArt art={it.art} heat={it.art === 'chase' && spArt === 'chase' && instant ? repeat : 0} />
                       <span className="sp-label">{it.label}</span>
-                      <span className="sp-note">{it.art === 'chase' && spArt === 'chase' ? `俾每家 ${amount}` : it.note}</span>
+                      <span className="sp-note">{it.art === 'chase' && spArt === 'chase' ? `付每家 ${amount}` : it.note}</span>
                     </button>
                   ))}
                 </div>
                 {isChase && (
                   <div className="stack tight">
                     <div className="row">
-                      <span className="grow small muted">追咗咩牌</span>
+                      <span className="grow small muted">被追的牌</span>
                       <div className="seg" role="group" aria-label="番子定非番子">
-                        {([['fan', '番子（5 起）'], ['other', '非番子（10 起）']] as const).map(([k, t]) => (
+                        {([['fan', '番子 5'], ['other', '非番子 10']] as const).map(([k, t]) => (
                           <button key={k} type="button" aria-pressed={chaseKind === k} onClick={() => { setChaseKind(k); const r = suggestRepeat(lastStep?.event, k); setRepeat(r); if (r > 0) setInstant(true); }}>{t}</button>
                         ))}
                       </div>
                     </div>
                     <div className="row">
-                      <span className="grow small muted">係咪即摸？<br />即摸先會同一隻再追加 5</span>
-                      <div className="seg" role="group" aria-label="係咪即摸">
-                        <button type="button" aria-pressed={!instant} onClick={() => setInstant(false)}>唔係</button>
-                        <button type="button" aria-pressed={instant} onClick={() => { setInstant(true); sfx.tap(); }}>即摸</button>
-                      </div>
+                      <span className="grow">即摸<Hint as="small" className="block muted">同一隻再追，每次加 5</Hint></span>
+                      <button type="button" role="switch" className="switch" aria-checked={instant} aria-label="即摸" onClick={() => { const on = !instant; setInstant(on); if (!on) setRepeat(0); sfx.tap(); }} />
                     </div>
-                    {instant && <div className="row">
-                      <span className="grow small muted">同一隻追咗幾次{suggestRepeat(lastStep?.event, chaseKind) > 0 ? '（上一鋪都係即摸被追）' : ''}</span>
-                      <div className="seg" role="group" aria-label="同一隻追咗幾次">
-                        {Array.from({ length: CHASE_MAX_REPEAT + 1 }, (_, r) => (
-                          <button key={r} type="button" aria-pressed={repeat === r} onClick={() => { setRepeat(r); if (r > 0) sfx.chips(); }}>
-                            {r === 0 ? '第 1 次' : `+${r}`}
-                          </button>
-                        ))}
+                    {instant && (
+                      <div className="row">
+                        <span className="grow small muted">同一隻再追{suggestRepeat(lastStep?.event, chaseKind) > 0 ? '（上鋪亦是）' : ''}</span>
+                        <div className="seg" role="group" aria-label="同一隻再追幾次">
+                          {Array.from({ length: CHASE_MAX_REPEAT }, (_, i) => i + 1).map((r) => (
+                            <button key={r} type="button" aria-pressed={repeat === r} onClick={() => { const v = repeat === r ? 0 : r; setRepeat(v); if (v > 0) sfx.chips(); }}>+{r}</button>
+                          ))}
+                        </div>
                       </div>
-                    </div>}
-                    {instant && repeat > 0 && <p className={`chase-note heat-${repeat}`}>即摸，同一隻再追 {repeat} 次：{chaseAmount(chaseKind, 0)} + {5 * repeat} = 每家 {amount}{repeat === CHASE_MAX_REPEAT ? '，追到盡' : ''}</p>}
+                    )}
+                    {instant && repeat > 0 && <p className={`chase-note heat-${repeat}`}>再追 {repeat} 次：{chaseAmount(chaseKind, 0)} + {5 * repeat} = 每家 {amount}{repeat === CHASE_MAX_REPEAT ? '（封頂）' : ''}</p>}
                   </div>
                 )}
                 {spArt && (
                   <div className="field">
-                    <span>{item?.dir === 'collect' ? '邊個收？' : isChase ? '邊個被追？' : '邊個俾？'}</span>
+                    <span>{item?.dir === 'collect' ? '誰收？' : isChase ? '誰被追？' : '誰付？'}</span>
                     <div className="choices">
                       {seats.map((s) => (
                         <button key={s} type="button" className={`choice${item?.dir === 'pay' ? ' loser' : ''}`} aria-pressed={who === s} onClick={() => setWho(s)}>
@@ -621,7 +644,7 @@ export default function TableScreen(props: TableScreenProps) {
                     }, '已入數');
                   }}
                 >
-                  {item ? `入數，${item.dir === 'collect' ? '收' : '俾'}每家 ${amount}` : '揀一樣'}
+                  {item ? `入數，${item.dir === 'collect' ? '收' : '付'}每家 ${amount}` : '請選擇'}
                 </button>
               </>
             );
@@ -629,14 +652,14 @@ export default function TableScreen(props: TableScreenProps) {
           {more === 'draw' && (
             <>
               <h2>流局</h2>
-              <p className="muted">冇人輸贏，拉住嘅數留低。{rules.dealer.drawKeepsDealer ? '莊家冧莊。' : '過莊。'}</p>
+              <p className="muted">無人輸贏，拉住的數保留。{rules.dealer.drawKeepsDealer ? '莊家連莊。' : '過莊。'}</p>
               <button type="button" className="btn big" disabled={busy} onClick={() => push({ type: 'draw' }, '已入流局')}>確認流局</button>
             </>
           )}
           {more === 'end' && (
             <>
               <h2>完場</h2>
-              <p className="muted">所有拉住嘅數即刻找晒，之後呢張枱唔可以再入數。</p>
+              <p className="muted">所有拉住的數即時結算，之後不能再入數。</p>
               <button type="button" className="btn big danger" disabled={busy} onClick={() => push({ type: 'end' }, '已完場')}>確認完場</button>
             </>
           )}
@@ -644,30 +667,30 @@ export default function TableScreen(props: TableScreenProps) {
             <>
               <h2>換人</h2>
               <div className="field">
-                <span>邊個走？</span>
+                <span>誰離開？</span>
                 <div className="choices">
                   {seats.map((s) => (
                     <button key={s} type="button" className="choice loser" aria-pressed={swapOut === s} onClick={() => setSwapOut(s)}>
                       <span className="ellipsis">{name(s)}</span>
-                      {(owe[s] || collect[s]) ? <small>拉緊，會即刻找數</small> : null}
+                      {(owe[s] || collect[s]) ? <small>有拉，會先結算</small> : null}
                     </button>
                   ))}
                 </div>
               </div>
               <div className="field">
-                <span>邊個入嚟？</span>
+                <span>誰加入？</span>
                 <div className="choices">
                   {free.map((p) => (
                     <button key={p.id} type="button" className="choice" aria-pressed={swapIn === p.id} onClick={() => setSwapIn(p.id)}>
-                      <span className="ellipsis">{p.name}</span><small>要佢接受</small>
+                      <span className="ellipsis">{p.name}</span><small>需對方接受</small>
                     </button>
                   ))}
-                  <button type="button" className="choice" aria-pressed={swapIn === '__guest'} onClick={() => setSwapIn('__guest')}>訪客<small>冇帳戶</small></button>
+                  <button type="button" className="choice" aria-pressed={swapIn === '__guest'} onClick={() => setSwapIn('__guest')}>訪客<small>無帳戶</small></button>
                 </div>
                 {swapIn === '__guest' && (
                   <input id="swap-guest" className="input" value={guestName} onChange={(e) => setGuestName(e.target.value)} placeholder="訪客名" maxLength={20} aria-label="訪客名" />
                 )}
-                {free.length === 0 && <p className="muted small">冇其他成員得閒。用大局嘅邀請連結叫人入嚟，佢就會出現喺度。</p>}
+                {free.length === 0 && <p className="muted small">沒有空閒成員。可用大局邀請連結邀請新人。</p>}
               </div>
               <button
                 type="button"
@@ -679,11 +702,11 @@ export default function TableScreen(props: TableScreenProps) {
                   if (!incoming) return;
                   run(async () => {
                     const r = await props.onSwap!(swapOut, incoming, guest);
-                    if (r === 'requested') flash(`已經請 ${incoming.name} 接受`);
+                    if (r === 'requested') flash(`已邀請 ${incoming.name}`);
                   }, guest ? '已換人' : '已發出邀請');
                 }}
               >
-                {swapIn && swapIn !== '__guest' ? '請佢接受' : '換人'}
+                {swapIn && swapIn !== '__guest' ? '發出邀請' : '換人'}
               </button>
             </>
           )}
@@ -703,9 +726,9 @@ export default function TableScreen(props: TableScreenProps) {
       )}
 
       {editing && (
-        <Sheet onClose={() => setEditing(null)} label="改呢鋪">
+        <Sheet onClose={() => setEditing(null)} label="修改">
           <div className="between">
-            <h2>改呢鋪</h2>
+            <h2>修改</h2>
             <span className="muted small">{describe(c.steps.find((x) => x.seq === editing.seq)?.event ?? editing.event, name)}</span>
           </div>
           {editing.event.type === 'win' && (() => {
@@ -757,14 +780,15 @@ export default function TableScreen(props: TableScreenProps) {
           )}
           {editPreview.error && <p className="error">{editPreview.error}</p>}
           <button type="button" className="btn big" disabled={busy || !editPreview.changed || !!editPreview.error} onClick={() => push({ type: 'edit', target: editing.seq, event: editing.event }, '已改')}>
-            {editPreview.changed ? '儲存修改' : '未改'}
+            {editPreview.changed ? '儲存' : '未有修改'}
           </button>
-          <button type="button" className="btn plain" disabled={busy || !!deletePreview} onClick={() => push({ type: 'undo', target: editing.seq }, '已刪除')}>刪除呢鋪</button>
+          <button type="button" className="btn plain" disabled={busy || !!deletePreview} onClick={() => push({ type: 'undo', target: editing.seq }, '已刪除')}>刪除此鋪</button>
           {deletePreview && <p className="muted small">{deletePreview}</p>}
           {error && <p className="error" role="alert">{error}</p>}
         </Sheet>
       )}
 
+      {settings && <Settings onClose={() => setSettings(false)} />}
       {toast && <div className="toast" role="status">{toast}</div>}
     </main>
   );
@@ -788,5 +812,5 @@ function autoNote(r: Rules): string {
   if (r.dealer.enabled) parts.push('莊番');
   if (r.multiWinBonus.double || r.multiWinBonus.triple) parts.push('雙響');
   if (r.reverse.enabled) parts.push('反雙響');
-  return parts.length ? `${parts.join('、')}會自動加。` : '';
+  return parts.length ? `已自動計${parts.join('、')}。` : '';
 }

@@ -4,8 +4,9 @@ import type { ReactNode } from 'react';
 import type { TableDoc } from '../lib/data.ts';
 import { Link } from '../lib/router.tsx';
 import type { Computed } from '../lib/score.ts';
-import { ago, describe, netOf } from '../lib/score.ts';
-import { Avatar, Chips, CopyLink, RollingNumber, fmt, Sheet, TopBar, message, tone, useNow } from '../ui.tsx';
+import { ago, describe, netOf, trendOf } from '../lib/score.ts';
+import { Sparkline } from './Charts.tsx';
+import { Avatar, Chips, CopyLink, Hint, RollingNumber, fmt, Sheet, TopBar, message, tone, useNow } from '../ui.tsx';
 import type { Candidate } from './TableScreen.tsx';
 import { shuffle } from './SeatDraw.tsx';
 
@@ -33,12 +34,14 @@ export default function SessionScreen({ title, back, tables, computed, tableHref
   const [error, setError] = useState('');
 
   const ranking = useMemo(() => {
-    const rows: { id: string; name: string; table: string; net: number }[] = [];
+    const rows: { id: string; name: string; table: string; net: number; spark: number[] }[] = [];
     for (const t of tables) {
       const c = computed[t.id];
       if (!c) continue;
-      for (const id of Object.keys(c.state.settled)) {
-        rows.push({ id, name: t.names[id] ?? '玩家', table: t.name, net: (c.state.settled[id] ?? 0) + (c.pending[id] ?? 0) });
+      const ids = Object.keys(c.state.settled);
+      const trend = trendOf(c, ids);
+      for (const id of ids) {
+        rows.push({ id, name: t.names[id] ?? '玩家', table: t.name, net: (c.state.settled[id] ?? 0) + (c.pending[id] ?? 0), spark: trend[id] });
       }
     }
     return rows.sort((a, b) => b.net - a.net);
@@ -104,7 +107,7 @@ export default function SessionScreen({ title, back, tables, computed, tableHref
             <Link key={t.id} to={tableHref(t.id)} className="tcard">
               <div className="tcard-head">
                 <h3>{t.name}</h3>
-                <span className="muted small">{!c ? '' : c.state.ended ? '已完場' : `${c.info.roundWind}圈第 ${c.info.hand} 鋪`}</span>
+                <span className="muted small">{!c ? '' : c.state.ended ? '已完場' : `${c.info.roundWind}圈 第 ${c.info.hand} 鋪`}</span>
               </div>
               <div className="tcard-rows">
                 {seats.map((id) => {
@@ -143,15 +146,15 @@ export default function SessionScreen({ title, back, tables, computed, tableHref
         <section className="stack">
           <div className="section-head">
             <h2>全場排名</h2>
-            <span className="muted small">計埋未找，水 {water}</span>
+            <span className="muted small">連枱面，抽水 {water}</span>
           </div>
           <div className="list">
             {ranking.map((r, i) => (
               <div key={r.id + r.table} className="listrow">
                 <span className="num rank">{i + 1}</span>
                 <Avatar name={r.name} size="sm" />
-                <span className="grow ellipsis">{r.name}</span>
-                <span className="muted small">{r.table}</span>
+                <span className="grow rank-who"><span className="ellipsis">{r.name}</span><small className="muted">{r.table}</small></span>
+                <Sparkline values={r.spark} />
                 <RollingNumber value={r.net} className={`num ${tone(r.net)} big-num`} />
               </div>
             ))}
@@ -183,8 +186,8 @@ export default function SessionScreen({ title, back, tables, computed, tableHref
 
       {invite && (
         <section className="panel">
-          <h3>叫人入呢個大局</h3>
-          <p className="muted small">未入牌友圈嘅人撳連結登入，會自動加入，再直接嚟呢度。之後可以換佢入枱，或者夠 4 個人就加一張枱。</p>
+          <h3>邀請加入</h3>
+          <Hint>對方登入後會自動加入牌友圈並來到這個大局，之後可換入枱或另開一枱。</Hint>
           <CopyLink url={invite} />
         </section>
       )}
@@ -192,7 +195,7 @@ export default function SessionScreen({ title, back, tables, computed, tableHref
       {adding && onAddTable && (
         <Sheet onClose={() => setAdding(false)} label="加一張枱">
           <h2>加一張枱</h2>
-          <p className="muted small">揀夠 4 個人就開得，位會隨機掉；開咗之後都可以喺枱入面再掉位。</p>
+          <Hint>選 4 人即可開枱，座位隨機分配。</Hint>
           <div className="choices">
             {candidates.map((p) => (
               <button key={p.id} type="button" className="choice" aria-pressed={picked.some((x) => x.id === p.id)} onClick={() => toggle(p)}>
@@ -202,7 +205,7 @@ export default function SessionScreen({ title, back, tables, computed, tableHref
           </div>
           <div className="row" style={{ alignItems: 'flex-end' }}>
             <label className="field grow">
-              <span>加訪客（冇帳戶）</span>
+              <span>加訪客（無帳戶）</span>
               <input id="add-guest" value={guest} onChange={(e) => setGuest(e.target.value)} placeholder="訪客名" maxLength={20} />
             </label>
             <button
@@ -217,13 +220,13 @@ export default function SessionScreen({ title, back, tables, computed, tableHref
           <div className="choices">
             {[0, 1, 2, 3].map((i) => (
               <div key={i} className="choice static">
-                <small>第 {i + 1} 個</small>
+                <small>第 {i + 1} 位</small>
                 <span className="ellipsis">{picked[i]?.name ?? '—'}</span>
               </div>
             ))}
           </div>
           <button type="button" className="btn big" disabled={busy || picked.length !== 4} onClick={create}>
-            {picked.length === 4 ? '開枱' : `仲差 ${4 - picked.length} 個人`}
+            {picked.length === 4 ? '開枱' : `尚欠 ${4 - picked.length} 人`}
           </button>
           {error && <p className="error" role="alert">{error}</p>}
         </Sheet>

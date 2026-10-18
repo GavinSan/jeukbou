@@ -6,7 +6,7 @@ import type { NewTable } from '../lib/data.ts';
 import { useGroup, useMembers } from '../lib/live.ts';
 import { go } from '../lib/router.tsx';
 import { shuffle } from '../components/SeatDraw.tsx';
-import { Loading, TopBar, message } from '../ui.tsx';
+import { Hint, Loading, TopBar, message } from '../ui.tsx';
 
 const WINDS = ['東', '南', '西', '北'];
 const GUEST = '__guest__';
@@ -61,9 +61,9 @@ export default function NewSession({ user, groupId }: { user: User; groupId: str
       const names: Record<string, string> = {};
       for (let si = 0; si < 4; si++) {
         const s = tables[ti][si];
-        if (!s.value) { setError(`第 ${ti + 1} 枱${WINDS[si]}位未揀人`); return; }
+        if (!s.value) { setError(`第 ${ti + 1} 枱${WINDS[si]}位未選人`); return; }
         if (s.value === GUEST) {
-          if (!s.guestName.trim()) { setError(`第 ${ti + 1} 枱${WINDS[si]}位訪客未有名`); return; }
+          if (!s.guestName.trim()) { setError(`第 ${ti + 1} 枱${WINDS[si]}位訪客未有名稱`); return; }
           const id = guestId();
           seats.push(id);
           names[id] = s.guestName.trim();
@@ -109,13 +109,13 @@ export default function NewSession({ user, groupId }: { user: User; groupId: str
             <div className="seat-grid">
               {t.map((s, si) => (
                 <div key={si} className="field">
-                  <label htmlFor={`seat-${ti}-${si}`}>{WINDS[si]}{si === 0 ? '（第一個莊）' : ''}</label>
+                  <label htmlFor={`seat-${ti}-${si}`}>{WINDS[si]}{si === 0 ? '（首莊）' : ''}</label>
                   <select id={`seat-${ti}-${si}`} value={s.value} onChange={(e) => setSeat(ti, si, { value: e.target.value })}>
-                    <option value="">揀人</option>
+                    <option value="">選擇</option>
                     {members.data.map((m) => (
                       <option key={m.uid} value={m.uid} disabled={used.has(m.uid) && s.value !== m.uid}>{m.name}</option>
                     ))}
-                    <option value={GUEST}>訪客（冇帳戶）</option>
+                    <option value={GUEST}>訪客（無帳戶）</option>
                   </select>
                   {s.value === GUEST && (
                     <input
@@ -139,7 +139,7 @@ export default function NewSession({ user, groupId }: { user: User; groupId: str
         <button type="submit" className="btn big" disabled={busy}>開始</button>
         {error && <p className="error" role="alert">{error}</p>}
         {members.data.length < 4 && (
-          <p className="muted small">牌友圈得 {members.data.length} 個成員；未入圈嘅人可以先用訪客位，或者返上一頁 send 邀請連結。</p>
+          <Hint>牌友圈有 {members.data.length} 位成員；未加入的人可先用訪客位。</Hint>
         )}
       </form>
     </main>

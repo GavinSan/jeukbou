@@ -1,24 +1,12 @@
 // 聲效：全部用 Web Audio 即場合成，唔使聲音檔。
 // iPhone 要用戶撳過一下先出到聲，所以第一次撳掣時 unlock()。
 
-const KEY = 'jeukbou-sound';
+import { prefs, setPref } from './prefs.ts';
+
 let ctx: AudioContext | null = null;
 
-export function soundOn(): boolean {
-  try {
-    return localStorage.getItem(KEY) !== 'off';
-  } catch {
-    return true;
-  }
-}
-
-export function setSoundOn(on: boolean) {
-  try {
-    localStorage.setItem(KEY, on ? 'on' : 'off');
-  } catch {
-    /* 私密模式存唔到就算 */
-  }
-}
+export const soundOn = (): boolean => prefs().sound;
+export const setSoundOn = (on: boolean) => setPref('sound', on);
 
 export function unlock() {
   if (ctx) { if (ctx.state === 'suspended') ctx.resume().catch(() => undefined); return; }

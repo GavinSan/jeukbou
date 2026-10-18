@@ -109,13 +109,13 @@ export function describe(event: TableEvent, name: (id: string) => string): strin
       return `${w} 食 ${name(event.loser)}（${tag}${fans} 番）`;
     }
     case 'special':
-      return `${name(event.player)} ${event.label}，${event.direction === 'collect' ? '收' : '俾'}每家 ${event.amount}`;
+      return `${name(event.player)} ${event.label}，${event.direction === 'collect' ? '收' : '付'}每家 ${event.amount}`;
     case 'falseWin':
       return `${name(event.player)} 詐糊`;
     case 'draw':
       return '流局';
     case 'settle':
-      return `${name(event.pulled)} 找數俾 ${name(event.puller)}`;
+      return `${name(event.pulled)} 向 ${name(event.puller)} 找數`;
     case 'swap':
       return `${name(event.out)} 換 ${name(event.in)}`;
     case 'end':
@@ -124,11 +124,22 @@ export function describe(event: TableEvent, name: (id: string) => string): strin
 }
 
 export function ago(at: number | null, now: number): string {
-  if (at === null) return '啱啱';
+  if (at === null) return '剛剛';
   const s = Math.max(0, Math.round((now - at) / 1000));
-  if (s < 45) return '啱啱';
+  if (s < 45) return '剛剛';
   const m = Math.round(s / 60);
   if (m < 60) return `${m} 分鐘前`;
   const h = Math.floor(m / 60);
-  return `${h} 個鐘前`;
+  return `${h} 小時前`;
+}
+
+/** 每鋪之後各人累計（找咗 + 枱面），第 0 個係開局 */
+export function trendOf(c: Computed, ids: string[]): Record<string, number[]> {
+  const out: Record<string, number[]> = {};
+  for (const id of ids) out[id] = [0];
+  for (const st of c.steps) {
+    const pend = pending(st.result.state);
+    for (const id of ids) out[id].push((st.result.state.settled[id] ?? 0) + (pend[id] ?? 0));
+  }
+  return out;
 }

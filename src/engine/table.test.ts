@@ -116,7 +116,7 @@ test('抽水揀食糊嗰陣計：自摸 3 × 20 即刻抽 2', () => {
 
 test('輸家喺第 3 拉找數，之後由第 1 拉重新計；第 2 拉唔准找', () => {
   const three = [eat('Gavin', 15, 'Ivan'), eat('Gavin', 15, 'Ivan'), eat('Gavin', 15, 'Ivan')];
-  assert.throws(() => replay(SEATS, [...three.slice(0, 2), { type: 'settle', puller: 'Gavin', pulled: 'Ivan' }], PURE), /第 2 拉唔可以找數/);
+  assert.throws(() => replay(SEATS, [...three.slice(0, 2), { type: 'settle', puller: 'Gavin', pulled: 'Ivan' }], PURE), /第 2 拉不能找數/);
   const r = replay(SEATS, [...three, { type: 'settle', puller: 'Gavin', pulled: 'Ivan' }, eat('Gavin', 15, 'Ivan')], PURE);
   assert.equal(r.steps[3].state.settled.Gavin, 95);
   assert.deepEqual(chain(r.state, 'Gavin', 'Ivan'), { puller: 'Gavin', pulled: 'Ivan', owed: 20, count: 1 });

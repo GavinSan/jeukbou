@@ -44,7 +44,7 @@ export default function SeatDraw({ players, name, onConfirm, onCancel, busy }: {
   return (
     <div className="stack">
       <h2>掉位</h2>
-      <p className="muted small">每人抽一隻風牌，抽到東嘅坐東做第一個莊，跟住南、西、北。</p>
+      <Hint>每人抽一隻風牌，抽到東的坐東位做首莊，其後南、西、北。</Hint>
       <div className="draw-row">
         {players.map((p, i) => {
           const w = windOf(p);
@@ -64,8 +64,8 @@ export default function SeatDraw({ players, name, onConfirm, onCancel, busy }: {
         <>
           <p className="center-text">{result.map((p, i) => `${WINDS[i]}：${name(p)}`).join('　')}</p>
           <div className="row">
-            <button type="button" className="btn grow" disabled={busy} onClick={() => onConfirm(result)}>就咁坐</button>
-            <button type="button" className="btn plain" onClick={draw}>再掉</button>
+            <button type="button" className="btn grow" disabled={busy} onClick={() => onConfirm(result)}>確認座位</button>
+            <button type="button" className="btn plain" onClick={draw}>重新抽</button>
           </div>
         </>
       ) : (

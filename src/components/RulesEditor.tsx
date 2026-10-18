@@ -64,43 +64,43 @@ export default function RulesEditor({ initial, canEdit, onSave, scopeNote }: {
 
   return (
     <div className="stack">
-      <p className="muted small">{scopeNote}{canEdit ? '' : ' 淨係局主改得。'}</p>
+      <p className="muted small">{scopeNote}{canEdit ? '' : ' 只有局主可修改。'}</p>
 
       <h2>自動計</h2>
       <div className="list">
-        <Row title="底" note={r.base > 0 ? `每個輸家每鋪俾 ${r.base}` : '唔計底'}>
-          {r.base > 0 && <Num value={r.base} onChange={(v) => set({ base: v })} label="底幾多番" disabled={d} />}
+        <Row title="底" note={r.base > 0 ? `每個輸家每鋪付 ${r.base}` : '不計底'}>
+          {r.base > 0 && <Num value={r.base} onChange={(v) => set({ base: v })} label="底" disabled={d} />}
           <Switch on={r.base > 0} onChange={(v) => set({ base: v ? DEFAULT_RULES.base : 0 })} label="自動計底" disabled={d} />
         </Row>
-        <Row title="莊番" note="2n + 1：連莊 n 次，莊食糊或者莊出銃先加">
+        <Row title="莊番" note="2n + 1（n = 連莊次數），只在莊家食糊或出銃時加">
           <Switch on={r.dealer.enabled} onChange={(v) => set({ dealer: { ...r.dealer, enabled: v } })} label="自動計莊" disabled={d} />
         </Row>
-        <Row title="雙響 / 三響" note={multiOn ? `每個食糊加 ${r.multiWinBonus.double} / ${r.multiWinBonus.triple}` : '唔加'}>
-          {multiOn && <Num value={r.multiWinBonus.double} onChange={(v) => set({ multiWinBonus: { ...r.multiWinBonus, double: v } })} label="雙響加幾多" disabled={d} />}
-          {multiOn && <Num value={r.multiWinBonus.triple} onChange={(v) => set({ multiWinBonus: { ...r.multiWinBonus, triple: v } })} label="三響加幾多" disabled={d} />}
+        <Row title="雙響 / 三響" note={multiOn ? `每位贏家加 ${r.multiWinBonus.double} / ${r.multiWinBonus.triple}` : '不加'}>
+          {multiOn && <Num value={r.multiWinBonus.double} onChange={(v) => set({ multiWinBonus: { ...r.multiWinBonus, double: v } })} label="雙響加番" disabled={d} />}
+          {multiOn && <Num value={r.multiWinBonus.triple} onChange={(v) => set({ multiWinBonus: { ...r.multiWinBonus, triple: v } })} label="三響加番" disabled={d} />}
           <Switch on={multiOn} onChange={(v) => set({ multiWinBonus: v ? DEFAULT_RULES.multiWinBonus : { double: 0, triple: 0 } })} label="自動計雙響" disabled={d} />
         </Row>
-        <Row title="反雙響 / 反三響" note={r.reverse.enabled ? `響完出銃嗰個自摸，有份食佢嘅加 ${r.reverse.double} / ${r.reverse.triple}` : '唔計'}>
-          {r.reverse.enabled && <Num value={r.reverse.double} onChange={(v) => set({ reverse: { ...r.reverse, double: v } })} label="反雙響加幾多" disabled={d} />}
-          {r.reverse.enabled && <Num value={r.reverse.triple} onChange={(v) => set({ reverse: { ...r.reverse, triple: v } })} label="反三響加幾多" disabled={d} />}
+        <Row title="反雙響 / 反三響" note={r.reverse.enabled ? `出銃者其後自摸，之前的贏家加付 ${r.reverse.double} / ${r.reverse.triple}` : '不計'}>
+          {r.reverse.enabled && <Num value={r.reverse.double} onChange={(v) => set({ reverse: { ...r.reverse, double: v } })} label="反雙響加番" disabled={d} />}
+          {r.reverse.enabled && <Num value={r.reverse.triple} onChange={(v) => set({ reverse: { ...r.reverse, triple: v } })} label="反三響加番" disabled={d} />}
           <Switch on={r.reverse.enabled} onChange={(v) => set({ reverse: { ...r.reverse, enabled: v } })} label="反雙響" disabled={d} />
         </Row>
-        <Row title="詐糊" note="俾每家">
-          <Num value={r.falseWinPenalty} onChange={(v) => set({ falseWinPenalty: v })} label="詐糊俾每家幾多" disabled={d} />
+        <Row title="詐糊" note="付每家">
+          <Num value={r.falseWinPenalty} onChange={(v) => set({ falseWinPenalty: v })} label="詐糊付每家" disabled={d} />
         </Row>
       </div>
 
       <h2>拉 / 劈</h2>
       <div className="list">
-        <Row title="拉 / 劈" note="連續食同一個人：今鋪俾新鋪 + 未找 ÷ 2">
+        <Row title="拉 / 劈" note="連續食同一人：付今鋪 + 未找 ÷ 2">
           <Switch on={r.la.enabled} onChange={(v) => set({ la: { ...r.la, enabled: v } })} label="拉劈" disabled={d} />
         </Row>
         {r.la.enabled && (
-          <Row title="幾多拉可以找數" note={`第 ${r.la.settleEvery}、${r.la.settleEvery * 2}、${r.la.settleEvery * 3}… 拉輸家揀`}>
-            <Num value={r.la.settleEvery} onChange={(v) => set({ la: { ...r.la, settleEvery: Math.max(1, v) } })} label="幾多拉可以找數" disabled={d} />
+          <Row title="每幾拉可找數" note={`第 ${r.la.settleEvery}、${r.la.settleEvery * 2}、${r.la.settleEvery * 3}… 拉由輸家決定`}>
+            <Num value={r.la.settleEvery} onChange={(v) => set({ la: { ...r.la, settleEvery: Math.max(1, v) } })} label="每幾拉可找數" disabled={d} />
           </Row>
         )}
-        <Row title="÷ 2 有小數">
+        <Row title="÷ 2 的小數">
           <div className="seg" role="group" aria-label="小數點處理">
             {([['ceil', '進位'], ['round', '四捨五入'], ['none', '保留']] as const).map(([v, t]) => (
               <button key={v} type="button" aria-pressed={r.rounding === v} disabled={d} onClick={() => set({ rounding: v })}>{t}</button>
@@ -111,20 +111,20 @@ export default function RulesEditor({ initial, canEdit, onSave, scopeNote }: {
 
       <h2>抽水</h2>
       <div className="list">
-        <Row title="抽水" note={r.water.enabled ? `每 ${r.water.per} 抽 ${r.water.take}，花同槓唔抽` : '唔抽'}>
+        <Row title="抽水" note={r.water.enabled ? `每 ${r.water.per} 抽 ${r.water.take}，特別事項不抽` : '不抽'}>
           <Switch on={r.water.enabled} onChange={(v) => set({ water: { ...r.water, enabled: v } })} label="抽水" disabled={d} />
         </Row>
         {r.water.enabled && (
           <>
-            <Row title="每幾多番抽一次">
-              <Num value={r.water.per} onChange={(v) => set({ water: { ...r.water, per: Math.max(1, v) } })} label="每幾多番" disabled={d} />
+            <Row title="每幾番抽一次">
+              <Num value={r.water.per} onChange={(v) => set({ water: { ...r.water, per: Math.max(1, v) } })} label="每幾番" disabled={d} />
             </Row>
-            <Row title="每次抽幾多">
-              <Num value={r.water.take} onChange={(v) => set({ water: { ...r.water, take: v } })} label="抽幾多" disabled={d} />
+            <Row title="每次抽">
+              <Num value={r.water.take} onChange={(v) => set({ water: { ...r.water, take: v } })} label="每次抽" disabled={d} />
             </Row>
-            <Row title="幾時抽">
-              <div className="seg" role="group" aria-label="幾時抽水">
-                {([['settle', '真正收錢'], ['win', '食糊']] as const).map(([v, t]) => (
+            <Row title="抽水時間">
+              <div className="seg" role="group" aria-label="抽水時間">
+                {([['settle', '找數時'], ['win', '食糊時']] as const).map(([v, t]) => (
                   <button key={v} type="button" aria-pressed={r.water.timing === v} disabled={d} onClick={() => set({ water: { ...r.water, timing: v } })}>{t}</button>
                 ))}
               </div>
@@ -135,15 +135,15 @@ export default function RulesEditor({ initial, canEdit, onSave, scopeNote }: {
 
       <h2>其他</h2>
       <div className="list">
-        <Row title="流局冧莊" note={r.dealer.drawKeepsDealer ? '流局莊家連莊' : '流局過莊'}>
-          <Switch on={r.dealer.drawKeepsDealer} onChange={(v) => set({ dealer: { ...r.dealer, drawKeepsDealer: v } })} label="流局冧莊" disabled={d} />
+        <Row title="流局連莊" note={r.dealer.drawKeepsDealer ? '流局莊家連莊' : '流局過莊'}>
+          <Switch on={r.dealer.drawKeepsDealer} onChange={(v) => set({ dealer: { ...r.dealer, drawKeepsDealer: v } })} label="流局連莊" disabled={d} />
         </Row>
-        <Row title="打幾多圈完場" note="0 = 唔限，撳完場先完">
-          <Num value={r.rounds} onChange={(v) => set({ rounds: v })} label="幾多圈" disabled={d} />
+        <Row title="圈數" note="0 = 不限，按完場才結束">
+          <Num value={r.rounds} onChange={(v) => set({ rounds: v })} label="圈數" disabled={d} />
         </Row>
-        <Row title="換人嗰陣邊啲拉找數">
+        <Row title="換人時結算">
           <div className="seg" role="group" aria-label="換人找數">
-            {([['player', '走嗰個'], ['table', '成張枱']] as const).map(([v, t]) => (
+            {([['player', '離開者'], ['table', '全枱']] as const).map(([v, t]) => (
               <button key={v} type="button" aria-pressed={r.swapSettle === v} disabled={d} onClick={() => set({ swapSettle: v })}>{t}</button>
             ))}
           </div>

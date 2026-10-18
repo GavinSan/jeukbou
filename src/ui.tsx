@@ -7,6 +7,7 @@ import { doc, serverTimestamp, setDoc } from 'firebase/firestore';
 import { chipsFor } from './engine/chips.ts';
 import { db } from './firebase.ts';
 import { Link } from './lib/router.tsx';
+import { usePrefs } from './lib/prefs.ts';
 
 /** 一隻寫住「雀」嘅牌 */
 export function Logo({ size = 30 }: { size?: number }) {
@@ -115,22 +116,30 @@ export function Sheet({ onClose, label, children }: { onClose: () => void; label
   );
 }
 
+/** 說明文字：設定入面可以收起 */
+export function Hint({ children, as = 'p', className = 'muted small' }: { children: ReactNode; as?: 'p' | 'small' | 'span'; className?: string }) {
+  const { hints } = usePrefs();
+  if (!hints) return null;
+  const Tag = as;
+  return <Tag className={className}>{children}</Tag>;
+}
+
 export function message(err: unknown): string {
   const ERRORS: Record<string, string> = {
-    'auth/invalid-credential': 'Email 或者密碼唔啱',
-    'auth/invalid-email': 'Email 格式唔啱',
-    'auth/email-already-in-use': '呢個 Email 已經登記咗，請直接登入',
-    'auth/weak-password': '密碼最少要 6 個字',
-    'auth/popup-closed-by-user': '登入視窗閂咗，再試一次',
-    'auth/network-request-failed': '連唔到網絡，檢查吓再試',
-    'auth/too-many-requests': '試得太多次，等一陣再試',
-    'permission-denied': '冇權限做呢樣嘢',
-    unavailable: '連唔到網絡，檢查吓再試',
+    'auth/invalid-credential': 'Email 或密碼不正確',
+    'auth/invalid-email': 'Email 格式不正確',
+    'auth/email-already-in-use': '此 Email 已登記，請直接登入',
+    'auth/weak-password': '密碼最少 6 個字',
+    'auth/popup-closed-by-user': '登入視窗已關閉，請再試',
+    'auth/network-request-failed': '未能連線，請檢查網絡',
+    'auth/too-many-requests': '嘗試次數太多，請稍後再試',
+    'permission-denied': '沒有權限',
+    unavailable: '未能連線，請檢查網絡',
   };
   const code = typeof err === 'object' && err && 'code' in err ? String((err as { code: unknown }).code) : '';
   if (ERRORS[code]) return ERRORS[code];
   if (err instanceof Error && /[一-鿿]/.test(err.message)) return err.message;
-  return '出咗問題，再試一次';
+  return '出現問題，請再試';
 }
 
 /** 寫入玩家資料；冇名就唔寫名 */
@@ -149,7 +158,7 @@ export function NameForm({ user, initial, onDone, onCancel }: { user: User; init
   async function save(e: FormEvent) {
     e.preventDefault();
     const name = value.trim();
-    if (!name) { setError('打個名先'); return; }
+    if (!name) { setError('請輸入名稱'); return; }
     if (name.length > 20) { setError('名最多 20 個字'); return; }
     setBusy(true);
     setError('');
@@ -167,7 +176,7 @@ export function NameForm({ user, initial, onDone, onCancel }: { user: User; init
   return (
     <form className="stack" onSubmit={save}>
       <label className="field">
-        <span>牌友見到嘅名</span>
+        <span>顯示名稱</span>
         <input id="display-name" value={value} onChange={(e) => setValue(e.target.value)} maxLength={20} autoComplete="nickname" />
       </label>
       <div className="row">
@@ -199,7 +208,7 @@ export function CopyLink({ url, label = '複製邀請連結' }: { url: string; l
 }
 
 export function Loading() {
-  return <p className="muted center-text">載入緊</p>;
+  return <p className="muted center-text">載入中…</p>;
 }
 
 /** 每 30 秒更新一次「幾耐之前」 */

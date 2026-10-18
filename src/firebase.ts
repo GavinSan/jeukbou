@@ -4,7 +4,7 @@ import { initializeApp } from 'firebase/app';
 import type { FirebaseApp } from 'firebase/app';
 import { getAuth } from 'firebase/auth';
 import type { Auth } from 'firebase/auth';
-import { getFirestore } from 'firebase/firestore';
+import { initializeFirestore, persistentLocalCache, persistentMultipleTabManager } from 'firebase/firestore';
 import type { Firestore } from 'firebase/firestore';
 
 function readConfig(): { config: Record<string, string> | null; error: string | null } {
@@ -13,7 +13,7 @@ function readConfig(): { config: Record<string, string> | null; error: string | 
   try {
     return { config: JSON.parse(raw), error: null };
   } catch {
-    return { config: null, error: 'VITE_FIREBASE_CONFIG 唔係正確嘅 JSON' };
+    return { config: null, error: 'VITE_FIREBASE_CONFIG 不是正確的 JSON' };
   }
 }
 
@@ -22,4 +22,7 @@ const { config, error } = readConfig();
 export const configError: string | null = error;
 export const app: FirebaseApp | null = config ? initializeApp(config) : null;
 export const auth: Auth | null = app ? getAuth(app) : null;
-export const db: Firestore | null = app ? getFirestore(app) : null;
+// 本機快取：再開時先由手機內嘅資料即刻畫出嚟，之後先同伺服器對數
+export const db: Firestore | null = app
+  ? initializeFirestore(app, { localCache: persistentLocalCache({ tabManager: persistentMultipleTabManager() }) })
+  : null;

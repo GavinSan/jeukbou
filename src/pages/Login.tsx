@@ -61,13 +61,13 @@ export default function Login({ refresh, joining }: { refresh: () => void; joini
         <Logo />
         <h1>雀簿</h1>
       </div>
-      <p className="muted">{joining ? '登入之後就會加入牌友圈。' : '港式台牌即時計分、龍虎榜、埋數。每人用自己帳戶登入。'}</p>
+      <p className="muted">{joining ? '登入後會自動加入牌友圈。' : '港式台牌即時計分、龍虎榜、埋數。'}</p>
 
       <section className="panel">
         <button type="button" className="btn" onClick={withGoogle} disabled={busy}>
-          用 Google 登入
+          以 Google 登入
         </button>
-        <div className="divider"><span>或者用 Email</span></div>
+        <div className="divider"><span>或以 Email</span></div>
         <form className="stack" onSubmit={withEmail}>
           {mode === 'up' && (
             <label className="field">
@@ -96,7 +96,7 @@ export default function Login({ refresh, joining }: { refresh: () => void; joini
           </button>
         </form>
         <button type="button" className="textbtn" onClick={() => { setMode(mode === 'in' ? 'up' : 'in'); setError(''); }}>
-          {mode === 'in' ? '未有帳戶？登記' : '已經有帳戶？登入'}
+          {mode === 'in' ? '未有帳戶？登記' : '已有帳戶？登入'}
         </button>
         {error && <p className="error" role="alert">{error}</p>}
       </section>

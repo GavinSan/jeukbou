@@ -7,6 +7,7 @@ import { createGroup, displayName, syncMemberName } from '../lib/data.ts';
 import { useGroup, useUserGroups } from '../lib/live.ts';
 import { Link, go } from '../lib/router.tsx';
 import { Avatar, NameForm, TopBar, message } from '../ui.tsx';
+import { SettingsButton } from '../components/Settings.tsx';
 
 function GroupRow({ id }: { id: string }) {
   const { data } = useGroup(id);
@@ -44,7 +45,7 @@ export default function Home({ user, refresh }: { user: User; refresh: () => voi
 
   return (
     <main className="page">
-      <TopBar right={<button type="button" className="btn plain" onClick={() => auth && signOut(auth)}>登出</button>} />
+      <TopBar right={<><SettingsButton /><button type="button" className="btn plain" onClick={() => auth && signOut(auth)}>登出</button></>} />
 
       <section className="panel">
         <div className="row">
@@ -66,11 +67,11 @@ export default function Home({ user, refresh }: { user: User; refresh: () => voi
       </section>
 
       <section className="stack">
-        <h2 className="section-head">我嘅牌友圈</h2>
+        <h2 className="section-head">我的牌友圈</h2>
         {groups.data.length > 0 ? (
           <div className="list">{groups.data.map((g) => <GroupRow key={g} id={g} />)}</div>
         ) : (
-          !groups.loading && <p className="muted">未有牌友圈。開一個，再將邀請連結 send 俾牌友。</p>
+          !groups.loading && <p className="muted">未有牌友圈。</p>
         )}
       </section>
 
@@ -78,10 +79,10 @@ export default function Home({ user, refresh }: { user: User; refresh: () => voi
         <h2>開新牌友圈</h2>
         <form className="row" style={{ alignItems: 'flex-end' }} onSubmit={create}>
           <label className="field grow">
-            <span>名</span>
+            <span>名稱</span>
             <input id="group-name" value={newName} onChange={(e) => setNewName(e.target.value)} placeholder="例如：不打不相識" maxLength={30} />
           </label>
-          <button type="submit" className="btn" disabled={busy || !newName.trim()}>開</button>
+          <button type="submit" className="btn" disabled={busy || !newName.trim()}>建立</button>
         </form>
         {error && <p className="error" role="alert">{error}</p>}
       </section>

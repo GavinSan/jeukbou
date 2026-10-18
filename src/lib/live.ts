@@ -21,7 +21,7 @@ function useLiveDoc<T>(path: string[] | null, map: (id: string, d: DocumentData)
     return onSnapshot(
       doc(fs(), first, ...rest),
       (snap) => setState({ data: snap.exists() ? map(snap.id, snap.data()) : null, loading: false, error: null }),
-      (err) => setState({ data: null, loading: false, error: err.code === 'permission-denied' ? '你唔係呢個牌友圈嘅成員' : err.message }),
+      (err) => setState({ data: null, loading: false, error: err.code === 'permission-denied' ? '你不是此牌友圈的成員' : err.message }),
     );
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [key]);
@@ -40,7 +40,7 @@ function useLiveList<T>(path: string[] | null, order: string | null, map: (id: s
     return onSnapshot(
       q,
       (snap) => setState({ data: snap.docs.map((d) => map(d.id, d.data())), loading: false, error: null }),
-      (err) => setState({ data: [], loading: false, error: err.code === 'permission-denied' ? '你唔係呢個牌友圈嘅成員' : err.message }),
+      (err) => setState({ data: [], loading: false, error: err.code === 'permission-denied' ? '你不是此牌友圈的成員' : err.message }),
     );
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [key]);
@@ -56,7 +56,7 @@ const toSession = (id: string, d: DocumentData): Session => ({
 });
 const toDice = (d: DocumentData | undefined): Dice | null =>
   d && Array.isArray(d.values) ? { values: d.values.map(Number), by: String(d.by ?? ''), at: Number(d.at ?? 0), n: Number(d.n ?? 0) } : null;
-const toTable = (id: string, d: DocumentData): TableDoc => ({
+export const toTable = (id: string, d: DocumentData): TableDoc => ({
   id, name: String(d.name ?? ''), order: Number(d.order ?? 0), seats: Array.isArray(d.seats) ? d.seats.map(String) : [], names: d.names ?? {},
   dice: toDice(d.dice),
 });
@@ -64,7 +64,7 @@ const toRequest = (id: string, d: DocumentData): SwapRequest => ({
   id, tableId: String(d.tableId ?? ''), out: String(d.out ?? ''), in: String(d.in ?? ''), inName: String(d.inName ?? ''),
   by: String(d.by ?? ''), status: d.status ?? 'pending',
 });
-const toEvent = (_id: string, d: DocumentData): StoredEvent => ({
+export const toEvent = (_id: string, d: DocumentData): StoredEvent => ({
   seq: Number(d.seq),
   by: String(d.by ?? ''),
   event: d.event,

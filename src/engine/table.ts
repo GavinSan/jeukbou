@@ -88,7 +88,7 @@ export class RuleError extends Error {}
 const WINDS = ['東', '南', '西', '北'];
 
 export function createTable(seats: PlayerId[], dealerSeat = 0): TableState {
-  if (seats.length !== 4 || new Set(seats).size !== 4) throw new RuleError('一張枱要 4 個唔同嘅玩家');
+  if (seats.length !== 4 || new Set(seats).size !== 4) throw new RuleError('一張枱需要 4 位不同玩家');
   const settled: Record<PlayerId, number> = {};
   for (const p of seats) settled[p] = 0;
   return {
@@ -106,7 +106,7 @@ export function createTable(seats: PlayerId[], dealerSeat = 0): TableState {
 }
 
 export function applyEvent(prev: TableState, ev: TableEvent, rules: Rules = DEFAULT_RULES): StepResult {
-  if (prev.ended) throw new RuleError('呢張枱已經完場');
+  if (prev.ended) throw new RuleError('此枱已完場');
   const s: TableState = structuredClone(prev);
   const lines: Line[] = [];
   const prompts: Prompt[] = [];
@@ -150,23 +150,23 @@ export function applyEvent(prev: TableState, ev: TableEvent, rules: Rules = DEFA
     }
   };
   const mustSeat = (p: PlayerId) => {
-    if (!s.seats.includes(p)) throw new RuleError(`${p} 唔喺呢張枱`);
+    if (!s.seats.includes(p)) throw new RuleError(`${p} 不在此枱`);
   };
 
   switch (ev.type) {
     case 'win': {
       const W = ev.winners.map((w) => w.player);
-      if (W.length < 1 || W.length > 3) throw new RuleError('食糊人數要 1 至 3 個');
-      if (new Set(W).size !== W.length) throw new RuleError('食糊玩家重複咗');
+      if (W.length < 1 || W.length > 3) throw new RuleError('贏家需為 1 至 3 位');
+      if (new Set(W).size !== W.length) throw new RuleError('贏家重複');
       W.forEach(mustSeat);
       for (const w of ev.winners) {
-        if (!Number.isFinite(w.fan) || w.fan < 0) throw new RuleError('番數要係 0 或以上');
+        if (!Number.isFinite(w.fan) || w.fan < 0) throw new RuleError('番數須為 0 或以上');
       }
       const selfDraw = ev.loser === null;
-      if (selfDraw && W.length !== 1) throw new RuleError('自摸只可以有一個食糊');
+      if (selfDraw && W.length !== 1) throw new RuleError('自摸只能有一位贏家');
       if (!selfDraw) {
         mustSeat(ev.loser as PlayerId);
-        if (W.includes(ev.loser as PlayerId)) throw new RuleError('出銃嘅人唔可以同時食糊');
+        if (W.includes(ev.loser as PlayerId)) throw new RuleError('出銃者不能同時食糊');
       }
 
       const dealer = s.seats[s.dealerSeat];
@@ -223,7 +223,7 @@ export function applyEvent(prev: TableState, ev: TableEvent, rules: Rules = DEFA
           settle(c.pulled, c.puller, halfOf(c.owed, rules.rounding), `劈：${c.owed} ÷ 2`);
           reversed.add(`${c.pulled}>${c.puller}`);
         } else {
-          settle(c.pulled, c.puller, c.owed, '斷拉，找晒');
+          settle(c.pulled, c.puller, c.owed, '斷拉，全數找');
         }
       }
       s.chains = kept;
@@ -263,7 +263,7 @@ export function applyEvent(prev: TableState, ev: TableEvent, rules: Rules = DEFA
 
     case 'special': {
       mustSeat(ev.player);
-      if (!(ev.amount > 0)) throw new RuleError('銀碼要大過 0');
+      if (!(ev.amount > 0)) throw new RuleError('金額須大於 0');
       for (const other of s.seats) {
         if (other === ev.player) continue;
         if (ev.direction === 'collect') instant(other, ev.player, ev.amount, ev.label);
@@ -282,10 +282,10 @@ export function applyEvent(prev: TableState, ev: TableEvent, rules: Rules = DEFA
 
     case 'settle': {
       const c = s.chains.find((x) => x.puller === ev.puller && x.pulled === ev.pulled);
-      if (!c) throw new RuleError(`${ev.puller} 冇拉緊 ${ev.pulled}`);
+      if (!c) throw new RuleError(`${ev.puller} 沒有拉 ${ev.pulled}`);
       const every = rules.la.settleEvery;
       if (every <= 0 || c.count % every !== 0) {
-        throw new RuleError(`第 ${c.count} 拉唔可以找數，要等第 ${every > 0 ? Math.ceil(c.count / every) * every : '—'} 拉`);
+        throw new RuleError(`第 ${c.count} 拉不能找數，須等到第 ${every > 0 ? Math.ceil(c.count / every) * every : '—'} 拉`);
       }
       settle(c.pulled, c.puller, c.owed, `第 ${c.count} 拉找數`);
       s.chains = s.chains.filter((x) => x !== c);
@@ -294,7 +294,7 @@ export function applyEvent(prev: TableState, ev: TableEvent, rules: Rules = DEFA
 
     case 'swap': {
       mustSeat(ev.out);
-      if (s.seats.includes(ev.in)) throw new RuleError(`${ev.in} 已經喺呢張枱`);
+      if (s.seats.includes(ev.in)) throw new RuleError(`${ev.in} 已在此枱`);
       if (rules.swapSettle === 'table') {
         settleAllChains('換位找數');
       } else {

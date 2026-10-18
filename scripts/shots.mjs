@@ -82,7 +82,7 @@ for (const scheme of ['light', 'dark']) {
       await page.waitForTimeout(250);
       await page.screenshot({ path: `${out}/special-flower.png` });
       await page.getByRole('dialog').getByRole('button', { name: /被追/ }).click();
-      await page.getByRole('dialog').getByRole('button', { name: '即摸', exact: true }).click();
+      await page.getByRole('dialog').getByRole('switch', { name: '即摸' }).click();
       await page.getByRole('dialog').getByRole('button', { name: '+2' }).click();
       await page.getByRole('dialog').getByRole('button', { name: 'Ivan', exact: true }).click();
       await page.waitForTimeout(400);
@@ -108,6 +108,25 @@ for (const scheme of ['light', 'dark']) {
       await page.getByRole('button', { name: '抽風牌' }).click();
       await page.waitForTimeout(2200);
       await page.screenshot({ path: `${out}/reseat.png` });
+    });
+    await step('board', async () => {
+      await page.goto(`${base}/demo/board`, { waitUntil: 'networkidle' });
+      await page.waitForTimeout(500);
+      await page.screenshot({ path: `${out}/board.png`, fullPage: true });
+    });
+    await step('trend', async () => {
+      await page.goto(`${base}/demo/t/2`, { waitUntil: 'networkidle' });
+      await page.waitForTimeout(1200);
+      const plot = page.locator('.viz-plot rect').last();
+      const box = await plot.boundingBox();
+      if (box) await page.mouse.move(box.x + box.width * 0.55, box.y + box.height / 2);
+      await page.waitForTimeout(200);
+      await page.locator('.viz').scrollIntoViewIfNeeded();
+      await page.screenshot({ path: `${out}/trend.png` });
+      await page.getByRole('button', { name: /^其他/ }).click();
+      await page.getByRole('dialog').getByRole('button', { name: /^設定/ }).click();
+      await page.waitForTimeout(300);
+      await page.screenshot({ path: `${out}/settings.png` });
     });
     await step('rules', async () => {
       await page.goto(`${base}/demo/rules`, { waitUntil: 'networkidle' });

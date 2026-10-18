@@ -17,8 +17,8 @@ export const SPECIAL_ITEMS: SpecialItem[] = [
   { art: 'grass', label: '一台草', amount: 2, dir: 'collect', note: '收每家 2' },
   { art: 'kong', label: '暗槓', amount: 5, dir: 'collect', note: '收每家 5' },
   { art: 'triple', label: '圍骰', amount: 5, dir: 'collect', note: '收每家 5' },
-  { art: 'dice123', label: '骰開一二三', amount: 5, dir: 'pay', note: '俾每家 5' },
-  { art: 'pong', label: '叫碰唔碰', amount: 5, dir: 'pay', note: '俾每家 5' },
+  { art: 'dice123', label: '骰開一二三', amount: 5, dir: 'pay', note: '付每家 5' },
+  { art: 'pong', label: '叫碰唔碰', amount: 5, dir: 'pay', note: '付每家 5' },
   { art: 'chase', label: '被追', amount: 5, dir: 'pay', note: '番子 5、非番子 10' },
 ];
 

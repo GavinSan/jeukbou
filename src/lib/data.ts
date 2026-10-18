@@ -97,7 +97,7 @@ export interface StoredEvent {
 
 export class ConflictError extends Error {
   constructor() {
-    super('枱面啱啱有人更新咗，睇吓最新嘅數再試');
+    super('其他人剛更新了枱面，請查看最新數字後再試');
   }
 }
 

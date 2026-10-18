@@ -11,6 +11,7 @@ import SessionScreen from './components/SessionScreen.tsx';
 import TableScreen from './components/TableScreen.tsx';
 import RulesEditor from './components/RulesEditor.tsx';
 import { TopBar } from './ui.tsx';
+import { Leaderboard } from './components/Charts.tsx';
 
 const TABLES: TableDoc[] = [
   { id: 't0', name: '第 1 枱', order: 0, seats: ['gavin', 'athena', 'ivan', 'viola'], names: { gavin: 'Gavin', athena: 'Athena', ivan: 'Ivan', viola: 'Viola' } },
@@ -59,7 +60,24 @@ export default function Demo() {
     return (
       <main className="page">
         <TopBar back="/demo" title="家規" />
-        <RulesEditor initial={{}} canEdit scopeNote="示範：改完唔會儲存。" onSave={async () => undefined} />
+        <RulesEditor initial={{}} canEdit scopeNote="示範：修改不會儲存。" onSave={async () => undefined} />
+      </main>
+    );
+  }
+
+  if (path === '/demo/board') {
+    const people: [string, number[]][] = [['Gavin', [35, -12, 60, 18]], ['Athena', [-20, 44, 8]], ['Ivan', [-40, -15, 22, -30]], ['Viola', [12, -33, 5, 9]], ['Kit', [-8, 15]], ['Mandy', [20, -60, -12]]];
+    const rows = people.map(([n, s]) => {
+      let acc = 0;
+      return { id: n.toLowerCase(), name: n, total: s.reduce((a, b) => a + b, 0), sessions: s.length, best: Math.max(...s), history: s.map((v) => (acc += v)) };
+    }).sort((a, b) => b.total - a.total);
+    return (
+      <main className="page">
+        <TopBar back="/demo" title="龍虎榜" />
+        <section className="stack">
+          <div className="section-head"><h2>龍虎榜</h2><span className="muted small">所有大局合計（番）</span></div>
+          <div className="list pad"><Leaderboard rows={rows} me="gavin" /></div>
+        </section>
       </main>
     );
   }

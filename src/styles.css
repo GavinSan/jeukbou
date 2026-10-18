@@ -542,3 +542,67 @@ button.tile:active { transform: translateY(3px); box-shadow: 0 2px 0 var(--tile-
 @media (prefers-reduced-motion: reduce) {
   .float, .tile.hp, .tile.hp::after { animation: none !important; }
 }
+
+/* ---------- 第六輪 ---------- */
+:root { --s1: #2a78d6; --s2: #eb6834; --s3: #1baf7a; --s4: #eda100; }
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) { --s1: #3987e5; --s2: #d95926; --s3: #199e70; --s4: #c98500; } }
+:root[data-theme="dark"] { --s1: #3987e5; --s2: #d95926; --s3: #199e70; --s4: #c98500; }
+
+.block { display: block; }
+.list.pad { padding: 6px 14px; }
+.list.flat { border: 1px solid var(--line); }
+
+/* 骰跟莊家，喺佢隔籬個角，換莊時滑過去 */
+.felt .tile { z-index: 1; }
+.felt-dice { position: absolute; z-index: 0; width: 104px; padding: 4px; transition: left .7s cubic-bezier(.3,.8,.3,1), top .7s cubic-bezier(.3,.8,.3,1), opacity .2s, filter .2s; }
+.felt-dice.at-bl { left: 10px; top: calc(100% - 50px); }
+.felt-dice.at-br { left: calc(100% - 114px); top: calc(100% - 50px); }
+.felt-dice.at-tr { left: calc(100% - 114px); top: 10px; }
+.felt-dice.at-tl { left: 10px; top: 10px; }
+.felt-dice.at-br, .felt-dice.at-tr { justify-content: flex-end; }
+
+/* 紀錄表：抽水 */
+.lg-water { color: var(--muted); }
+
+/* 走勢圖 */
+.viz { margin: 0; background: var(--surface); border-radius: 16px; padding: 12px 10px 8px; }
+.viz-legend { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 4px 14px; padding: 0 4px 8px; font-size: 14px; }
+.viz-key { display: flex; align-items: center; gap: 6px; min-width: 0; color: var(--ink); }
+.viz-key i { width: 14px; height: 3px; border-radius: 2px; flex: none; }
+.viz-key .ellipsis { flex: 1; min-width: 0; }
+.viz-key.me .ellipsis { font-weight: 700; }
+.viz-key .num { color: var(--ink); }
+.viz-plot { position: relative; }
+.viz-plot svg { display: block; }
+.viz-grid { stroke: var(--line); stroke-width: 1; }
+.viz-zero { stroke: var(--muted); stroke-width: 1; opacity: .6; }
+.viz-tick { fill: var(--muted); font-size: 11px; font-family: var(--font-num); }
+.viz-cross { stroke: var(--muted); stroke-width: 1; }
+.viz-dot { stroke: var(--surface); stroke-width: 2; }
+.viz-tip { position: absolute; top: 4px; max-width: 60%; background: var(--ink); color: var(--surface); font-size: 12px; padding: 4px 8px; border-radius: 8px; pointer-events: none; }
+.viz-tip b { font-weight: 500; }
+
+/* 排名細走勢 */
+.rank-who { display: flex; flex-direction: column; min-width: 0; line-height: 1.25; }
+.rank-who small { font-size: 12px; }
+.spark { flex: none; }
+.spark-line { stroke: var(--muted); }
+.spark-end { stroke: var(--surface); stroke-width: 1.5; }
+.spark-end.gain { fill: var(--gain); } .spark-end.loss { fill: var(--loss); } .spark-end.even { fill: var(--muted); }
+
+/* 龍虎榜 */
+.board { list-style: none; margin: 0; padding: 0; }
+.board li { display: grid; grid-template-columns: 26px minmax(0, 1fr) minmax(0, 1.1fr) 52px; align-items: center; gap: 10px; padding: 9px 0; border-top: 1px solid var(--line); }
+.board li:first-child { border-top: none; }
+.board li.me .board-who .ellipsis { font-weight: 700; }
+.board-rank { font-family: var(--font-kai); font-weight: 700; text-align: center; color: var(--muted); }
+.board li:first-child .board-rank { color: var(--gain); }
+.board li:last-child .board-rank { color: var(--loss); }
+.board-who { display: flex; flex-direction: column; min-width: 0; line-height: 1.25; }
+.board-who small { color: var(--muted); font-size: 12px; }
+.board-bar { position: relative; height: 12px; }
+.board-axis { position: absolute; left: 50%; top: -6px; bottom: -6px; width: 1px; background: var(--line); }
+.board-fill { position: absolute; top: 0; height: 12px; }
+.board-fill.gain { background: var(--gain); border-radius: 0 4px 4px 0; }
+.board-fill.loss { background: var(--loss); border-radius: 4px 0 0 4px; }
+.board-val { text-align: right; font-size: 17px; }

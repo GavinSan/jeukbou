@@ -1,12 +1,17 @@
 import type { User } from 'firebase/auth';
 import { useGroup, useMembers, useSessions } from '../lib/live.ts';
 import { Link } from '../lib/router.tsx';
-import { Avatar, CopyLink, Loading, TopBar } from '../ui.tsx';
+import { Avatar, CopyLink, Hint, Loading, TopBar } from '../ui.tsx';
+import { SettingsButton } from '../components/Settings.tsx';
+import { Leaderboard } from '../components/Charts.tsx';
+import { useBoard } from '../lib/history.ts';
 
 export default function GroupPage({ user, groupId }: { user: User; groupId: string }) {
   const group = useGroup(groupId);
   const members = useMembers(groupId);
   const sessions = useSessions(groupId);
+  const memberNames = Object.fromEntries(members.data.map((m) => [m.uid, m.name]));
+  const board = useBoard(group.data, sessions.loading ? [] : sessions.data, memberNames);
 
   if (group.error) return <main className="page"><TopBar back="/" /><p className="error">{group.error}</p></main>;
   if (!group.data) return <main className="page"><TopBar back="/" /><Loading /></main>;
@@ -17,7 +22,7 @@ export default function GroupPage({ user, groupId }: { user: User; groupId: stri
 
   return (
     <main className="page">
-      <TopBar back="/" title={g.name} />
+      <TopBar back="/" title={g.name} right={<SettingsButton />} />
 
       <section className="stack">
         <Link to={`/g/${groupId}/new`} className="btn big">
@@ -39,9 +44,21 @@ export default function GroupPage({ user, groupId }: { user: User; groupId: stri
             ))}
           </div>
         ) : (
-          !sessions.loading && <p className="muted">未有大局。撳「開大局」揀枱同位就開始。</p>
+          !sessions.loading && <p className="muted">未有大局。</p>
         )}
       </section>
+
+      {board.rows.length > 0 && (
+        <section className="stack">
+          <div className="section-head">
+            <h2>龍虎榜</h2>
+            <span className="muted small">所有大局合計（番）</span>
+          </div>
+          <div className="list pad">
+            <Leaderboard rows={board.rows} me={user.uid} />
+          </div>
+        </section>
+      )}
 
       <Link to={`/g/${groupId}/rules`} className="listrow list">
         <span className="grow">家規<span className="muted small">　底、莊、雙響、拉、抽水</span></span>
@@ -51,7 +68,7 @@ export default function GroupPage({ user, groupId }: { user: User; groupId: stri
       <section className="panel">
         <div className="between">
           <h2>成員（{members.data.length}）</h2>
-          {g.ownerId === user.uid && <span className="muted small">你係局主</span>}
+          {g.ownerId === user.uid && <span className="muted small">你是局主</span>}
         </div>
         <div className="member-grid">
           {members.data.map((m) => (
@@ -61,7 +78,7 @@ export default function GroupPage({ user, groupId }: { user: User; groupId: stri
             </div>
           ))}
         </div>
-        <p className="muted small">將連結 send 俾牌友，佢哋登入之後就會自動加入。</p>
+        <Hint>把連結傳給牌友，登入後會自動加入。</Hint>
         <CopyLink url={invite} />
       </section>
     </main>

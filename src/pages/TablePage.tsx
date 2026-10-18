@@ -54,13 +54,13 @@ export default function TablePage({ user, groupId, sessionId, tableId }: { user:
           return 'done';
         }
         const dup = requests.data.some((r) => r.status === 'pending' && r.in === incoming.id);
-        if (dup) throw new Error(`已經請咗 ${incoming.name}，等佢答先`);
+        if (dup) throw new Error(`已邀請 ${incoming.name}，請等待回覆`);
         await requestSwap(groupId, sessionId, { tableId, out, in: incoming.id, inName: incoming.name, by: user.uid });
         return 'requested';
       }}
       onCancelSwap={(id) => cancelSwap(groupId, sessionId, id)}
       onReseat={async (seats) => {
-        if (tableEvents.length > 0) throw new Error('已經開咗，唔可以再掉位');
+        if (tableEvents.length > 0) throw new Error('已開局，不能再掉位');
         await reseat(groupId, sessionId, tableId, seats);
       }}
       onDice={async () => { await rollDice(groupId, sessionId, tableId, user.uid, (table.dice?.n ?? 0) + 1); }}

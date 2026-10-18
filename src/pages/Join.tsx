@@ -15,7 +15,7 @@ export default function Join({ user, groupId, code, sessionId }: { user: User; g
         if (!cancelled) go(sessionId ? `/g/${groupId}/s/${sessionId}` : `/g/${groupId}`);
       })
       .catch((err) => {
-        if (!cancelled) setError(message(err) === '冇權限做呢樣嘢' ? '邀請連結唔啱或者已經過期，問局主攞過條新嘅' : message(err));
+        if (!cancelled) setError(message(err) === '沒有權限' ? '邀請連結無效或已過期，請向局主索取新連結' : message(err));
       });
     return () => { cancelled = true; };
   }, [user, groupId, code, sessionId]);
@@ -29,7 +29,7 @@ export default function Join({ user, groupId, code, sessionId }: { user: User; g
           <button type="button" className="btn plain" onClick={() => go('/')}>返首頁</button>
         </section>
       ) : (
-        <p className="muted">加入緊牌友圈…</p>
+        <p className="muted">正在加入牌友圈…</p>
       )}
     </main>
   );
