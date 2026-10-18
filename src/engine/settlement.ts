@@ -127,14 +127,14 @@ export interface SettleInput {
   /** 幾多番 = 1 個貨幣單位 */
   perUnit: number;
   /** 每人金額點取整：up = 向上（絕對值）、round = 四捨五入、none = 計到仙；差額由水戶口吸收 */
-  rounding: Rounding;
+  rounding: MoneyRounding;
   /** 開支（晚餐等），同麻雀數分開計 */
   expenses: Expense[];
   players: PlayerId[];
   pairs: [PlayerId, PlayerId][];
 }
 
-export type Rounding = 'up' | 'round' | 'none';
+export type MoneyRounding = 'up' | 'round' | 'none';
 
 export interface Ledger {
   /** 每個戶口（已合 pair） */

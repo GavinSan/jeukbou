@@ -1,7 +1,7 @@
 // 埋數：麻雀數（連水）同晚餐等開支分開計，亦可以合併；GP 合計；最少轉賬
 import { useMemo, useState } from 'react';
 import { settleSession } from '../engine/settlement.ts';
-import type { Rounding } from '../engine/settlement.ts';
+import type { MoneyRounding } from '../engine/settlement.ts';
 import type { Expense } from '../engine/settlement.ts';
 import { isGuest, pairActive } from '../lib/data.ts';
 import type { ExpenseDoc, PairDoc, SettleConfig } from '../lib/data.ts';
@@ -39,7 +39,7 @@ export interface SettleScreenProps {
 
 const LABELS = ['晚餐', '宵夜', '飲品', '的士', '場租', '其他'];
 const CURRENCIES = ['CAD', 'HKD', 'USD'];
-const ROUND_LABEL: Record<Rounding, string> = { up: '每人金額向上取整', round: '每人金額四捨五入', none: '' };
+const ROUND_LABEL: Record<MoneyRounding, string> = { up: '每人金額向上取整', round: '每人金額四捨五入', none: '' };
 
 export function money(n: number, signed = false): string {
   const abs = Math.abs(Math.round(n * 100) / 100);
@@ -283,7 +283,7 @@ function ConfigSheet({ cfg, canEdit, accounts, busy, error, onClose, onSave }: {
   const [per, setPer] = useState(String(cfg.perUnit));
   const [cur, setCur] = useState(cfg.currency);
   const [waterTo, setWaterTo] = useState(cfg.waterTo);
-  const [rounding, setRounding] = useState<Rounding>(cfg.rounding);
+  const [rounding, setRounding] = useState<MoneyRounding>(cfg.rounding);
   const n = Number(per);
   const d = !canEdit;
   return (

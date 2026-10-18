@@ -16,7 +16,7 @@ import type { Firestore, Timestamp } from 'firebase/firestore';
 import type { User } from 'firebase/auth';
 import { db } from '../firebase.ts';
 import type { TableEvent } from '../engine/table.ts';
-import type { Rounding } from '../engine/settlement.ts';
+import type { MoneyRounding } from '../engine/settlement.ts';
 import { withRules } from '../engine/rules.ts';
 
 export type RulesPatch = Parameters<typeof withRules>[0];
@@ -55,7 +55,7 @@ export interface SettleConfig {
   /** 水由誰保管（入佢個數）；空白 = 局主 */
   waterTo: string;
   /** 金額取整：向上、四捨五入、不變 */
-  rounding: Rounding;
+  rounding: MoneyRounding;
 }
 
 export const DEFAULT_SETTLE: SettleConfig = { currency: 'CAD', perUnit: 6, waterTo: '', rounding: 'up' };
