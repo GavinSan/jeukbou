@@ -36,7 +36,7 @@ for (const scheme of ['light', 'dark']) {
       await page.screenshot({ path: `${out}/sheet-who.png` });
       await page.getByRole('button', { name: 'Viola 出銃' }).click();
       await page.waitForTimeout(300);
-      await page.getByRole('dialog', { name: '入數' }).getByRole('button', { name: '13', exact: true }).click();
+      await page.getByRole('dialog', { name: '入數' }).getByRole('button', { name: '20', exact: true }).click();
       await page.waitForTimeout(700);
       await page.screenshot({ path: `${out}/sheet-fan.png` });
       try {
@@ -286,6 +286,20 @@ for (const scheme of ['light', 'dark']) {
       await page.getByRole('button', { name: 'Athena 統計' }).click();
       await page.waitForTimeout(400);
       await page.screenshot({ path: `${out}/group-player.png` });
+    });
+    await step('heaven', async () => {
+      await page.goto(`${base}/demo/t/1`, { waitUntil: 'networkidle' });
+      await page.waitForTimeout(1200);
+      await page.getByRole('button', { name: /^特別事項/ }).click();
+      await page.waitForTimeout(300);
+      await page.getByRole('dialog').getByRole('button', { name: /天槓/ }).click();
+      await page.waitForTimeout(500);
+      await page.screenshot({ path: `${out}/heaven-card.png` });
+      await page.getByRole('dialog').getByRole('button', { name: 'Janice', exact: true }).click();
+      await page.getByRole('button', { name: /^入數，收每家/ }).click();
+      await page.waitForTimeout(1100);
+      await page.screenshot({ path: `${out}/heaven.png` });
+      await page.waitForTimeout(2500);
     });
     await step('dealer', async () => {
       await page.goto(`${base}/demo/t/2`, { waitUntil: 'networkidle' });

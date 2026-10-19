@@ -1170,28 +1170,15 @@ button.join-code:active { background: var(--line); }
 .st-member { padding-top: 0 !important; min-height: 34px !important; font-size: 14px; }
 .st-member > span:first-child { padding-left: 14px; color: var(--muted); }
 
-/* 番數橫向滾輪 */
-.dock-fan { gap: 8px; }
-.roller-wrap { position: relative; flex: 1; min-width: 0; height: 64px; }
-.roller {
-  display: flex; height: 100%; overflow-x: auto; overflow-y: hidden; scroll-snap-type: x mandatory; scrollbar-width: none; -webkit-overflow-scrolling: touch; overscroll-behavior: contain;
-  -webkit-mask-image: linear-gradient(90deg, transparent, #000 22%, #000 78%, transparent); mask-image: linear-gradient(90deg, transparent, #000 22%, #000 78%, transparent);
-}
-.roller::-webkit-scrollbar { display: none; }
-.roller:focus-visible { outline: 2px solid var(--gain); border-radius: 12px; }
-.roller-pad { flex: 0 0 calc(50% - 26px); }
-.roller-item {
-  flex: none; height: 100%; display: flex; align-items: center; justify-content: center; scroll-snap-align: center; cursor: pointer;
-  font-family: var(--font-num); font-variant-numeric: tabular-nums; font-size: 18px; color: var(--muted); transition: font-size .12s, color .12s;
-}
-.roller-item.far { font-size: 21px; }
-.roller-item.near { font-size: 26px; color: var(--ink); opacity: .7; }
-.roller-item.on { font-size: 40px; font-weight: 700; color: var(--ink); }
-.roller-item.on.hot1 { color: #E5703A; }
-.roller-item.on.hot2 { color: var(--tile-loss); }
-.roller-band { position: absolute; left: 50%; top: 4px; bottom: 4px; width: 60px; transform: translateX(-50%); border-radius: 12px; border: 2px solid var(--line); pointer-events: none; }
-.roller-band span { position: absolute; right: -2px; bottom: -18px; font-size: 11px; color: var(--muted); font-family: var(--font-kai); left: 0; text-align: center; }
-.roller-input { position: absolute; left: 50%; top: 4px; bottom: 4px; width: 80px; transform: translateX(-50%); text-align: center; font-size: 32px !important; font-weight: 700; border-radius: 12px; border: 2px solid var(--gain); background: var(--surface); }
+/* 入數嘅細滾輪（直碌，左右係加減） */
+.dock-fan { gap: 18px; }
+.wheel-wrap.compact { width: 132px; }
+.wheel-wrap.compact .wheel-band { height: 48px; }
+.wheel-wrap.compact .wheel-item { font-size: 20px; }
+.wheel-wrap.compact .wheel-item.on { font-size: 38px; }
+.wheel-wrap.compact .wheel-input { height: 48px; }
+.wheel-item.on.hot1 { color: #E5703A; }
+.wheel-item.on.hot2 { color: var(--tile-loss); }
 .dock-dealer { display: flex; align-items: center; justify-content: space-between; gap: 8px; flex-wrap: wrap; }
 .dock-dealer .seg button { min-height: 34px; padding: 0 10px; font-size: 14px; }
 
@@ -1201,3 +1188,42 @@ button.join-code:active { background: var(--line); }
   display: flex; align-items: center; gap: 12px; padding: 6px 6px 6px 16px; border-radius: 999px; font-weight: 600;
   background: var(--ink); color: var(--surface); box-shadow: 0 10px 24px rgba(0, 0, 0, .25); animation: drop .32s cubic-bezier(.2, 1.2, .4, 1);
 }
+
+/* ---------- 天槓 ---------- */
+.sp-card.sp-heaven { background: linear-gradient(160deg, #FFF6D6, #F6E2A4 60%, #EBCB74); box-shadow: 0 3px 0 #B8860B, 0 0 0 1px rgba(184, 134, 11, .35) inset; }
+.sp-card.sp-heaven .sp-label { color: #7A2A10; }
+.sp-card.sp-heaven .sp-note { color: #8A5A10; font-weight: 600; }
+.hv-rays { animation: hv-spin 14s linear infinite; }
+.play .hv-rays { animation-duration: 3s; }
+@keyframes hv-spin { to { transform: rotate(360deg); } }
+.play .hv-tile { animation: hv-drop .5s cubic-bezier(.3, 1.6, .5, 1) var(--d) both; }
+@keyframes hv-drop { from { transform: translateY(-40px) scale(1.4) rotate(-10deg); opacity: 0; } }
+
+.burst-heaven { z-index: 6; display: flex; align-items: center; justify-content: center; }
+.hv-flash { position: absolute; inset: 0; background: radial-gradient(circle at 50% 45%, rgba(255, 233, 168, .9), rgba(20, 14, 0, .75) 70%); animation: hv-flash 3s ease-out both; }
+@keyframes hv-flash { 0% { opacity: 0; } 8% { opacity: 1; } 70% { opacity: .85; } 100% { opacity: 0; } }
+.hv-sun {
+  position: absolute; left: 50%; top: 45%; width: 170%; aspect-ratio: 1; transform: translate(-50%, -50%);
+  background: repeating-conic-gradient(from 0deg, rgba(255, 214, 107, .55) 0 8deg, transparent 8deg 24deg);
+  -webkit-mask-image: radial-gradient(circle, #000 0 30%, transparent 62%); mask-image: radial-gradient(circle, #000 0 30%, transparent 62%);
+  animation: hv-sun 3s ease-out both;
+}
+@keyframes hv-sun { 0% { opacity: 0; transform: translate(-50%, -50%) rotate(0) scale(.4); } 15% { opacity: 1; } 75% { opacity: 1; } 100% { opacity: 0; transform: translate(-50%, -50%) rotate(70deg) scale(1.1); } }
+.hv-row { position: relative; display: flex; gap: 6px; margin-top: -10%; }
+.hv-big {
+  width: 50px; height: 68px; border-radius: 8px; display: flex; align-items: center; justify-content: center;
+  font-family: var(--font-kai); font-weight: 700; font-size: 34px; color: #7A2A10;
+  background: linear-gradient(180deg, #FFF1BE, #E9BC4C 60%, #C08A16); box-shadow: 0 5px 0 #8A5A0B, 0 10px 24px rgba(0, 0, 0, .45), inset 0 1px 0 rgba(255, 255, 255, .8);
+  animation: hv-slam 2.8s cubic-bezier(.3, 1.6, .5, 1) var(--d) both;
+}
+@keyframes hv-slam {
+  0% { transform: translateY(-180px) rotate(-14deg) scale(1.5); opacity: 0; }
+  14% { transform: translateY(0) rotate(0) scale(1); opacity: 1; }
+  18% { transform: translateY(0) scale(1.08, .92); }
+  24% { transform: none; }
+  82% { opacity: 1; }
+  100% { opacity: 0; transform: translateY(-10px); }
+}
+.hv-coin { width: 14px !important; height: 14px !important; border-radius: 50%; background: radial-gradient(circle at 35% 35%, #FFF3C4, #F2C14E 45%, #B8860B); box-shadow: 0 0 6px rgba(242, 193, 78, .8); }
+.hv-stamp { top: 70% !important; background: linear-gradient(180deg, #FFE08A, #C08A16) !important; color: #5A1A08 !important; border-color: #FFF3C4 !important; animation-delay: .9s !important; font-size: 40px !important; }
+@media (prefers-reduced-motion: reduce) { .hv-rays, .play .hv-tile, .hv-flash, .hv-sun, .hv-big { animation: none !important; } .burst-heaven { display: none; } }

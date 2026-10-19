@@ -1,11 +1,14 @@
 // iPhone 式滾輪揀番數：上下碌，中間嗰個就係；亦可以撳中間個數字自己打
 import { useEffect, useRef, useState } from 'react';
+import { buzz } from '../lib/haptics.ts';
 
-const ITEM = 48;
 const MAX = 500;
-const VISIBLE = 5;
 
-export default function FanWheel({ value, onChange, label }: { value: number; onChange: (v: number) => void; label: string }) {
+export default function FanWheel({ value, onChange, label, item: ITEM = 48, visible: VISIBLE = 5, compact = false }: {
+  value: number; onChange: (v: number) => void; label: string; item?: number; visible?: number; compact?: boolean;
+}) {
+  const live = useRef(value);
+  const [shown, setShown] = useState(value);
   const ref = useRef<HTMLDivElement>(null);
   const settling = useRef<number | null>(null);
   const programmatic = useRef(false);
@@ -16,6 +19,8 @@ export default function FanWheel({ value, onChange, label }: { value: number; on
   useEffect(() => {
     const el = ref.current;
     if (!el) return;
+    live.current = value;
+    setShown(value);
     const target = value * ITEM;
     if (Math.abs(el.scrollTop - target) < 2) return;
     programmatic.current = true;
@@ -32,6 +37,13 @@ export default function FanWheel({ value, onChange, label }: { value: number; on
   }, []);
 
   function onScroll() {
+    const now = ref.current ? Math.max(0, Math.min(MAX, Math.round(ref.current.scrollTop / ITEM))) : value;
+    // 碌緊嘅時候中間個數即刻變大，輕輕震一下
+    if (now !== live.current) {
+      live.current = now;
+      setShown(now);
+      if (!programmatic.current) buzz('tick');
+    }
     if (programmatic.current) return;
     if (settling.current) window.clearTimeout(settling.current);
     settling.current = window.setTimeout(() => {
@@ -49,7 +61,7 @@ export default function FanWheel({ value, onChange, label }: { value: number; on
   }
 
   return (
-    <div className="wheel-wrap">
+    <div className={`wheel-wrap${compact ? ' compact' : ''}`}>
       <div
         ref={ref}
         className="wheel"
@@ -57,7 +69,7 @@ export default function FanWheel({ value, onChange, label }: { value: number; on
         onScroll={onScroll}
         role="listbox"
         aria-label={label}
-        aria-activedescendant={`fan-opt-${value}`}
+        aria-activedescendant={`fan-opt-${shown}`}
         tabIndex={0}
         onKeyDown={(e) => {
           if (e.key === 'ArrowUp') { e.preventDefault(); onChange(Math.max(0, value - 1)); }
@@ -69,8 +81,8 @@ export default function FanWheel({ value, onChange, label }: { value: number; on
             key={n}
             id={`fan-opt-${n}`}
             role="option"
-            aria-selected={n === value}
-            className={`wheel-item${n === value ? ' on' : ''}${Math.abs(n - value) === 1 ? ' near' : ''}`}
+            aria-selected={n === shown}
+            className={`wheel-item${n === shown ? ' on' : ''}${Math.abs(n - shown) === 1 ? ' near' : ''}${n === shown && n >= 100 ? ' hot2' : n === shown && n >= 70 ? ' hot1' : ''}`}
             style={{ height: ITEM }}
             onClick={() => (n === value ? (setDraft(String(value)), setTyping(true)) : onChange(n))}
           >

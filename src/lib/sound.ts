@@ -154,6 +154,21 @@ export const sfx = {
         for (let i = 0; i < 4; i++) clack(c, t + i * 0.09, 0.6, 1500 + i * 120);
         tone(c, t + 0.36, 110, 0.3, { type: 'sine', gain: 0.4, to: 60 });
         break;
+      case 'heaven': { // 天槓：四下重重砸牌（一下比一下高）＋ 銅鑼 ＋ 金光叮叮
+        for (let i = 0; i < 4; i++) {
+          const at = t + 0.15 + i * 0.16;
+          clack(c, at, 0.9, 1100 + i * 260);
+          tone(c, at, 120 - i * 8, 0.32, { type: 'sine', gain: 0.55, to: 55 });
+        }
+        const g = t + 0.85;
+        tone(c, g, 98, 2.6, { type: 'sine', gain: 0.42, attack: 0.01 });
+        tone(c, g, 147.5, 2.2, { type: 'triangle', gain: 0.14, attack: 0.01 });
+        tone(c, g, 233, 1.6, { type: 'sine', gain: 0.1, attack: 0.02, to: 228 });
+        hiss(c, g, 1.2, { type: 'bandpass', freq: 3200, to: 1400, q: 0.7, gain: 0.12 });
+        [0, 2, 4, 5, 7, 5, 7].forEach((k, i) => tone(c, g + 0.25 + i * 0.07, PENTA[k] * 2, 0.6, { type: 'sine', gain: 0.07 }));
+        [2400, 2900, 3300, 2700].forEach((f, i) => ping(c, t + 1.4 + i * 0.09, jitter(f, 0.04), 0.12));
+        break;
+      }
       case 'triple':
       case 'dice123':
         for (let i = 0; i < 7; i++) clack(c, t + i * 0.06 + Math.random() * 0.03, 0.3, 1800 + Math.random() * 1500);

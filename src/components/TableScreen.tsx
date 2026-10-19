@@ -20,14 +20,14 @@ import Settings from './Settings.tsx';
 import { Link } from '../lib/router.tsx';
 import { Chips, ConfirmDelete, Hint, NumInput, RollingNumber, Sheet, TopBar, fmt, message, useNow, clampName } from '../ui.tsx';
 import FanWheel from './FanWheel.tsx';
-import FanRoller from './FanRoller.tsx';
 import DiceRoll, { Die } from './Dice.tsx';
 import SeatDraw from './SeatDraw.tsx';
-import { CHASE_MAX_REPEAT, SPECIAL_ITEMS, SpecialArt, SpecialBurst, artOf, chaseAmount, suggestRepeat } from './Specials.tsx';
+import { CHASE_MAX_REPEAT, SPECIAL_ITEMS, SpecialArt, SpecialBurst, artOf, chaseAmount, heavenAmount, suggestRepeat } from './Specials.tsx';
 import type { Art } from './Specials.tsx';
 
 const SPOTS = ['s-bottom', 's-right', 's-top', 's-left'];
-const QUICK_FANS = [5, 8, 10, 13, 15, 20, 25, ...Array.from({ length: 28 }, (_, i) => 30 + i * 10)];
+// 快捷番數：每 10 一格，10 至 300
+const QUICK_FANS = Array.from({ length: 30 }, (_, i) => 10 + i * 10);
 const KIND: Record<Line['kind'], string> = { pending: '枱面', settle: '找數', instant: '即時', water: '抽水' };
 
 interface Entry {
@@ -183,7 +183,7 @@ export default function TableScreen(props: TableScreenProps) {
     const art = last ? artOf(last) : null;
     if (art && last?.type === 'special') {
       const rep = last.meta?.repeat ?? 0;
-      setBurst((b) => ({ art, text: art === 'chase' ? (rep > 0 ? `追 ×${rep + 1}` : '追') : undefined, key: (b?.key ?? 0) + 1 }));
+      setBurst((b) => ({ art, text: art === 'chase' ? (rep > 0 ? `追 ×${rep + 1}` : '追') : art === 'heaven' ? '天槓！' : undefined, key: (b?.key ?? 0) + 1 }));
     }
     if (!isNew && lastStep && lastStep.seq < before.lastSeq) sfx.undo();
     else if (last?.type === 'win') {
@@ -195,7 +195,7 @@ export default function TableScreen(props: TableScreenProps) {
       if (isNew && top >= 30) setParty((p) => ({ fan: top, key: (p?.key ?? 0) + 1 }));
     }
     else if (hp) { sfx.settle(); buzz('hit'); }
-    else if (last?.type === 'special') { sfx.special(art ?? ''); buzz('tap'); }
+    else if (last?.type === 'special') { sfx.special(art ?? ''); buzz(art === 'heaven' ? 'win' : 'tap'); }
     else if (last?.type === 'falseWin') {
       sfx.falseWin();
       buzz('hit');
@@ -634,8 +634,11 @@ export default function TableScreen(props: TableScreenProps) {
               )}
               <div className="dock-fan">
                 <button type="button" className="stepper" aria-label="減一番" onClick={() => { setFan(entry.current, (entry.fans[entry.current] ?? 0) - 1); setPickedNote(''); }}>−</button>
-                <FanRoller
+                <FanWheel
                   key={entry.current}
+                  compact
+                  item={44}
+                  visible={3}
                   value={entry.fans[entry.current] ?? 0}
                   onChange={(v) => { setFan(entry.current, v); setPickedNote(''); }}
                   label={`${name(entry.current)} 番數`}
@@ -742,13 +745,15 @@ export default function TableScreen(props: TableScreenProps) {
           {more === 'special' && (() => {
             const item = SPECIAL_ITEMS.find((x) => x.art === spArt);
             const isChase = spArt === 'chase';
-            const amount = isChase ? chaseAmount(chaseKind, repeat, instant) : item?.amount ?? 0;
+            const heaven = heavenAmount(props.cash?.perUnit);
+            const amount = isChase ? chaseAmount(chaseKind, repeat, instant) : spArt === 'heaven' ? heaven : item?.amount ?? 0;
             const pick = (art: Art) => {
               unlock();
               setSpArt(art);
               setSpPlay((n) => n + 1);
               if (art === 'chase') { const r = suggestRepeat(lastStep?.event, chaseKind); setRepeat(r); setInstant(r > 0); sfx.tap(); }
               else if (art === 'triple' || art === 'dice123') sfx.dice();
+              else if (art === 'heaven') sfx.special('kong');
               else sfx.chips();
             };
             return (
@@ -766,7 +771,7 @@ export default function TableScreen(props: TableScreenProps) {
                     >
                       <SpecialArt art={it.art} heat={it.art === 'chase' && spArt === 'chase' && instant ? repeat : 0} />
                       <span className="sp-label">{it.label}</span>
-                      <span className="sp-note">{it.art === 'chase' && spArt === 'chase' ? `付每家 ${amount}` : it.note}</span>
+                      <span className="sp-note">{it.art === 'chase' && spArt === 'chase' ? `付每家 ${amount}` : it.art === 'heaven' ? `收每家 $10（${heaven} 番）` : it.note}</span>
                     </button>
                   ))}
                 </div>

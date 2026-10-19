@@ -2,7 +2,7 @@
 import type { CSSProperties } from 'react';
 import type { TableEvent } from '../engine/table.ts';
 
-export type Art = 'kong' | 'flower' | 'grass' | 'triple' | 'dice123' | 'pong' | 'chase';
+export type Art = 'kong' | 'heaven' | 'flower' | 'grass' | 'triple' | 'dice123' | 'pong' | 'chase';
 
 export interface SpecialItem {
   art: Art;
@@ -16,6 +16,8 @@ export const SPECIAL_ITEMS: SpecialItem[] = [
   { art: 'flower', label: '一台花', amount: 5, dir: 'collect', note: '收每家 5' },
   { art: 'grass', label: '一台草', amount: 2, dir: 'collect', note: '收每家 2' },
   { art: 'kong', label: '暗槓', amount: 5, dir: 'collect', note: '收每家 5' },
+  // 天槓：每家俾 $10；番數按埋數設定換算（6 番 = $1 就係 60 番）
+  { art: 'heaven', label: '天槓', amount: 60, dir: 'collect', note: '收每家 $10' },
   { art: 'triple', label: '圍骰', amount: 5, dir: 'collect', note: '收每家 5' },
   { art: 'dice123', label: '骰開一二三', amount: 5, dir: 'pay', note: '付每家 5' },
   { art: 'pong', label: '叫碰唔碰', amount: 5, dir: 'pay', note: '付每家 5' },
@@ -24,6 +26,9 @@ export const SPECIAL_ITEMS: SpecialItem[] = [
 
 /** 追牌：番子 5、非番子 10；即摸先會「同一隻再追」每次加 5，最多加 3 次 */
 export const CHASE_MAX_REPEAT = 3;
+
+/** 天槓：每家 $10 → 番 */
+export const heavenAmount = (perUnit?: number) => Math.round(10 * (perUnit && perUnit > 0 ? perUnit : 6));
 /** 被追：番子 5、非番子 10；即摸 +5，同一隻再追每次再 +5（最多再追 3 次） */
 export function chaseAmount(kind: 'fan' | 'other', repeat: number, instant = true): number {
   const extra = instant ? 1 + Math.max(0, Math.min(CHASE_MAX_REPEAT, repeat)) : 0;
@@ -98,6 +103,26 @@ export function SpecialArt({ art, heat = 0 }: { art: Art; heat?: number }) {
           ))}
         </svg>
       );
+    case 'heaven':
+      return (
+        <svg className="sp-art side heaven" viewBox="0 0 160 90" preserveAspectRatio="xMidYMid meet" aria-hidden="true">
+          <defs>
+            <radialGradient id="hv-glow" cx="50%" cy="55%" r="55%"><stop offset="0" stopColor="#FFE9A8" stopOpacity="0.95" /><stop offset="1" stopColor="#FFE9A8" stopOpacity="0" /></radialGradient>
+            <linearGradient id="hv-gold" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stopColor="#FFE7A0" /><stop offset="0.55" stopColor="#E3B23C" /><stop offset="1" stopColor="#B8860B" /></linearGradient>
+          </defs>
+          <g className="hv-rays" style={{ transformOrigin: '80px 50px' } as CSSProperties}>
+            {Array.from({ length: 12 }, (_, i) => <path key={i} d="M80 50 L76 -20 L84 -20 Z" fill="#F2C14E" opacity="0.35" transform={`rotate(${i * 30} 80 50)`} />)}
+          </g>
+          <circle cx="80" cy="50" r="48" fill="url(#hv-glow)" />
+          {[0, 1, 2, 3].map((i) => (
+            <g key={i} className="hv-tile" style={{ '--d': `${i * 0.12}s`, transformOrigin: `${34 + i * 31}px 64px` } as CSSProperties}>
+              <rect x={20 + i * 31} y={28} width={28} height={40} rx={4} fill="#9A6B0B" />
+              <rect x={20 + i * 31} y={24} width={28} height={40} rx={4} fill="url(#hv-gold)" stroke="#FFF3C4" strokeWidth="1" />
+              <text x={34 + i * 31} y={51} textAnchor="middle" fontSize="16" fontWeight="700" fill="#7A2A10" style={{ fontFamily: 'var(--font-kai)' }}>{'天槓天槓'[i]}</text>
+            </g>
+          ))}
+        </svg>
+      );
     case 'triple':
     case 'dice123': {
       const faces = art === 'triple' ? [4, 4, 4] : [1, 2, 3];
@@ -138,6 +163,22 @@ export function SpecialArt({ art, heat = 0 }: { art: Art; heat?: number }) {
 
 /** 入咗特別事項，枱面飄一陣嘢 */
 export function SpecialBurst({ art, text }: { art: Art; text?: string }) {
+  if (art === 'heaven') {
+    // 天槓：枱面變暗、金光轉、四隻金牌逐隻砸落、金幣雨
+    return (
+      <div className="burst burst-heaven" aria-hidden="true">
+        <span className="hv-flash" />
+        <span className="hv-sun" />
+        <div className="hv-row">
+          {'天槓天槓'.split('').map((ch, i) => <span key={i} className="hv-big" style={{ '--d': `${0.15 + i * 0.16}s` } as CSSProperties}>{ch}</span>)}
+        </div>
+        {Array.from({ length: 22 }, (_, i) => (
+          <span key={i} className="burst-bit hv-coin" style={{ '--x': `${(i * 41) % 100}%`, '--d': `${0.8 + (i % 7) * 0.09}s`, '--r': `${(i * 67) % 360}deg`, '--s': `${0.8 + (i % 3) * 0.2}` } as CSSProperties} />
+        ))}
+        <span className="burst-stamp hv-stamp">{text ?? '天槓'}</span>
+      </div>
+    );
+  }
   const n = art === 'flower' || art === 'grass' ? 16 : art === 'chase' ? 0 : 6;
   return (
     <div className={`burst burst-${art}`} aria-hidden="true">
