@@ -24,8 +24,9 @@ export const SPECIAL_ITEMS: SpecialItem[] = [
 
 /** 追牌：番子 5、非番子 10；即摸先會「同一隻再追」每次加 5，最多加 3 次 */
 export const CHASE_MAX_REPEAT = 3;
+/** 被追：番子 5、非番子 10；即摸 +5，同一隻再追每次再 +5（最多再追 3 次） */
 export function chaseAmount(kind: 'fan' | 'other', repeat: number, instant = true): number {
-  const extra = instant ? Math.max(0, Math.min(CHASE_MAX_REPEAT, repeat)) : 0;
+  const extra = instant ? 1 + Math.max(0, Math.min(CHASE_MAX_REPEAT, repeat)) : 0;
   return (kind === 'fan' ? 5 : 10) + 5 * extra;
 }
 

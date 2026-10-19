@@ -220,7 +220,9 @@ export function applyEvent(prev: TableState, ev: TableEvent, rules: Rules = DEFA
           }
           kept.push(c);
         } else if (W.includes(c.pulled) && payOf(c.pulled, c.puller)) {
-          settle(c.pulled, c.puller, halfOf(c.owed, rules.rounding), `劈：${c.owed} ÷ 2`);
+          // 劈：食返嘅人自己留大嗰半（拉嗰邊加嘅一半向上取整，所以俾出去嗰半就細啲），例如 21 → 俾 10、自己留 11
+          const kept = halfOf(c.owed, rules.rounding);
+          settle(c.pulled, c.puller, c.owed - kept, `劈：${c.owed} ÷ 2`);
           reversed.add(`${c.pulled}>${c.puller}`);
         } else {
           settle(c.pulled, c.puller, c.owed, '斷拉，全數找');

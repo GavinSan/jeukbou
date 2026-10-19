@@ -294,3 +294,12 @@ test('籌碼：60 = 深藍 50 + 淺藍 10；95 = 50 + 25 + 10 + 10', () => {
   assert.deepEqual(chipsFor(95).map((c) => [c.value, c.count]), [[50, 1], [25, 1], [10, 2]]);
   assert.equal(chipsFor(999).reduce((a, c) => a + c.count, 0), 5, '位置有限，最多 5 隻');
 });
+
+test('單數劈：未找 21，Ivan 食返 Gavin → 只俾 10，自己留 11；Gavin 再拉就 21 + 11 + 新鋪', () => {
+  // 底 5 + 16 番 = 21
+  const split = replay(SEATS, [eat('Gavin', 16, 'Ivan'), eat('Ivan', 5, 'Gavin')], PURE);
+  assert.deepEqual(split.steps[1].lines.filter((l) => l.kind === 'settle').map((l) => [l.from, l.to, l.amount]), [['Ivan', 'Gavin', 10]]);
+  const pull = replay(SEATS, [eat('Gavin', 16, 'Ivan'), eat('Gavin', 5, 'Ivan')], PURE);
+  // 21 + 11（21 ÷ 2 向上）+ 新鋪 10
+  assert.equal(chain(pull.state, 'Gavin', 'Ivan')?.owed, 42);
+});

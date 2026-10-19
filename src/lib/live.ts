@@ -68,6 +68,7 @@ const toJoinRequest = (id: string, d: DocumentData): JoinRequest => ({
 const toMember = (id: string, d: DocumentData): Member => ({ uid: id, name: String(d.name ?? '玩家'), photoURL: d.photoURL ?? null, legacyKey: d.legacyKey ? String(d.legacyKey) : undefined });
 const toSession = (id: string, d: DocumentData): Session => ({
   id, name: String(d.name ?? ''), createdBy: String(d.createdBy ?? ''), createdAt: d.createdAt ?? null, rules: d.rules ?? undefined,
+  rulesLog: Array.isArray(d.rulesLog) ? d.rulesLog.map((x: DocumentData) => ({ at: Number(x.at ?? 0), rules: x.rules ?? {} })) : undefined,
   waterTo: d.waterTo ? String(d.waterTo) : undefined, noWater: !!d.noWater,
   closed: d.closed ?? null,
   legacy: d.legacy ?? null,

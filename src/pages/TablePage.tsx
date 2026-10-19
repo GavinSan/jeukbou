@@ -6,7 +6,7 @@ import { appendEvent, applySwap, cancelSwap, declineSettle, requestSwap, reseat,
 import { useSuperAdmin } from '../lib/admin.ts';
 import { go } from '../lib/router.tsx';
 import { useGroup, useManyEvents, useMembers, useRequests, useSession, useTables } from '../lib/live.ts';
-import { computeTable, rulesOf } from '../lib/score.ts';
+import { computeTable, rulesOf, rulesTimeline } from '../lib/score.ts';
 import type { Computed } from '../lib/score.ts';
 import { Loading, TopBar } from '../ui.tsx';
 
@@ -19,12 +19,13 @@ export default function TablePage({ user, groupId, sessionId, tableId }: { user:
   const admin = useSuperAdmin(user.uid);
   const events = useManyEvents(groupId, sessionId, tables.data.map((t) => t.id));
   const rules = useMemo(() => rulesOf(group.data, session.data), [session.data, group.data]);
+  const timeline = useMemo(() => rulesTimeline(group.data, session.data), [group.data, session.data]);
 
   const computed = useMemo(() => {
     const out: Record<string, Computed | null> = {};
-    for (const t of tables.data) out[t.id] = computeTable(t, events[t.id] ?? [], rules);
+    for (const t of tables.data) out[t.id] = computeTable(t, events[t.id] ?? [], timeline);
     return out;
-  }, [tables.data, events, rules]);
+  }, [tables.data, events, timeline]);
 
   const back = `/g/${groupId}/s/${sessionId}`;
   const table = tables.data.find((t) => t.id === tableId);

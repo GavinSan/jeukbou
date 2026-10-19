@@ -3,7 +3,7 @@ import RulesEditor from '../components/RulesEditor.tsx';
 import HouseRules from '../components/HouseRules.tsx';
 import { FanTableView } from '../components/FanTable.tsx';
 import { SettleConfigForm } from '../components/SettleScreen.tsx';
-import { acceptTeam, createTeam, deleteTeam, fanTableOf, saveFanTable, saveRules, saveSettleConfig, settleConfigOf } from '../lib/data.ts';
+import { acceptTeam, createTeam, deleteTeam, fanTableOf, saveFanTable, saveRules, saveSessionRules, saveSettleConfig, settleConfigOf } from '../lib/data.ts';
 import TeamsEditor from '../components/Teams.tsx';
 import { useGroup, useMembers, useSession, useTeams } from '../lib/live.ts';
 import { Loading, TopBar } from '../ui.tsx';
@@ -46,8 +46,8 @@ export default function RulesPage({ user, groupId, sessionId }: { user: User; gr
             key={sessionId ?? 'group'}
             initial={initial}
             canEdit={canEdit}
-            scopeNote={sessionId ? '只影響這個大局，修改後所有枱會重新計算。' : '適用於之後新開的大局。'}
-            onSave={(r) => saveRules(sessionId ? ['groups', groupId, 'sessions', sessionId] : ['groups', groupId], r)}
+            scopeNote={sessionId ? '只影響這個大局之後嘅鋪，之前嘅數不變。' : '適用於之後新開的大局。'}
+            onSave={(r) => (sessionId && session.data ? saveSessionRules(groupId, session.data, r) : saveRules(['groups', groupId], r))}
           />
         }
         settle={

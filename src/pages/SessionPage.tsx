@@ -8,7 +8,7 @@ import { Link } from '../lib/router.tsx';
 import { useSuperAdmin } from '../lib/admin.ts';
 import { go } from '../lib/router.tsx';
 import { useGroup, useManyEvents, useMembers, useRequests, useSession, useTables } from '../lib/live.ts';
-import { computeTable, rulesOf } from '../lib/score.ts';
+import { computeTable, rulesOf, rulesTimeline } from '../lib/score.ts';
 import type { Computed } from '../lib/score.ts';
 import { Loading, TopBar } from '../ui.tsx';
 import LegacySession from '../components/LegacySession.tsx';
@@ -22,12 +22,13 @@ export default function SessionPage({ user, groupId, sessionId }: { user: User; 
   const admin = useSuperAdmin(user.uid);
   const events = useManyEvents(groupId, sessionId, tables.data.map((t) => t.id));
   const rules = useMemo(() => rulesOf(group.data, session.data), [group.data, session.data]);
+  const timeline = useMemo(() => rulesTimeline(group.data, session.data), [group.data, session.data]);
 
   const computed = useMemo(() => {
     const out: Record<string, Computed | null> = {};
-    for (const t of tables.data) out[t.id] = computeTable(t, events[t.id] ?? [], rules);
+    for (const t of tables.data) out[t.id] = computeTable(t, events[t.id] ?? [], timeline);
     return out;
-  }, [tables.data, events, rules]);
+  }, [tables.data, events, timeline]);
 
   // 記低我坐緊邊張枱，底部「枱」tab 用
   const myTable = tables.data.find((t) => { const c = computed[t.id]; return c && !c.state.ended && c.state.seats.includes(user.uid); })?.id ?? null;

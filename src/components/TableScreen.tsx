@@ -783,7 +783,7 @@ export default function TableScreen(props: TableScreenProps) {
                         {instant && repeat > 0 && <b className="num">+{repeat}</b>}
                       </button>
                     </div>
-                    {instant && repeat > 0 && <p className={`chase-note heat-${repeat}`}>再追 {repeat} 次：{chaseAmount(chaseKind, 0)} + {5 * repeat} = 每家 {amount}{repeat === CHASE_MAX_REPEAT ? '（封頂）' : ''}</p>}
+                    {instant && <p className={`chase-note heat-${repeat}`}>{repeat === 0 ? '即摸' : `即摸，再追 ${repeat} 次`}：{chaseAmount(chaseKind, 0, false)} + {5 * (repeat + 1)} = 每家 {amount}{repeat === CHASE_MAX_REPEAT ? '（封頂）' : ''}</p>}
                   </div>
                 )}
                 {spArt && (

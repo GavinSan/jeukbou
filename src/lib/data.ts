@@ -79,6 +79,8 @@ export interface Session {
   createdAt?: Timestamp | null;
   /** 開局嗰陣複製咗牌友圈嘅家規；舊大局冇就用牌友圈嘅 */
   rules?: RulesPatch;
+  /** 中途改家規嘅紀錄：每鋪用當時嘅家規（at = 毫秒；第一條 at = 0 係開局時嘅家規） */
+  rulesLog?: { at: number; rules: RulesPatch }[];
   /** 水由誰保管；冇就係場主（開局嗰個） */
   waterTo?: string;
   /** 呢局唔抽水（打牌嘅人揀） */
@@ -449,6 +451,12 @@ export async function rollDice(groupId: string, sessionId: string, tableId: stri
   const values = Array.from(bytes, (b) => (b % 6) + 1);
   await updateDoc(doc(fs(), 'groups', groupId, 'sessions', sessionId, 'tables', tableId), { dice: { values, by, at: Date.now(), n } });
   return values;
+}
+
+/** 大局中途改家規：之前嘅鋪照舊，之後嘅鋪用新家規 */
+export async function saveSessionRules(g: string, s: Session, rules: RulesPatch): Promise<void> {
+  const log = s.rulesLog?.length ? s.rulesLog : [{ at: 0, rules: s.rules ?? {} }];
+  await updateDoc(doc(fs(), 'groups', g, 'sessions', s.id), { rules: clean(rules), rulesLog: clean([...log, { at: Date.now(), rules }]) });
 }
 
 export async function saveRules(path: string[], rules: RulesPatch): Promise<void> {

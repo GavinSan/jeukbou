@@ -3,7 +3,7 @@ import type { User } from 'firebase/auth';
 import SettleScreen from '../components/SettleScreen.tsx';
 import { acceptPair, addExpense, approveClose, cancelClose, closeSession, deleteExpense, deletePair, isGuest, proposePair, requestClose, saveSettleConfig, setSessionWaterTo, settleConfigOf } from '../lib/data.ts';
 import { useExpenses, useGroup, useManyEvents, useMembers, usePairs, useSession, useTables, useTeams } from '../lib/live.ts';
-import { computeTable, rulesOf } from '../lib/score.ts';
+import { computeTable, rulesOf, rulesTimeline } from '../lib/score.ts';
 import type { Computed } from '../lib/score.ts';
 import { sessionSummary } from '../lib/totals.ts';
 import { Loading, TopBar } from '../ui.tsx';
@@ -18,11 +18,12 @@ export default function SettlePage({ user, groupId, sessionId }: { user: User; g
   const teams = useTeams(groupId);
   const members = useMembers(groupId);
   const rules = useMemo(() => rulesOf(group.data, session.data), [group.data, session.data]);
+  const timeline = useMemo(() => rulesTimeline(group.data, session.data), [group.data, session.data]);
   const computed = useMemo(() => {
     const out: Record<string, Computed | null> = {};
-    for (const t of tables.data) out[t.id] = computeTable(t, events[t.id] ?? [], rules);
+    for (const t of tables.data) out[t.id] = computeTable(t, events[t.id] ?? [], timeline);
     return out;
-  }, [tables.data, events, rules]);
+  }, [tables.data, events, timeline]);
   const sum = useMemo(() => sessionSummary(tables.data, computed), [tables.data, computed]);
 
   const back = `/g/${groupId}/s/${sessionId}`;

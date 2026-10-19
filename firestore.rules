@@ -110,7 +110,7 @@ service cloud.firestore {
         allow create: if isMember(g) && (!('legacy' in request.resource.data) || isOwner(g));
         // 家規、舊紀錄淨係局主改得；水由誰保管淨係場主（開局嗰個）或者局主改得
         allow update: if isMember(g)
-          && (!request.resource.data.diff(resource.data).affectedKeys().hasAny(['rules', 'legacy']) || isOwner(g))
+          && (!request.resource.data.diff(resource.data).affectedKeys().hasAny(['rules', 'rulesLog', 'legacy']) || isOwner(g))
           && (!request.resource.data.diff(resource.data).affectedKeys().hasAny(['waterTo']) || isOwner(g) || resource.data.createdBy == request.auth.uid);
         allow delete: if isOwner(g);
 

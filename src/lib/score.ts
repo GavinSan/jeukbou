@@ -41,7 +41,25 @@ export const rulesOf = (group: Group | null, session?: Session | null): Rules =>
   return session?.noWater ? { ...r, water: { ...r.water, enabled: false } } : r;
 };
 
-export function computeTable(table: TableDoc, stored: StoredEvent[], rules: Rules): Computed | null {
+/** 每一鋪用當時嘅家規計（大局中途改家規，只影響之後嘅鋪） */
+export type RulesAt = (at: number | null) => Rules;
+
+export function rulesTimeline(group: Group | null, session?: Session | null): RulesAt {
+  const now = rulesOf(group, session);
+  const log = session?.rulesLog ?? [];
+  if (!log.length) return () => now;
+  const sorted = [...log].sort((a, b) => a.at - b.at);
+  const built = sorted.map((x) => ({ at: x.at, rules: rulesOf(group, { ...session, rules: x.rules } as Session) }));
+  return (at) => {
+    if (at === null) return now;
+    let r = built[0].rules;
+    for (const x of built) if (x.at <= at) r = x.rules;
+    return r;
+  };
+}
+
+export function computeTable(table: TableDoc, stored: StoredEvent[], rulesOrAt: Rules | RulesAt): Computed | null {
+  const rulesFor: RulesAt = typeof rulesOrAt === 'function' ? rulesOrAt : () => rulesOrAt;
   let state: TableState;
   try {
     state = createTable(table.seats);
@@ -52,7 +70,7 @@ export function computeTable(table: TableDoc, stored: StoredEvent[], rules: Rule
   const skipped: { seq: number; message: string }[] = [];
   for (const { seq, event, at, edited } of activeEvents(stored)) {
     try {
-      const result = applyEvent(state, event, rules);
+      const result = applyEvent(state, event, rulesFor(at));
       steps.push({ seq, event, result, at, edited, delta: diff(state, result.state) });
       state = result.state;
     } catch (err) {
