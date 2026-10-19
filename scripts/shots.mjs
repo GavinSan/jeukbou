@@ -79,6 +79,14 @@ for (const scheme of ['light', 'dark']) {
         await page.getByRole('button', { name: /^Gavin，/ }).click();
         await page.getByRole('button', { name: 'Ivan 出銃' }).click();
         await page.getByRole('dialog', { name: '入數' }).getByRole('button', { name: '10', exact: true }).click();
+        if (k === 0) {
+          await page.waitForTimeout(500);
+          const one = page.getByRole('radio', { name: '當 1 番' });
+          console.log('dealer choice shown =', await one.count());
+          if (await one.count()) await one.click();
+          await page.waitForTimeout(150);
+          await page.screenshot({ path: `${out}/dock-dealer.png` });
+        }
         await page.getByRole('button', { name: /^入數/ }).click();
         if (k === 2) {
           await page.waitForTimeout(350);

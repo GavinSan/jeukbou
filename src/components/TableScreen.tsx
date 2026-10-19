@@ -20,6 +20,7 @@ import Settings from './Settings.tsx';
 import { Link } from '../lib/router.tsx';
 import { Chips, ConfirmDelete, Hint, NumInput, RollingNumber, Sheet, TopBar, fmt, message, useNow, clampName } from '../ui.tsx';
 import FanWheel from './FanWheel.tsx';
+import FanRoller from './FanRoller.tsx';
 import DiceRoll, { Die } from './Dice.tsx';
 import SeatDraw from './SeatDraw.tsx';
 import { CHASE_MAX_REPEAT, SPECIAL_ITEMS, SpecialArt, SpecialBurst, artOf, chaseAmount, suggestRepeat } from './Specials.tsx';
@@ -36,6 +37,8 @@ interface Entry {
   fans: Record<string, number>;
   step: 'who' | 'fan';
   current: string;
+  /** 呢鋪莊點計：undefined = 跟家規 */
+  dealer?: 'one' | 'none';
 }
 
 type More = null | 'menu' | 'falseWin' | 'special' | 'draw' | 'end' | 'swap' | 'reseat';
@@ -318,7 +321,8 @@ export default function TableScreen(props: TableScreenProps) {
 
   const draft: TableEvent | null = useMemo(() => {
     if (!entry || entry.loser === undefined) return null;
-    return { type: 'win', winners: entry.winners.map((w) => ({ player: w, fan: entry.fans[w] ?? 0 })), loser: entry.loser };
+    const ev: TableEvent = { type: 'win', winners: entry.winners.map((w) => ({ player: w, fan: entry.fans[w] ?? 0 })), loser: entry.loser };
+    return entry.dealer ? { ...ev, dealer: entry.dealer } : ev;
   }, [entry]);
 
   const preview = useMemo((): { lines: Line[]; error: string } => {
@@ -630,18 +634,12 @@ export default function TableScreen(props: TableScreenProps) {
               )}
               <div className="dock-fan">
                 <button type="button" className="stepper" aria-label="減一番" onClick={() => { setFan(entry.current, (entry.fans[entry.current] ?? 0) - 1); setPickedNote(''); }}>−</button>
-                <div className="dock-num">
-                  <NumInput
-                    key={entry.current}
-                    className="dock-input num"
-                    value={entry.fans[entry.current] ?? 0}
-                    min={0}
-                    max={500}
-                    onChange={(v) => { setFan(entry.current, v); setPickedNote(''); }}
-                    label={`${name(entry.current)} 番數`}
-                  />
-                  <span>番</span>
-                </div>
+                <FanRoller
+                  key={entry.current}
+                  value={entry.fans[entry.current] ?? 0}
+                  onChange={(v) => { setFan(entry.current, v); setPickedNote(''); }}
+                  label={`${name(entry.current)} 番數`}
+                />
                 <button type="button" className="stepper" aria-label="加一番" onClick={() => { setFan(entry.current, (entry.fans[entry.current] ?? 0) + 1); setPickedNote(''); }}>+</button>
               </div>
               <div className="dock-quick" role="group" aria-label="快捷番數">
@@ -655,6 +653,27 @@ export default function TableScreen(props: TableScreenProps) {
                   >{n}</button>
                 ))}
               </div>
+              {(() => {
+                // 呢鋪有莊家有份（莊食、莊出銃、或者自摸）先問莊點計
+                const dealerId = c.state.seats[c.state.dealerSeat];
+                const involved = entry.loser === null || entry.loser === dealerId || entry.winners.includes(dealerId);
+                if (!involved) return null;
+                const autoZ = rules.dealer.enabled ? 2 * c.state.streak + 1 : 0;
+                const opts: { key: 'auto' | 'one' | 'none'; label: string }[] = [{ key: 'auto', label: autoZ ? `跟家規 ${autoZ}` : '跟家規（不計）' }];
+                if (autoZ !== 1) opts.push({ key: 'one', label: '當 1 番' });
+                if (autoZ !== 0) opts.push({ key: 'none', label: '不計' });
+                const cur = entry.dealer ?? 'auto';
+                return (
+                  <div className="dock-dealer">
+                    <span className="small muted">莊（{name(dealerId)}）</span>
+                    <div className="seg" role="radiogroup" aria-label="呢鋪莊點計">
+                      {opts.map((o) => (
+                        <button key={o.key} type="button" role="radio" aria-checked={cur === o.key} aria-pressed={cur === o.key} onClick={() => { setEntry({ ...entry, dealer: o.key === 'auto' ? undefined : o.key }); sfx.tap(); }}>{o.label}</button>
+                      ))}
+                    </div>
+                  </div>
+                );
+              })()}
               <div className="dock-tools">
                 {props.fanTable && (
                   <button type="button" className="pill" onClick={() => setPicking(true)}>

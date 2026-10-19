@@ -303,3 +303,17 @@ test('單數劈：未找 21，Ivan 食返 Gavin → 只俾 10，自己留 11；G
   // 21 + 11（21 ÷ 2 向上）+ 新鋪 10
   assert.equal(chain(pull.state, 'Gavin', 'Ivan')?.owed, 42);
 });
+
+test('莊每鋪可以揀：當 1 番、不計', () => {
+  const r = withRules({ water: { enabled: false }, rounds: 0, la: { enabled: false } });
+  // Gavin 坐莊（第一位）；連莊兩次之後自動會係 5
+  const base = replay(SEATS, [eat('Gavin', 10, 'Ivan'), eat('Gavin', 10, 'Ivan'), eat('Gavin', 10, 'Ivan')], r);
+  assert.ok(base.steps[2].lines[0].note.includes('莊 5'));
+  const one = replay(SEATS, [eat('Gavin', 10, 'Ivan'), eat('Gavin', 10, 'Ivan'), { type: 'win', winners: [{ player: 'Gavin', fan: 10 }], loser: 'Ivan', dealer: 'one' }], r);
+  assert.ok(one.steps[2].lines[0].note.includes('莊 1'));
+  assert.equal(one.steps[2].lines[0].amount, base.steps[2].lines[0].amount - 4);
+  const none = replay(SEATS, [eat('Gavin', 10, 'Ivan'), { type: 'win', winners: [{ player: 'Gavin', fan: 10 }], loser: 'Ivan', dealer: 'none' }], r);
+  assert.ok(!none.steps[1].lines[0].note.includes('莊'));
+  // 不計莊都照樣連莊
+  assert.equal(none.state.streak, 2);
+});

@@ -42,7 +42,11 @@ export interface WinnerHand {
 
 export type TableEvent =
   /** 食出：1 個 winner + loser；雙響 / 三響：2–3 個 winner + loser；自摸：1 個 winner，loser = null */
-  | { type: 'win'; winners: WinnerHand[]; loser: PlayerId | null }
+  | {
+      type: 'win'; winners: WinnerHand[]; loser: PlayerId | null;
+      /** 呢鋪莊點計：唔填 = 跟家規（1 + 連莊 × 2）；one = 當 1 番（例如擺骰）；none = 唔計 */
+      dealer?: 'one' | 'none';
+    }
   /** 特別事項（花、槓、骰…）：即時找數，唔影響拉，唔抽水 */
   | {
       type: 'special'; player: PlayerId; label: string; amount: number; direction: 'collect' | 'pay';
@@ -170,7 +174,8 @@ export function applyEvent(prev: TableState, ev: TableEvent, rules: Rules = DEFA
       }
 
       const dealer = s.seats[s.dealerSeat];
-      const z = rules.dealer.enabled ? 2 * s.streak + 1 : 0;
+      const autoZ = rules.dealer.enabled ? 2 * s.streak + 1 : 0;
+      const z = ev.dealer === 'none' ? 0 : ev.dealer === 'one' ? 1 : autoZ;
       const multiLabel = W.length === 2 ? '雙響' : W.length === 3 ? '三響' : '';
       const bonus = W.length === 2 ? rules.multiWinBonus.double : W.length === 3 ? rules.multiWinBonus.triple : 0;
 

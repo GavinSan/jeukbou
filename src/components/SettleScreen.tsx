@@ -159,6 +159,21 @@ export default function SettleScreen(p: SettleScreenProps) {
   }
 
   const gameRows = r ? p.players.map((pl) => ({ ...pl, fan: p.fan[pl.id] ?? 0, cash: r.game[pl.id] ?? 0 })).sort((a, b) => b.fan - a.fan) : [];
+  // Group 合埋做一格：先合埋番數再取整；成員顯示各自份數（未取整）
+  type Block = { key: string; name: string; fan: number; cash: number; members?: typeof gameRows };
+  const gameBlocks: Block[] = [];
+  if (r) {
+    const done = new Set<string>();
+    for (const row of gameRows) {
+      if (done.has(row.id)) continue;
+      const grp = activePairs.find((g) => g.includes(row.id));
+      if (!grp) { gameBlocks.push({ key: row.id, name: row.name, fan: row.fan, cash: row.cash }); continue; }
+      const members = gameRows.filter((x) => grp.includes(x.id));
+      members.forEach((x) => done.add(x.id));
+      const key = grp.join(' + ');
+      gameBlocks.push({ key, name: accountName(key), fan: members.reduce((a, x) => a + x.fan, 0), cash: r.gameAccounts[key] ?? 0, members });
+    }
+  }
 
   return (
     <main className="page">
@@ -223,11 +238,26 @@ export default function SettleScreen(p: SettleScreenProps) {
           <h2>麻雀</h2>
           <div className="ledger settle-table">
             <div className="st-row st-head three"><span>玩家</span><span>番</span><span>金額</span></div>
-            {gameRows.map((row) => (
-              <div key={row.id} className={`st-row three${row.id === p.me ? ' me' : ''}`}>
-                <span className="ellipsis">{row.name}</span>
-                <span className={`num ${tone(row.fan)}`}>{fanTxt(row.fan)}</span>
-                <b className={`num ${tone(row.cash)}`}>{money(row.cash, true)}</b>
+            {gameBlocks.map((b) => b.members ? (
+              <div key={b.key} className="st-group">
+                <div className="st-row three st-group-head">
+                  <span className="ellipsis">{b.name}<span className="tag instant">Group</span></span>
+                  <span className={`num ${tone(b.fan)}`}>{fanTxt(b.fan)}</span>
+                  <b className={`num ${tone(b.cash)}`}>{money(b.cash, true)}</b>
+                </div>
+                {b.members.map((row) => (
+                  <div key={row.id} className={`st-row three st-member${row.id === p.me ? ' me' : ''}`}>
+                    <span className="ellipsis">{row.name}</span>
+                    <span className={`num ${tone(row.fan)}`}>{fanTxt(row.fan)}</span>
+                    <span className="num muted">{money(row.cash, true)}</span>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <div key={b.key} className={`st-row three${b.key === p.me ? ' me' : ''}`}>
+                <span className="ellipsis">{b.name}</span>
+                <span className={`num ${tone(b.fan)}`}>{fanTxt(b.fan)}</span>
+                <b className={`num ${tone(b.cash)}`}>{money(b.cash, true)}</b>
               </div>
             ))}
             <div className="st-row three st-water">
@@ -236,6 +266,7 @@ export default function SettleScreen(p: SettleScreenProps) {
               <b className="num">{money(r.water.total, true)}</b>
             </div>
           </div>
+          {activePairs.length > 0 && <Hint>Group 先合埋番數，再用一個戶口取整。成員下面嘅灰色金額係各自份數，只供參考。</Hint>}
           {cfg.rounding !== 'none' && Math.abs(r.water.rounding) > 0.004 && (
             <Hint>水 {money(r.water.raw)}，取整差額 {money(r.water.rounding, true)}，合共 {money(r.water.total)}。</Hint>
           )}

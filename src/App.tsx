@@ -24,6 +24,7 @@ const SettingsPage = lazyPage(() => import('./pages/SettingsPage.tsx'));
 import TabBar, { HOME_DEMO_TABS, appTabs } from './components/TabBar.tsx';
 import { navContext } from './lib/nav.ts';
 import { GroupWatchers, NoticeBar } from './components/Watch.tsx';
+import { UpdateWatcher } from './lib/update.tsx';
 const Demo = lazyPage(() => import('./demo.tsx'));
 
 function Routes({ user, refresh }: { user: User; refresh: () => void }) {
@@ -119,6 +120,7 @@ export default function App() {
       {!path.startsWith('/join/') && path !== '/admin' && <TabBar tabs={nav.tabs} active={nav.active} />}
       <GroupWatchers uid={user.uid} />
       <NoticeBar />
+      <UpdateWatcher />
     </>
   );
 }

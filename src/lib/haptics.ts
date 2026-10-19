@@ -2,7 +2,7 @@
 // 用「撳一下開關」嘅觸感代替，只係一下輕震，而且未必次次有。
 import { prefs } from './prefs.ts';
 
-const PATTERN = { win: [35, 45, 35], hit: [90, 50, 160], tap: [18] } as const;
+const PATTERN = { win: [35, 45, 35], hit: [90, 50, 160], tap: [18], tick: [6] } as const;
 export type Buzz = keyof typeof PATTERN;
 
 let iosLabel: HTMLLabelElement | null = null;

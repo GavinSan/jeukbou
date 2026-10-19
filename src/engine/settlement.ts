@@ -162,8 +162,10 @@ export interface Ledger {
 }
 
 export interface SettleResult {
-  /** 麻雀輸贏（貨幣，已取整） */
+  /** 麻雀輸贏（貨幣）；自己一個嘅已取整，Group 成員係未取整嘅份數 */
   game: Record<PlayerId, number>;
+  /** 每個戶口嘅麻雀輸贏（已取整，未加水）；Group 嘅 key 係「A + B」 */
+  gameAccounts: Record<string, number>;
   /** 水：原本幾多、取整差額、最後歸水戶口幾多 */
   water: { raw: number; rounding: number; total: number; to: PlayerId };
   /** 開支淨額：付了 +，要分 − */
@@ -184,7 +186,7 @@ function ledger(balances: Record<string, number>, pairs: PlayerId[][]): Ledger {
   return { accounts, transfers: minimalTransfers(accounts) };
 }
 
-/** 埋數：麻雀數（連水）同開支分開計，亦可以合埋 */
+/** 埋數：麻雀數（連水）同開支分開計，亦可以合埋。Group 先合埋番數再取整（當一個戶口計）。 */
 export function settleSession(input: SettleInput): SettleResult {
   const { players } = input;
   const fanAll: Record<string, number> = {};
@@ -192,50 +194,80 @@ export function settleSession(input: SettleInput): SettleResult {
   fanAll[WATER] = input.water;
   const money = toMoney(fanAll, input.perUnit);
 
-  // 每人取整；水戶口吸收差額，令總數保持 0
-  const gameCents: Record<string, number> = {};
-  for (const p of players) {
-    const c = toCents(money[p] ?? 0);
-    gameCents[p] = input.rounding === 'up' ? ceilAbs(c) : input.rounding === 'round' ? roundAbs(c) : c;
+  // 每個人屬於邊個戶口（Group 合埋做一個）
+  const owner: Record<string, string> = {};
+  const firstOf: Record<string, string> = {};
+  for (const grp of input.pairs) {
+    const key = grp.join(' + ');
+    for (const x of grp) owner[x] = key;
+    firstOf[key] = grp.find((x) => players.includes(x)) ?? grp[0];
   }
+  const acct = (p: string) => owner[p] ?? p;
+  const roundC = (c: number) => (input.rounding === 'up' ? ceilAbs(c) : input.rounding === 'round' ? roundAbs(c) : c);
+
+  /** 按戶口取整：Group 成員先保留原數，取整差額放喺 Group 第一個人度，合埋就啱 */
+  function roundByAccount(raw: Record<string, number>): Record<string, number> {
+    const sum: Record<string, number> = {};
+    for (const [p, c] of Object.entries(raw)) sum[acct(p)] = (sum[acct(p)] ?? 0) + c;
+    const out: Record<string, number> = {};
+    for (const [p, c] of Object.entries(raw)) out[p] = owner[p] ? c : roundC(c);
+    for (const key of Object.keys(firstOf)) {
+      if (sum[key] === undefined) continue;
+      const first = firstOf[key];
+      out[first] = (out[first] ?? 0) + roundC(sum[key]) - sum[key];
+    }
+    return out;
+  }
+
+  // 每個戶口取整；水戶口吸收差額，令總數保持 0
+  const rawGame: Record<string, number> = {};
+  for (const p of players) rawGame[p] = toCents(money[p] ?? 0);
+  const gameCents = roundByAccount(rawGame);
   const rawWater = toCents(money[WATER] ?? 0);
   const waterTotal = 0 - Object.values(gameCents).reduce((a, b) => a + b, 0) || 0;
 
   const game: Record<string, number> = {};
-  for (const p of players) game[p] = fromCents(gameCents[p]);
+  for (const p of players) game[p] = fromCents(owner[p] ? rawGame[p] : gameCents[p]);
 
-  const gameBal: Record<string, number> = { ...game };
+  const gameBal: Record<string, number> = {};
+  for (const p of players) gameBal[p] = fromCents(gameCents[p]);
   gameBal[input.waterTo] = fromCents(toCents(gameBal[input.waterTo] ?? 0) + waterTotal);
 
   const zero: Record<string, number> = {};
   for (const p of players) zero[p] = 0;
   const rawExpense = applyExpenses(zero, input.expenses);
-  // 開支都跟同一個取整；差額同樣計入保管水嗰個
+  // 開支都跟同一個取整（Group 一樣先合埋）；差額同樣計入保管水嗰個
   const expense: Record<string, number> = {};
-  if (input.rounding === 'none' || !input.expenses.length) Object.assign(expense, rawExpense);
-  else {
-    let resid = 0;
-    for (const [k, v] of Object.entries(rawExpense)) {
-      const c = toCents(v);
-      const r = input.rounding === 'up' ? ceilAbs(c) : roundAbs(c);
-      expense[k] = fromCents(r);
-      resid += r;
-    }
-    if (resid) expense[input.waterTo] = fromCents(toCents(expense[input.waterTo] ?? 0) - resid);
+  const expenseBal: Record<string, number> = {};
+  if (input.rounding === 'none' || !input.expenses.length) {
+    Object.assign(expense, rawExpense);
+    Object.assign(expenseBal, rawExpense);
+  } else {
+    const rawC: Record<string, number> = {};
+    for (const [k, v] of Object.entries(rawExpense)) rawC[k] = toCents(v);
+    const rounded = roundByAccount(rawC);
+    const resid = Object.values(rounded).reduce((a, b) => a + b, 0);
+    if (resid) rounded[input.waterTo] = (rounded[input.waterTo] ?? 0) - resid;
+    for (const [k, c] of Object.entries(rounded)) expenseBal[k] = fromCents(c);
+    for (const k of Object.keys(rounded)) expense[k] = owner[k] && k !== input.waterTo ? fromCents(rawC[k] ?? 0) : fromCents(rounded[k]);
   }
 
   const both: Record<string, number> = {};
   for (const [k, v] of Object.entries(gameBal)) both[k] = toCents(v);
-  for (const [k, v] of Object.entries(expense)) both[k] = (both[k] ?? 0) + toCents(v);
+  for (const [k, v] of Object.entries(expenseBal)) both[k] = (both[k] ?? 0) + toCents(v);
   const combined: Record<string, number> = {};
   for (const [k, v] of Object.entries(both)) combined[k] = fromCents(v);
 
+  const gameAccounts: Record<string, number> = {};
+  for (const p of players) gameAccounts[acct(p)] = fromCents(toCents(gameAccounts[acct(p)] ?? 0) + gameCents[p]);
+
   return {
     game,
+    gameAccounts,
     water: { raw: fromCents(rawWater), rounding: fromCents(waterTotal - rawWater), total: fromCents(waterTotal), to: input.waterTo },
     expense,
     gameLedger: ledger(gameBal, input.pairs),
-    expenseLedger: ledger(expense, input.pairs),
+    expenseLedger: ledger(expenseBal, input.pairs),
     combined: ledger(combined, input.pairs),
   };
 }

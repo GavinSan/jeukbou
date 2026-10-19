@@ -74,12 +74,12 @@ test('埋數：麻雀數向上取整，差額入水戶口；開支分開計', ()
     players: ['A', 'B', 'C', 'D'],
     pairs: [['C', 'D']],
   });
-  // 61/6 = 10.17 → 11；30/6 = 5；−43/6 = −7.17 → −8；−50/6 = −8.33 → −9
-  assert.deepEqual(r.game, { A: 11, B: 5, C: -8, D: -9 });
-  assert.equal(r.water.total, 1);
+  // 61/6 = 10.17 → 11；30/6 = 5；C + D 一齊計：−93/6 = −15.5 → −16（唔係逐個取整 −8 −9 = −17）
+  assert.deepEqual(r.game, { A: 11, B: 5, C: -7.17, D: -8.33 });
+  assert.equal(r.water.total, 0);
   assert.equal(r.water.to, 'H');
-  assert.equal(r.gameLedger.accounts.H, 1);
-  assert.equal(r.gameLedger.accounts['C + D'], -17);
+  assert.equal(r.gameLedger.accounts.H, 0);
+  assert.equal(r.gameLedger.accounts['C + D'], -16);
   assert.deepEqual(r.expense, { A: 60, B: -20, C: -20, D: -20 });
   assert.equal(r.expenseLedger.accounts['C + D'], -40);
   assert.equal(r.combined.accounts.A, 71);
@@ -149,4 +149,19 @@ test('預設 Group 同今晚臨時 Group 撞人：預設優先，唔會報錯', 
   assert.doesNotThrow(() => settleSession({
     fan: { A: 6, B: -6, C: 6, D: -6 }, water: 0, waterTo: 'A', perUnit: 6, rounding: 'none', expenses: [], players: ['A', 'B', 'C', 'D'], pairs: g,
   }));
+});
+
+test('Group 先合埋番數先取整，開支都係；總數保持 0', () => {
+  const r = settleSession({
+    fan: { A: 45, B: -8, C: 20, D: -57 }, water: 0, waterTo: 'C', perUnit: 6, rounding: 'up',
+    expenses: [{ label: '晚餐', payer: 'C', amount: 100, sharedBy: ['A', 'B', 'C', 'D'] }], players: ['A', 'B', 'C', 'D'], pairs: [['A', 'B']],
+  });
+  // A + B：37/6 = 6.17 → 7（逐個取整會係 8 − 2 = 6）
+  assert.equal(r.gameLedger.accounts['A + B'], 7);
+  // 開支：A + B 各 −25 → −50
+  assert.equal(r.expenseLedger.accounts['A + B'], -50);
+  const sum = (o: Record<string, number>) => Math.round(Object.values(o).reduce((a, b) => a + b, 0) * 100);
+  assert.equal(sum(r.gameLedger.accounts), 0);
+  assert.equal(sum(r.expenseLedger.accounts), 0);
+  assert.equal(sum(r.combined.accounts), 0);
 });
