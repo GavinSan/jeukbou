@@ -1,4 +1,5 @@
-import { Suspense, lazy, useEffect, useState } from 'react';
+import { Suspense, useEffect, useState } from 'react';
+import { ErrorBoundary, lazyPage } from './lib/lazy.tsx';
 import { onAuthStateChanged } from 'firebase/auth';
 import type { User } from 'firebase/auth';
 import { auth, configError } from './firebase.ts';
@@ -6,24 +7,24 @@ import { match, usePath } from './lib/router.tsx';
 import { Loading, NameForm, TopBar, saveProfile } from './ui.tsx';
 import Login from './pages/Login.tsx';
 import Home from './pages/Home.tsx';
-const Join = lazy(() => import('./pages/Join.tsx'));
+const Join = lazyPage(() => import('./pages/Join.tsx'));
 import GroupPage from './pages/GroupPage.tsx';
-const NewSession = lazy(() => import('./pages/NewSession.tsx'));
+const NewSession = lazyPage(() => import('./pages/NewSession.tsx'));
 import SessionPage from './pages/SessionPage.tsx';
 import TablePage from './pages/TablePage.tsx';
-const RulesPage = lazy(() => import('./pages/RulesPage.tsx'));
-const SettlePage = lazy(() => import('./pages/SettlePage.tsx'));
-const BoardPage = lazy(() => import('./pages/BoardPage.tsx'));
-const AdminPage = lazy(() => import('./pages/AdminPage.tsx'));
-const ImportPage = lazy(() => import('./pages/ImportPage.tsx'));
-const PlayersPage = lazy(() => import('./pages/PlayersPage.tsx'));
-const GroupsPage = lazy(() => import('./pages/Groups.tsx'));
-const RankPage = lazy(() => import('./pages/RankPage.tsx'));
-const SettingsPage = lazy(() => import('./pages/SettingsPage.tsx'));
+const RulesPage = lazyPage(() => import('./pages/RulesPage.tsx'));
+const SettlePage = lazyPage(() => import('./pages/SettlePage.tsx'));
+const BoardPage = lazyPage(() => import('./pages/BoardPage.tsx'));
+const AdminPage = lazyPage(() => import('./pages/AdminPage.tsx'));
+const ImportPage = lazyPage(() => import('./pages/ImportPage.tsx'));
+const PlayersPage = lazyPage(() => import('./pages/PlayersPage.tsx'));
+const GroupsPage = lazyPage(() => import('./pages/Groups.tsx'));
+const RankPage = lazyPage(() => import('./pages/RankPage.tsx'));
+const SettingsPage = lazyPage(() => import('./pages/SettingsPage.tsx'));
 import TabBar, { HOME_DEMO_TABS, appTabs } from './components/TabBar.tsx';
 import { navContext } from './lib/nav.ts';
 import { GroupWatchers, NoticeBar } from './components/Watch.tsx';
-const Demo = lazy(() => import('./demo.tsx'));
+const Demo = lazyPage(() => import('./demo.tsx'));
 
 function Routes({ user, refresh }: { user: User; refresh: () => void }) {
   const path = usePath();
@@ -113,7 +114,7 @@ export default function App() {
   const nav = appTabs(navContext(path), path);
   return (
     <>
-      <Suspense fallback={<main className="page narrow"><Loading /></main>}><Routes user={user} refresh={refresh} /></Suspense>
+      <ErrorBoundary key={path}><Suspense fallback={<main className="page narrow"><Loading /></main>}><Routes user={user} refresh={refresh} /></Suspense></ErrorBoundary>
       {/* 加入頁唔使底部 tab */}
       {!path.startsWith('/join/') && path !== '/admin' && <TabBar tabs={nav.tabs} active={nav.active} />}
       <GroupWatchers uid={user.uid} />
