@@ -1,3 +1,4 @@
+dealer choice shown = 0
 hold: ask banners during win anim = 0
 dice-class felt-dice at-tl
 light: overflow 0px, errors []
