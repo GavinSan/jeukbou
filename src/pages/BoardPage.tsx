@@ -1,4 +1,5 @@
 import type { User } from 'firebase/auth';
+import { legacyMap } from '../lib/data.ts';
 import BoardView from '../components/BoardView.tsx';
 import { useHistory } from '../lib/history.ts';
 import { useGroup, useMembers, useSessions } from '../lib/live.ts';
@@ -9,7 +10,7 @@ export default function BoardPage({ user, groupId }: { user: User; groupId: stri
   const members = useMembers(groupId);
   const sessions = useSessions(groupId);
   const memberNames = Object.fromEntries(members.data.map((m) => [m.uid, m.name]));
-  const h = useHistory(group.data, sessions.loading ? [] : sessions.data, memberNames);
+  const h = useHistory(group.data, sessions.loading ? [] : sessions.data, memberNames, legacyMap(group.data, members.data));
   const back = `/g/${groupId}`;
   if (group.error) return <main className="page"><TopBar back={back} /><p className="error">{group.error}</p></main>;
   return (

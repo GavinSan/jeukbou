@@ -51,12 +51,15 @@ const toGroup = (id: string, d: DocumentData): Group => ({
   id, name: String(d.name ?? ''), ownerId: String(d.ownerId ?? ''), inviteCode: String(d.inviteCode ?? ''), rules: d.rules ?? {},
   settle: d.settle ?? undefined,
   fanTable: d.fanTable ?? undefined,
+  legacyNames: d.legacyNames ?? undefined,
+  aliases: d.aliases ?? undefined,
 });
-const toMember = (id: string, d: DocumentData): Member => ({ uid: id, name: String(d.name ?? '玩家'), photoURL: d.photoURL ?? null });
+const toMember = (id: string, d: DocumentData): Member => ({ uid: id, name: String(d.name ?? '玩家'), photoURL: d.photoURL ?? null, legacyKey: d.legacyKey ? String(d.legacyKey) : undefined });
 const toSession = (id: string, d: DocumentData): Session => ({
   id, name: String(d.name ?? ''), createdBy: String(d.createdBy ?? ''), createdAt: d.createdAt ?? null, rules: d.rules ?? undefined,
   waterTo: d.waterTo ? String(d.waterTo) : undefined, noWater: !!d.noWater,
   closed: d.closed ?? null,
+  legacy: d.legacy ?? null,
   closeReq: d.closeReq ? { by: String(d.closeReq.by ?? ''), approvals: Array.isArray(d.closeReq.approvals) ? d.closeReq.approvals.map(String) : [] } : null,
 });
 const toExpense = (id: string, d: DocumentData): ExpenseDoc => ({

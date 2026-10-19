@@ -15,6 +15,8 @@ const RulesPage = lazy(() => import('./pages/RulesPage.tsx'));
 const SettlePage = lazy(() => import('./pages/SettlePage.tsx'));
 const BoardPage = lazy(() => import('./pages/BoardPage.tsx'));
 const AdminPage = lazy(() => import('./pages/AdminPage.tsx'));
+const ImportPage = lazy(() => import('./pages/ImportPage.tsx'));
+const PlayersPage = lazy(() => import('./pages/PlayersPage.tsx'));
 import TabBar, { appTabs } from './components/TabBar.tsx';
 import { navContext } from './lib/nav.ts';
 const Demo = lazy(() => import('./demo.tsx'));
@@ -31,6 +33,8 @@ function Routes({ user, refresh }: { user: User; refresh: () => void }) {
   if ((m = match('/g/:g/s/:s/settle', path))) return <SettlePage user={user} groupId={m.g} sessionId={m.s} />;
   if ((m = match('/g/:g/s/:s/rules', path))) return <RulesPage user={user} groupId={m.g} sessionId={m.s} />;
   if ((m = match('/g/:g/s/:s', path))) return <SessionPage user={user} groupId={m.g} sessionId={m.s} />;
+  if ((m = match('/g/:g/import', path))) return <ImportPage user={user} groupId={m.g} />;
+  if ((m = match('/g/:g/players', path))) return <PlayersPage user={user} groupId={m.g} />;
   if ((m = match('/g/:g/board', path))) return <BoardPage user={user} groupId={m.g} />;
   if ((m = match('/g/:g/rules', path))) return <RulesPage user={user} groupId={m.g} />;
   if ((m = match('/g/:g', path))) return <GroupPage user={user} groupId={m.g} />;

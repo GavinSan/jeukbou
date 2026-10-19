@@ -11,6 +11,7 @@ import { useGroup, useManyEvents, useMembers, useRequests, useSession, useTables
 import { computeTable, rulesOf } from '../lib/score.ts';
 import type { Computed } from '../lib/score.ts';
 import { Loading, TopBar } from '../ui.tsx';
+import LegacySession from '../components/LegacySession.tsx';
 
 export default function SessionPage({ user, groupId, sessionId }: { user: User; groupId: string; sessionId: string }) {
   const group = useGroup(groupId);
@@ -35,6 +36,7 @@ export default function SessionPage({ user, groupId, sessionId }: { user: User; 
   const back = `/g/${groupId}`;
   if (session.error || group.error) return <main className="page"><TopBar back={back} /><p className="error">{session.error ?? group.error}</p></main>;
   if (!session.data || !group.data) return <main className="page"><TopBar back={back} /><Loading /></main>;
+  if (session.data.legacy) return <LegacySession group={group.data} session={session.data} members={members.data} back={back} me={user.uid} />;
 
   const seated = new Set<string>();
   for (const x of Object.values(computed)) if (x && !x.state.ended) x.state.seats.forEach((s) => seated.add(s));

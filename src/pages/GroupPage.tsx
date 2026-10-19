@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import type { User } from 'firebase/auth';
-import { deleteGroup, deleteSession, removeMember } from '../lib/data.ts';
+import { deleteGroup, deleteSession, removeMember, legacyMap } from '../lib/data.ts';
 import { useSuperAdmin } from '../lib/admin.ts';
 import { go } from '../lib/router.tsx';
 import { useGroup, useMembers, useSessions } from '../lib/live.ts';
@@ -15,9 +15,10 @@ export default function GroupPage({ user, groupId }: { user: User; groupId: stri
   const members = useMembers(groupId);
   const sessions = useSessions(groupId);
   const memberNames = Object.fromEntries(members.data.map((m) => [m.uid, m.name]));
-  const board = useBoard(group.data, sessions.loading ? [] : sessions.data, memberNames);
+  const board = useBoard(group.data, sessions.loading ? [] : sessions.data, memberNames, legacyMap(group.data, members.data));
   const admin = useSuperAdmin(user.uid);
   const [manage, setManage] = useState(false);
+  const [showAllSessions, setShowAllSessions] = useState(false);
   const [confirm, setConfirm] = useState<null | { title: string; detail: string; word: string; run: () => Promise<void> }>(null);
 
   if (group.error) return <main className="page"><TopBar back="/" /><p className="error">{group.error}</p></main>;
@@ -26,6 +27,10 @@ export default function GroupPage({ user, groupId }: { user: User; groupId: stri
   const g = group.data;
   const invite = `${window.location.origin}/join/${groupId}/${g.inviteCode}`;
   const list = [...sessions.data].reverse();
+  const shown = showAllSessions ? list : list.slice(0, 8);
+  const hasLegacy = !!g.legacyNames && Object.keys(g.legacyNames).length > 0;
+  const lmap = legacyMap(g, members.data);
+  const claimed = Object.values(lmap).includes(user.uid);
   const canManage = g.ownerId === user.uid || admin;
 
   return (
@@ -39,6 +44,12 @@ export default function GroupPage({ user, groupId }: { user: User; groupId: stri
         </Link>
       </section>
 
+      {hasLegacy && !claimed && (
+        <Link to={`/g/${groupId}/players`} className="banner calm">
+          <span className="grow">已匯入舊紀錄：按此選擇你的名字，以前的數會計入你的帳戶。</span>
+        </Link>
+      )}
+
       <section className="stack">
         <div className="section-head">
           <h2>大局</h2>
@@ -46,10 +57,10 @@ export default function GroupPage({ user, groupId }: { user: User; groupId: stri
         </div>
         {list.length ? (
           <div className="list">
-            {list.map((s) => (
+            {shown.map((s) => (
               <div key={s.id} className="listrow-wrap">
                 <Link to={`/g/${groupId}/s/${s.id}`} className="listrow">
-                  <span className="grow">{s.name}</span>
+                  <span className="grow">{s.name}{s.legacy && <span className="tag instant">舊</span>}</span>
                   <span className="muted small">{s.createdAt ? s.createdAt.toDate().toLocaleDateString('zh-HK') : ''}</span>
                   {!manage && <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" aria-hidden="true"><path d="M9 6l6 6-6 6" /></svg>}
                 </Link>
@@ -67,6 +78,7 @@ export default function GroupPage({ user, groupId }: { user: User; groupId: stri
         ) : (
           !sessions.loading && <p className="muted">未有大局。</p>
         )}
+        {list.length > 8 && <button type="button" className="textbtn" onClick={() => setShowAllSessions((v) => !v)}>{showAllSessions ? '收起' : `顯示全部 ${list.length} 個大局`}</button>}
       </section>
 
       {board.rows.length > 0 && (
@@ -110,6 +122,8 @@ export default function GroupPage({ user, groupId }: { user: User; groupId: stri
         <Hint>把連結傳給牌友，登入後會自動加入。</Hint>
         <CopyLink url={invite} />
         {canManage && !manage && <button type="button" className="textbtn" onClick={() => setManage(true)}>管理成員</button>}
+        {hasLegacy && <Link to={`/g/${groupId}/players`} className="textbtn">對應舊紀錄玩家</Link>}
+        {canManage && <Link to={`/g/${groupId}/import`} className="textbtn">匯入舊紀錄</Link>}
       </section>
 
       {canManage && (

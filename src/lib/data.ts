@@ -13,6 +13,7 @@ import {
   updateDoc,
   writeBatch,
 } from 'firebase/firestore';
+import { Timestamp as TimestampCtor } from 'firebase/firestore';
 import type { Firestore, Timestamp } from 'firebase/firestore';
 import type { User } from 'firebase/auth';
 import { db } from '../firebase.ts';
@@ -34,12 +35,18 @@ export interface Group {
   settle?: Partial<SettleConfig>;
   /** 牌友圈自己嘅番數表；冇就用預設 */
   fanTable?: FanTable;
+  /** 匯入舊紀錄嘅玩家名（key → 顯示名） */
+  legacyNames?: Record<string, string>;
+  /** 局主配對：舊紀錄 key → 成員 uid */
+  aliases?: Record<string, string>;
 }
 
 export interface Member {
   uid: string;
   name: string;
   photoURL: string | null;
+  /** 自己認領咗舊紀錄入面邊個名 */
+  legacyKey?: string;
 }
 
 export interface Session {
@@ -57,6 +64,8 @@ export interface Session {
   closed?: { by: string; at: number } | null;
   /** 申請埋數（非場主）：要晒有帳戶嘅玩家同意 */
   closeReq?: { by: string; approvals: string[] } | null;
+  /** 由 Google Sheet 匯入嘅舊紀錄：每人番數（key 係舊紀錄玩家），冇枱 */
+  legacy?: { totals: Record<string, number>; water: number; paid: boolean } | null;
 }
 
 /** 埋數設定（牌友圈層面，局主改） */
@@ -497,4 +506,73 @@ export async function closeSession(g: string, s: string, uid: string, openTables
     }
   }
   await updateDoc(sessionDoc(g, s), { closed: { by: uid, at: Date.now() }, closeReq: null });
+}
+
+// ---------- 匯入舊紀錄 ----------
+export const LEGACY = 'old:';
+export const isLegacyId = (id: string) => id.startsWith(LEGACY);
+
+export interface LegacyFile {
+  format: 'jeukbou-legacy-v1';
+  source: string;
+  players: { key: string; name: string; payTo?: string }[];
+  sessions: { date: string; paid: boolean; totals: Record<string, number>; water: number }[];
+}
+
+export function parseLegacy(text: string): LegacyFile {
+  const d = JSON.parse(text) as LegacyFile;
+  if (d.format !== 'jeukbou-legacy-v1' || !Array.isArray(d.sessions) || !Array.isArray(d.players)) throw new Error('檔案格式不正確');
+  return d;
+}
+
+/** 舊紀錄 key → 成員 uid（局主配對優先，其次成員自己認領） */
+export function legacyMap(g: Group | null | undefined, members: Member[]): Record<string, string> {
+  const out: Record<string, string> = {};
+  for (const m of members) if (m.legacyKey) out[m.legacyKey] = m.uid;
+  Object.assign(out, g?.aliases ?? {});
+  return out;
+}
+
+/** 匯入：可以先刪晒現有大局；每一場變一個冇枱嘅大局 */
+export async function importLegacy(
+  g: string, uid: string, file: LegacyFile, wipe: boolean, onProgress: (msg: string) => void,
+): Promise<void> {
+  if (wipe) {
+    const existing = await getDocs(collection(fs(), 'groups', g, 'sessions'));
+    let i = 0;
+    for (const d of existing.docs) {
+      i += 1;
+      onProgress(`刪除舊大局 ${i}/${existing.size}`);
+      await deleteSession(g, d.id);
+    }
+  }
+  const names: Record<string, string> = {};
+  for (const p of file.players) names[p.key] = p.name;
+  await updateDoc(doc(fs(), 'groups', g), { legacyNames: names });
+  for (let i = 0; i < file.sessions.length; i += 200) {
+    const batch = writeBatch(fs());
+    for (const s of file.sessions.slice(i, i + 200)) {
+      const [y, m, day] = s.date.split('-').map(Number);
+      const at = new Date(y, m - 1, day, 20, 0, 0);
+      const ref = doc(collection(fs(), 'groups', g, 'sessions'));
+      batch.set(ref, {
+        name: `${m}月${day}日 舊紀錄`,
+        createdBy: uid,
+        createdAt: TimestampCtor.fromDate(at),
+        legacy: { totals: s.totals, water: s.water, paid: !!s.paid },
+      });
+    }
+    onProgress(`匯入 ${Math.min(i + 200, file.sessions.length)}/${file.sessions.length} 場`);
+    await batch.commit();
+  }
+}
+
+/** 局主配對（uid 空白 = 取消） */
+export async function setLegacyAlias(g: string, key: string, uid: string): Promise<void> {
+  await updateDoc(doc(fs(), 'groups', g), { [`aliases.${key}`]: uid || deleteField() });
+}
+
+/** 成員認領自己（key 空白 = 取消） */
+export async function claimLegacy(g: string, uid: string, key: string): Promise<void> {
+  await updateDoc(doc(fs(), 'groups', g, 'members', uid), { legacyKey: key || deleteField() });
 }

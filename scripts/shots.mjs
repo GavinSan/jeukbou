@@ -184,6 +184,11 @@ for (const scheme of ['light', 'dark']) {
       await page.waitForTimeout(400);
       await page.screenshot({ path: `${out}/player.png` });
     });
+    await step('legacy', async () => {
+      await page.goto(`${base}/demo/legacy`, { waitUntil: 'networkidle' });
+      await page.waitForTimeout(400);
+      await page.screenshot({ path: `${out}/legacy.png` });
+    });
     await step('gag', async () => {
       await page.goto(`${base}/demo/t/2`, { waitUntil: 'networkidle' });
       await page.waitForTimeout(1200);

@@ -12,6 +12,7 @@ import TableScreen from './components/TableScreen.tsx';
 import RulesEditor from './components/RulesEditor.tsx';
 import { TopBar } from './ui.tsx';
 import BoardView from './components/BoardView.tsx';
+import LegacySession from './components/LegacySession.tsx';
 import type { SessionResult } from './lib/history.ts';
 import SettleScreen, { SettleConfigForm } from './components/SettleScreen.tsx';
 import HouseRules from './components/HouseRules.tsx';
@@ -113,6 +114,13 @@ export default function Demo() {
         />
       </main>
     );
+  }
+
+  if (path === '/demo/legacy') {
+    const g = { id: 'demo', name: '不打不相識', ownerId: 'gavin', inviteCode: '', legacyNames: { 'janice': 'JANICE', 'sang-h': 'SANG H.', 'athena-c': 'ATHENA C.', 'tsui-shing': 'TSUI SHING', 'af': 'AF', 'viola': 'VIOLA', 'gavin-s': 'GAVIN S.', 'claudia-c': 'CLAUDIA C.', 'alpine-m': 'ALPINE M.' } };
+    const sess = { id: 'l1', name: '1月2日 舊紀錄', createdBy: 'gavin', legacy: { totals: { 'janice': 39, 'sang-h': 267, 'athena-c': -334, 'tsui-shing': 198, 'af': 459, 'viola': 7, 'gavin-s': -111, 'claudia-c': -415, 'alpine-m': -242 }, water: 132, paid: true } };
+    const mem = [{ uid: 'gavin', name: 'Gavin', photoURL: null, legacyKey: 'gavin-s' }, { uid: 'athena', name: 'Athena', photoURL: null, legacyKey: 'athena-c' }];
+    return <LegacySession group={g} session={sess} members={mem} back="/demo" me="gavin" />;
   }
 
   if (path === '/demo/board') {
