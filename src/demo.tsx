@@ -22,11 +22,17 @@ import type { ExpenseDoc, PairDoc, SettleConfig } from './lib/data.ts';
 import { sessionSummary } from './lib/totals.ts';
 import { DEFAULT_FAN_TABLE } from './lib/fanTable.ts';
 import type { JoinMode, JoinRequest } from './lib/data.ts';
-import { AddSheet, GroupRowView, ProfileHead, SearchAdd } from './pages/Home.tsx';
-import { Invite, JoinRequestsView } from './pages/GroupPage.tsx';
+import { AddSheet, GroupRowView, SearchAdd } from './pages/Groups.tsx';
+import { DashboardView, ResumeRow } from './pages/Home.tsx';
+import { RankView } from './pages/RankPage.tsx';
+import { Invite, JoinRequestsView, MemberList } from './pages/GroupPage.tsx';
+import type { MemberStat } from './pages/GroupPage.tsx';
+import { PlayerSheet } from './components/BoardView.tsx';
+import { mySessions, pointsFor } from './lib/stats.ts';
+import type { GroupResults } from './lib/stats.ts';
+import TeamsEditor from './components/Teams.tsx';
 import { NoticeBar } from './components/Watch.tsx';
 import { pushNotice } from './lib/notify.ts';
-import { toAvatar } from './lib/avatar.ts';
 
 const TABLES: TableDoc[] = [
   { id: 't0', name: '第 1 枱', order: 0, seats: ['gavin', 'athena', 'ivan', 'viola'], names: { gavin: 'Gavin', athena: 'Athena', ivan: 'Ivan', viola: 'Viola' } },
@@ -55,7 +61,7 @@ function seed(): Record<string, StoredEvent[]> {
 
 // 示範：過去 7 日，每日一至兩場，每場 8 個人
 const DEMO_NAMES: Record<string, string> = {
-  gavin: 'Gavin', athena: 'Athena', ivan: 'Ivan', viola: 'Viola', janice: 'Janice', sang: 'Sang', clau: 'Clau', af: 'AF', robin: 'Robin', tat: 'Tat',
+  gavin: 'Gavin', athena: 'Athena', ivan: 'Ivan', viola: 'Viola', janice: 'Janice', sang: 'Sang', clau: 'Clau', af: 'AF', robin: 'Robin', tat: 'Tat', kit: 'Kit',
 };
 const DEMO_HISTORY: SessionResult[] = (() => {
   let seed = 20261018;
@@ -80,6 +86,37 @@ const DEMO_HISTORY: SessionResult[] = (() => {
   return out;
 })();
 
+const DEMO_TEAMS = [
+  { id: 'd1', members: ['gavin', 'athena'], accepted: ['gavin', 'athena'], by: 'gavin' },
+  { id: 'd2', members: ['robin', 'kit'], accepted: ['robin', 'kit'], by: 'robin' },
+];
+
+// 首頁示範：四個月、兩個牌友圈
+const DEMO_GROUPS: GroupResults[] = (() => {
+  let seed = 7;
+  const rnd = () => { seed = (seed * 1103515245 + 12345) % 2147483648; return seed / 2147483648; };
+  const ids = Object.keys(DEMO_NAMES);
+  const make = (gid: string, name: string, count: number, gap: number): GroupResults => {
+    const sessions: SessionResult[] = [];
+    const start = Date.now() - count * gap * 86400000;
+    for (let i = 0; i < count; i++) {
+      const at = start + i * gap * 86400000 + 20 * 3600000;
+      const players = ['gavin', ...ids.filter((x) => x !== 'gavin').sort(() => rnd() - 0.5).slice(0, 7)];
+      const totals: Record<string, number> = {};
+      let sum = 0;
+      players.slice(1).forEach((p) => { const v = Math.round((rnd() - 0.5) * (rnd() > 0.85 ? 500 : 180)); totals[p] = v; sum += v; });
+      totals.gavin = Math.round((rnd() - 0.4) * 260);
+      sum += totals.gavin;
+      const last = players[players.length - 1];
+      totals[last] -= sum;
+      const d = new Date(at);
+      sessions.push({ id: `${gid}${i}`, name: `${d.getMonth() + 1}月${d.getDate()}日 屋企局`, at, totals });
+    }
+    return { gid, name, sessions, names: DEMO_NAMES };
+  };
+  return [make('a', '不打不相識', 34, 3), make('b', '星期五雀局', 9, 9)];
+})();
+
 export default function Demo() {
   const path = usePath();
   const [noWater, setNoWater] = useState(false);
@@ -101,7 +138,8 @@ export default function Demo() {
   // 首頁示範
   const [q, setQ] = useState('');
   const [adding, setAdding] = useState(false);
-  const [photo, setPhoto] = useState<string | null>(null);
+  const [manageDemo, setManageDemo] = useState(false);
+  const [pickDemo, setPickDemo] = useState<string | null>(null);
   const [joinMode, setJoinModeDemo] = useState<JoinMode>('approve');
   const [reqs, setReqs] = useState<JoinRequest[]>([
     { uid: 'kit', name: 'Kit', photoURL: null, inviteCode: 'x', at: null },
@@ -129,39 +167,84 @@ export default function Demo() {
         <HouseRules
           fans={<FanTableView table={DEFAULT_FAN_TABLE} canEdit onSave={async () => undefined} />}
           scoring={<RulesEditor initial={{}} canEdit scopeNote="示範：修改不會儲存。" onSave={async () => undefined} />}
-          settle={<SettleConfigForm cfg={settleCfg} canEdit accounts={[{ id: 'gavin', name: 'Gavin' }, { id: 'athena', name: 'Athena' }, { id: 'ivan', name: 'Ivan' }]} busy={false} error="" onSave={(c) => setSettleCfg(c)} />}
+          settle={<>
+            <SettleConfigForm cfg={settleCfg} canEdit accounts={[{ id: 'gavin', name: 'Gavin' }, { id: 'athena', name: 'Athena' }, { id: 'ivan', name: 'Ivan' }]} busy={false} error="" onSave={(c) => setSettleCfg(c)} />
+            <TeamsEditor teams={DEMO_TEAMS} people={Object.entries(DEMO_NAMES).map(([id, name]) => ({ id, name }))} me="gavin" canDeleteAny onCreate={async () => undefined} onAccept={async () => undefined} onDelete={async () => undefined} />
+          </>}
         />
       </main>
     );
   }
 
   if (path === '/demo/home') {
+    return (
+      <>
+        <DashboardView
+          name="Gavin"
+          photo={null}
+          joined="2026年9月加入"
+          groupCount={2}
+          mine={mySessions(DEMO_GROUPS, 'gavin')}
+          loading={false}
+          resume={<ResumeRow href="/demo" name="10月18日 屋企局" />}
+          sessionHref={() => '/demo'}
+        />
+        <NoticeBar />
+      </>
+    );
+  }
+
+  if (path === '/demo/rank') {
+    return <RankView me="gavin" mine={mySessions(DEMO_GROUPS, 'gavin')} groups={DEMO_GROUPS} loading={false} />;
+  }
+
+  if (path === '/demo/groups') {
     const groups = [{ id: 'a', name: '不打不相識', fresh: true, asks: 2 }, { id: 'b', name: '星期五雀局', fresh: false, asks: 0 }, { id: 'c', name: '公司麻雀會', fresh: false, asks: 0 }];
     const shown = groups.filter((g) => !q.trim() || g.name.includes(q.trim()));
-    const g = { id: 'demo', name: '不打不相識', ownerId: 'gavin', inviteCode: 'abc', joinCode: 'K7PQ2M', joinMode };
     return (
-      <main className="page home">
-        <TopBar />
-        <section className="panel">
-          <ProfileHead name="Gavin" email="gavin@example.com" photo={photo} busy={false} onPick={async (f) => { if (f) setPhoto(await toAvatar(f)); }} right={<button type="button" className="btn plain">改名</button>} />
-        </section>
-        <a className="listrow list resume" href="/demo"><span className="resume-dot" aria-hidden="true" /><span className="grow">繼續：10月18日 屋企局</span></a>
+      <main className="page">
+        <TopBar title="牌友圈" />
         <section className="stack">
           <SearchAdd q={q} onQ={setQ} onAdd={() => setAdding(true)} />
           <div className="list">
             <div className="listrow pending-row"><span className="grow">麻雀研究社<small className="muted">　等待局主批准</small></span><button type="button" className="textbtn">取消申請</button></div>
           </div>
           <div className="list">
-            {shown.map((x) => <GroupRowView key={x.id} href="/demo" name={x.name} fresh={x.fresh} badge={x.asks ? <span className="tag ask">{x.asks} 人申請</span> : null} />)}
+            {shown.map((x) => <GroupRowView key={x.id} href="/demo/group" name={x.name} fresh={x.fresh} badge={x.asks ? <span className="tag ask">{x.asks} 人申請</span> : null} />)}
           </div>
         </section>
+        {adding && <AddSheet user={null} photo={null} groups={[]} onClose={() => setAdding(false)} />}
+      </main>
+    );
+  }
+
+  if (path === '/demo/group') {
+    const g = { id: 'demo', name: '不打不相識', ownerId: 'gavin', inviteCode: 'abc', joinCode: 'K7PQ2M', joinMode };
+    const hist = DEMO_GROUPS[0];
+    const members = ['gavin', 'athena', 'ivan', 'viola', 'janice', 'robin', 'kit'].map((uid) => ({ uid, name: DEMO_NAMES[uid] ?? uid, photoURL: null }));
+    const stats: Record<string, MemberStat> = {};
+    for (const m of members) {
+      const ss = hist.sessions.filter((x) => m.uid in x.totals);
+      if (ss.length) stats[m.uid] = { played: ss.length, total: ss.reduce((a, x) => a + x.totals[m.uid], 0), points: pointsFor(m.uid, hist.sessions) };
+    }
+    return (
+      <main className="page">
+        <TopBar back="/demo/groups" title={g.name} />
         <JoinRequestsView reqs={reqs} onApprove={async (r) => setReqs((l) => l.filter((x) => x.uid !== r.uid))} onReject={async (r) => setReqs((l) => l.filter((x) => x.uid !== r.uid))} />
+        <section className="stack">
+          <div className="section-head">
+            <h2>成員（{members.length}）</h2>
+            <button type="button" className="textbtn" onClick={() => setManageDemo((v) => !v)}>{manageDemo ? '完成' : '管理'}</button>
+          </div>
+          <MemberList members={members} ownerId="gavin" stats={stats} manage={manageDemo} onPick={setPickDemo} onRemove={() => undefined} />
+        </section>
         <section className="panel">
-          <h2>成員（8）</h2>
+          <h2>邀請牌友</h2>
           <Invite g={g} canManage onMode={setJoinModeDemo} />
         </section>
-        {adding && <AddSheet user={null} photo={null} groups={[]} onClose={() => setAdding(false)} />}
-        <NoticeBar />
+        {pickDemo && (
+          <PlayerSheet id={pickDemo} name={DEMO_NAMES[pickDemo] ?? '玩家'} sessions={hist.sessions.filter((x) => pickDemo in x.totals)} all={hist.sessions.filter((x) => pickDemo in x.totals)} scope={g.name} onClose={() => setPickDemo(null)} />
+        )}
       </main>
     );
   }
@@ -210,6 +293,8 @@ export default function Demo() {
         accounts={sum.players}
         expenses={expenses}
         pairs={pairs}
+        teams={DEMO_TEAMS}
+        teamsHref="/demo/rules#settle"
         me="gavin"
         onSaveConfig={async (c) => setSettleCfg(c)}
         settingsHref="/demo/rules#settle"

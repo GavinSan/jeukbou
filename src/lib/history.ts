@@ -7,7 +7,25 @@ import { toEvent, toTable } from './live.ts';
 import { computeTable, rulesOf } from './score.ts';
 import type { BoardRow } from '../components/Charts.tsx';
 
-async function sessionTotals(g: Group, s: Session, legacy: Record<string, string>): Promise<{ totals: Record<string, number>; names: Record<string, string> }> {
+// 已埋數嘅大局唔會再變：計過一次就記住（呢部機），下次即刻有
+const CACHE_KEY = 'jeukbou-totals-v1';
+let memo: Record<string, { totals: Record<string, number>; names: Record<string, string> }> | null = null;
+function cacheGet(k: string) {
+  if (!memo) { try { memo = JSON.parse(localStorage.getItem(CACHE_KEY) ?? '{}'); } catch { memo = {}; } }
+  return memo?.[k];
+}
+function cachePut(k: string, v: { totals: Record<string, number>; names: Record<string, string> }) {
+  if (!memo) memo = {};
+  memo[k] = v;
+  try { localStorage.setItem(CACHE_KEY, JSON.stringify(memo)); } catch { /* 存唔到就算 */ }
+}
+function hash(text: string): string {
+  let h = 5381;
+  for (let i = 0; i < text.length; i++) h = ((h * 33) ^ text.charCodeAt(i)) >>> 0;
+  return h.toString(36);
+}
+
+export async function sessionTotals(g: Group, s: Session, legacy: Record<string, string>): Promise<{ totals: Record<string, number>; names: Record<string, string> }> {
   // 匯入嘅舊紀錄：直接用總數；配對咗嘅就當係嗰個成員
   if (s.legacy) {
     const totals: Record<string, number> = {};
@@ -19,9 +37,13 @@ async function sessionTotals(g: Group, s: Session, legacy: Record<string, string
     }
     return { totals, names };
   }
+  const rulesNow = rulesOf(g, s);
+  const ck = s.closed ? `${g.id}/${s.id}/${hash(JSON.stringify(rulesNow))}` : '';
+  const hit = ck ? cacheGet(ck) : undefined;
+  if (hit) return hit;
   const tablesSnap = await getDocs(query(collection(fs(), 'groups', g.id, 'sessions', s.id, 'tables'), orderBy('order')));
   const tables = tablesSnap.docs.map((d) => toTable(d.id, d.data()));
-  const rules = rulesOf(g, s);
+  const rules = rulesNow;
   const totals: Record<string, number> = {};
   const names: Record<string, string> = {};
   await Promise.all(
@@ -33,6 +55,7 @@ async function sessionTotals(g: Group, s: Session, legacy: Record<string, string
       for (const id of Object.keys(c.state.settled)) totals[id] = (totals[id] ?? 0) + (c.state.settled[id] ?? 0) + (c.pending[id] ?? 0);
     }),
   );
+  if (ck) cachePut(ck, { totals, names });
   return { totals, names };
 }
 

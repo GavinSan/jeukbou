@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { WATER, applyExpenses, mergePairs, minimalTransfers, sessionTotals, settleSession, toMoney } from './settlement.ts';
+import { WATER, applyExpenses, effectiveGroups, mergePairs, minimalTransfers, sessionTotals, settleSession, toMoney } from './settlement.ts';
 import { replay } from './table.ts';
 import { withRules } from './rules.ts';
 
@@ -37,7 +37,7 @@ test('港紙：1 番 = HK$1', () => {
 test('一 pair 一齊計：Robin + Tat 合埋', () => {
   const m = mergePairs({ Robin: -84.63, Tat: -44.13, Gavin: 128.76 }, [['Robin', 'Tat']]);
   assert.deepEqual(m, { 'Robin + Tat': -128.76, Gavin: 128.76 });
-  assert.throws(() => mergePairs({}, [['A', 'B'], ['B', 'C']]), /已經喺第二個 pair/);
+  assert.throws(() => mergePairs({}, [['A', 'B'], ['B', 'C']]), /已經喺第二個 Group/);
 });
 
 test('開支：揀邊個分，晚飯 $58 四個人分，Gavin 俾咗', () => {
@@ -123,4 +123,30 @@ test('埋數：開支都跟取整，差額入保管水嗰個', () => {
   assert.equal(r.expense.B, -34);
   assert.equal(r.expense.C, -34);
   assert.equal(r.expense.A, 68);
+});
+
+test('Group：三個人一齊計', () => {
+  const m = mergePairs({ A: 10, B: -4, C: -1, D: -5 }, [['A', 'B', 'C']]);
+  assert.deepEqual(m, { 'A + B + C': 5, D: -5 });
+});
+
+test('預設 Group：今晚冇嚟嘅人唔計，得返一個就唔合，唔會炒', () => {
+  // 預設 A+B、C+D+E；今晚 B、E 冇嚟
+  const g = effectiveGroups([['A', 'B'], ['C', 'D', 'E']], [], ['A', 'C', 'D', 'F']);
+  assert.deepEqual(g, [['C', 'D']]);
+  const r = settleSession({
+    fan: { A: 12, C: -6, D: -12, F: 6 }, water: 0, waterTo: 'A', perUnit: 6, rounding: 'none', expenses: [], players: ['A', 'C', 'D', 'F'], pairs: g,
+  });
+  assert.equal(r.gameLedger.accounts['C + D'], -3);
+  assert.equal(r.gameLedger.accounts.A, 2);
+  // 全部人都冇嚟：冇 Group
+  assert.deepEqual(effectiveGroups([['X', 'Y']], [], ['A', 'B']), []);
+});
+
+test('預設 Group 同今晚臨時 Group 撞人：預設優先，唔會報錯', () => {
+  const g = effectiveGroups([['A', 'B']], [['B', 'C'], ['C', 'D']], ['A', 'B', 'C', 'D']);
+  assert.deepEqual(g, [['A', 'B'], ['C', 'D']]);
+  assert.doesNotThrow(() => settleSession({
+    fan: { A: 6, B: -6, C: 6, D: -6 }, water: 0, waterTo: 'A', perUnit: 6, rounding: 'none', expenses: [], players: ['A', 'B', 'C', 'D'], pairs: g,
+  }));
 });

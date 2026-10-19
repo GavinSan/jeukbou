@@ -2,14 +2,26 @@
 
 港式台牌即時計分 app：多枱同步入數、拉 / 劈、籌碼、莊番、抽水、龍虎榜同埋數。
 
-而家嘅進度：
+網址：<https://jeukbou-app.web.app>
 
-- [x] 計分引擎（`src/engine`），37 個測試
+## 功能
+
+- [x] 計分引擎（`src/engine`），45 個測試
 - [x] 計分試算頁（`npm run lab` → `lab/dist/scoring-lab.html`）
-- [x] 登入（Google、Email）
-- [ ] 牌友圈、大局、邀請連結
-- [ ] 枱面即時入數、拉住籌碼
-- [ ] 換位、埋數、開支、龍虎榜
+- [x] 登入（Google、Email）、自訂頭像
+- [x] 牌友圈：邀請連結、6 位加入碼、自動加入／要批准／不收新人
+- [x] 大局、多枱：枱面即時入數、拉住籌碼、一炮多響、即摸、特別事項、詐糊、流局
+- [x] 換人、掉位、擲骰（跟莊家）
+- [x] 家規：底、莊、雙三響、拉 / 劈、抽水；每個牌友圈自己嘅番數表（可搜尋、局主編輯）
+- [x] 埋數：麻雀數同晚餐等開支分開計、取整（向上／四捨五入／不變）、水由邊個保管、最少轉賬
+- [x] Group 一齊計：今晚臨時或者預設（每次自動，冇嚟嘅人唔計）
+- [x] 龍虎榜：日／週／月／年、個人統計、走勢圖
+- [x] 首頁戰績：場數、勝率、走勢、雀力分、段位、成就
+- [x] 匯入 Google Sheet 舊紀錄、對應舊玩家
+- [x] 番數表更新提示、系統通知（app 開住時）
+- [x] 聲效、震動、高番慶祝動畫
+- [ ] App 離線時嘅推送通知
+- [ ] App Store / Galaxy Store 版本
 
 ## 本機開發
 
@@ -20,17 +32,4 @@ npm run dev
 npm test                     # 計分引擎測試
 ```
 
-## 部署
-
-push 上 `main` 就會由 GitHub Actions 自動 build 同部署去 Firebase Hosting，連埋 `firestore.rules`。第一次要喺 GitHub repo 嘅 **Settings → Secrets and variables → Actions** 加兩樣嘢：
-
-| 種類 | 名 | 內容 |
-| --- | --- | --- |
-| Variable | `FIREBASE_WEB_CONFIG` | Firebase 網頁設定，成段 JSON |
-| Secret | `FIREBASE_SERVICE_ACCOUNT` | Firebase 服務帳戶私密金鑰（JSON） |
-
-## 安全
-
-- Firebase 網頁設定（`apiKey` 嗰啲）唔係密碼，網站上線之後任何人都睇到；資料靠 `firestore.rules` 同 `storage.rules` 保護。
-- 服務帳戶金鑰係真正嘅鎖匙，只可以放喺 GitHub Secret，永遠唔好 commit。`.gitignore` 已經擋住常見嘅檔名。
-- 建議喺 Google Cloud 主控台將網頁 API key 限制為只准 `jeukbou-app.web.app`、`jeukbou-app.firebaseapp.com` 同 `localhost` 使用。
+示範模式（唔使登入）：`/demo`、`/demo/home`、`/demo/t/0`。

@@ -1,10 +1,10 @@
-// 埋數：麻雀數（連水）同晚餐等開支分開計，亦可以合併；GP 合計；最少轉賬
+// 埋數：麻雀數（連水）同晚餐等開支分開計，亦可以合併；Group 一齊計；最少轉賬
 import { useMemo, useState } from 'react';
-import { settleSession } from '../engine/settlement.ts';
+import { effectiveGroups, settleSession } from '../engine/settlement.ts';
 import type { MoneyRounding } from '../engine/settlement.ts';
 import type { Expense } from '../engine/settlement.ts';
-import { isGuest, pairActive } from '../lib/data.ts';
-import type { ExpenseDoc, PairDoc, SettleConfig } from '../lib/data.ts';
+import { isGuest, pairActive, teamActive } from '../lib/data.ts';
+import type { ExpenseDoc, PairDoc, SettleConfig, TeamDoc } from '../lib/data.ts';
 import { Hint, NumInput, Sheet, TopBar, message } from '../ui.tsx';
 import { go } from '../lib/router.tsx';
 
@@ -29,6 +29,10 @@ export interface SettleScreenProps {
   accounts: Player[];
   expenses: ExpenseDoc[];
   pairs: PairDoc[];
+  /** 牌友圈嘅預設 Group（每次自動一齊計） */
+  teams?: TeamDoc[];
+  /** 管理預設 Group 嘅頁 */
+  teamsHref?: string;
   me: string | null;
   onSaveConfig: (c: SettleConfig) => Promise<void>;
   /** 埋數設定喺家規頁 */
@@ -93,7 +97,11 @@ export default function SettleScreen(p: SettleScreenProps) {
   const [error, setError] = useState('');
   const [copied, setCopied] = useState(false);
 
-  const activePairs = p.pairs.filter(pairActive).map((x) => [x.a, x.b] as [string, string]);
+  const defaults = (p.teams ?? []).filter(teamActive).map((t) => t.members);
+  // 今晚有份嘅人（連保管水嗰個）；冇嚟嘅人自動唔計，得返一個人就分開計
+  const present = [...ids, cfg.waterTo];
+  const activePairs = effectiveGroups(defaults, p.pairs.filter(pairActive).map((x) => [x.a, x.b]), present);
+  const tonightDefaults = (p.teams ?? []).filter(teamActive).map((t) => ({ t, here: t.members.filter((m) => ids.includes(m)) })).filter((x) => x.here.length > 0);
   const expenses: Expense[] = p.expenses.map((e) => ({ label: e.label, payer: e.payer, amount: e.amount, sharedBy: e.sharedBy }));
 
   const result = useMemo(() => {
@@ -271,22 +279,35 @@ export default function SettleScreen(p: SettleScreenProps) {
 
       <section className="stack">
         <div className="section-head">
-          <h2>GP 合計</h2>
-          <button type="button" className="textbtn" onClick={() => { setError(''); setSheet('pair'); }}>＋ 新增</button>
+          <h2>Group 一齊計</h2>
+          <button type="button" className="textbtn" onClick={() => { setError(''); setSheet('pair'); }}>＋ 今晚加</button>
         </div>
-        {p.pairs.length ? (
+        {tonightDefaults.length > 0 || p.pairs.length > 0 ? (
           <ul className="list exp-list">
+            {tonightDefaults.map(({ t, here }) => (
+              <li key={t.id} className="exp-row">
+                <span className="grow exp-text">
+                  <span>{t.members.map(nameOf).join(' + ')}<span className="tag instant">預設</span></span>
+                  <small className={here.length > 1 ? 'gain' : 'muted'}>
+                    {here.length > 1
+                      ? (here.length < t.members.length ? `今晚 ${here.map(nameOf).join('、')} 一齊計（${t.members.filter((m) => !here.includes(m)).map(nameOf).join('、')} 冇嚟）` : '一齊計')
+                      : `今晚只有 ${nameOf(here[0])}，分開計`}
+                  </small>
+                </span>
+              </li>
+            ))}
             {p.pairs.map((pr) => {
               const active = pairActive(pr);
               const waiting = [pr.a, pr.b].filter((id) => !isGuest(id) && !pr.accepted.includes(id));
+              const clash = active && !activePairs.some((g) => g.includes(pr.a) && g.includes(pr.b));
               return (
                 <li key={pr.id} className="exp-row">
                   <span className="grow exp-text">
                     <span>{nameOf(pr.a)} + {nameOf(pr.b)}</span>
-                    <small className={active ? 'gain' : 'muted'}>{active ? '已生效' : `等待 ${waiting.map(nameOf).join('、')} 同意`}</small>
+                    <small className={active && !clash ? 'gain' : 'muted'}>{!active ? `等待 ${waiting.map(nameOf).join('、')} 同意` : clash ? '已在預設 Group，不重複計' : '今晚一齊計'}</small>
                   </span>
                   {p.me && waiting.includes(p.me) && <button type="button" className="btn" disabled={busy} onClick={() => run(() => p.onAcceptPair(pr.id))}>同意</button>}
-                  <button type="button" className="iconbtn small" aria-label="取消 GP" disabled={busy} onClick={() => run(() => p.onDeletePair(pr.id))}>
+                  <button type="button" className="iconbtn small" aria-label="取消此 Group" disabled={busy} onClick={() => run(() => p.onDeletePair(pr.id))}>
                     <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18" /></svg>
                   </button>
                 </li>
@@ -294,8 +315,9 @@ export default function SettleScreen(p: SettleScreenProps) {
             })}
           </ul>
         ) : (
-          <Hint className="muted">兩人一齊計數，只轉一次賬。雙方同意後生效。</Hint>
+          <Hint className="muted">幾個人一齊計數，只轉一次賬。</Hint>
         )}
+        {p.teamsHref && <button type="button" className="textbtn" onClick={() => go(p.teamsHref!)}>設定預設 Group（每次自動一齊計）</button>}
       </section>
 
       {error && !sheet && <p className="error" role="alert">{error}</p>}
@@ -304,7 +326,7 @@ export default function SettleScreen(p: SettleScreenProps) {
       {sheet === 'expense' && <ExpenseSheet players={p.players} me={p.me} busy={busy} error={error} onClose={() => setSheet(null)} onSave={(e) => run(() => p.onAddExpense(e))} />}
       {sheet === 'pair' && (
         <PairSheet
-          players={p.players.filter((pl) => !p.pairs.some((pr) => pr.a === pl.id || pr.b === pl.id))}
+          players={p.players.filter((pl) => !p.pairs.some((pr) => pr.a === pl.id || pr.b === pl.id) && !activePairs.some((g) => g.includes(pl.id)))}
           busy={busy}
           error={error}
           onClose={() => setSheet(null)}
@@ -469,9 +491,9 @@ function ExpenseSheet({ players, me, busy, error, onClose, onSave }: {
 function PairSheet({ players, busy, error, onClose, onSave }: { players: Player[]; busy: boolean; error: string; onClose: () => void; onSave: (a: string, b: string) => void }) {
   const [picked, setPicked] = useState<string[]>([]);
   return (
-    <Sheet onClose={onClose} label="新增 GP">
-      <h2>新增 GP</h2>
-      <Hint>選兩位玩家。有帳戶的玩家需要按「同意」才生效。</Hint>
+    <Sheet onClose={onClose} label="今晚加 Group">
+      <h2>今晚加 Group</h2>
+      <Hint>只計今晚。選兩位玩家，有帳戶的玩家需要按「同意」才生效。想每次都一齊計，可以設定預設 Group。</Hint>
       <div className="choices">
         {players.map((pl) => {
           const on = picked.includes(pl.id);

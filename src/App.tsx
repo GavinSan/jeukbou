@@ -17,7 +17,10 @@ const BoardPage = lazy(() => import('./pages/BoardPage.tsx'));
 const AdminPage = lazy(() => import('./pages/AdminPage.tsx'));
 const ImportPage = lazy(() => import('./pages/ImportPage.tsx'));
 const PlayersPage = lazy(() => import('./pages/PlayersPage.tsx'));
-import TabBar, { appTabs } from './components/TabBar.tsx';
+const GroupsPage = lazy(() => import('./pages/Groups.tsx'));
+const RankPage = lazy(() => import('./pages/RankPage.tsx'));
+const SettingsPage = lazy(() => import('./pages/SettingsPage.tsx'));
+import TabBar, { HOME_DEMO_TABS, appTabs } from './components/TabBar.tsx';
 import { navContext } from './lib/nav.ts';
 import { GroupWatchers, NoticeBar } from './components/Watch.tsx';
 const Demo = lazy(() => import('./demo.tsx'));
@@ -27,6 +30,9 @@ function Routes({ user, refresh }: { user: User; refresh: () => void }) {
   let m: Record<string, string> | null;
 
   if (path === '/admin') return <AdminPage user={user} />;
+  if (path === '/groups') return <GroupsPage user={user} />;
+  if (path === '/rank') return <RankPage user={user} />;
+  if (path === '/settings') return <SettingsPage user={user} />;
   if ((m = match('/join/:g/:code/s/:s', path))) return <Join user={user} groupId={m.g} code={m.code} sessionId={m.s} />;
   if ((m = match('/join/:g/:code', path))) return <Join user={user} groupId={m.g} code={m.code} />;
   if ((m = match('/g/:g/new', path))) return <NewSession user={user} groupId={m.g} />;
@@ -76,7 +82,9 @@ export default function App() {
     return (
       <>
         <Suspense fallback={<main className="page narrow"><Loading /></main>}><Demo /></Suspense>
-        {path !== '/demo/home' && <TabBar tabs={demoTabs} active={active} />}
+        {path === '/demo/home' || path === '/demo/rank' || path === '/demo/groups'
+          ? <TabBar tabs={HOME_DEMO_TABS} active={path === '/demo/rank' ? 'rank' : path === '/demo/groups' ? 'groups' : 'home'} />
+          : <TabBar tabs={demoTabs} active={active} />}
       </>
     );
   }
@@ -106,8 +114,8 @@ export default function App() {
   return (
     <>
       <Suspense fallback={<main className="page narrow"><Loading /></main>}><Routes user={user} refresh={refresh} /></Suspense>
-      {/* 首頁同加入頁唔使底部 tab */}
-      {!path.startsWith('/join/') && path !== '/' && path !== '/admin' && <TabBar tabs={nav.tabs} active={nav.active} />}
+      {/* 加入頁唔使底部 tab */}
+      {!path.startsWith('/join/') && path !== '/admin' && <TabBar tabs={nav.tabs} active={nav.active} />}
       <GroupWatchers uid={user.uid} />
       <NoticeBar />
     </>

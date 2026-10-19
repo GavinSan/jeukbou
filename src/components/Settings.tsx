@@ -1,13 +1,17 @@
-// 設定：只影響呢部機
+// 設定：個人資料（頭像、名）＋ 呢部機嘅偏好（聲、震、通知）＋ 登出
 import { useState } from 'react';
+import type { ReactNode } from 'react';
 import { setPref, usePrefs } from '../lib/prefs.ts';
 import type { Prefs } from '../lib/prefs.ts';
 import { buzz } from '../lib/haptics.ts';
 import { sfx, unlock } from '../lib/sound.ts';
-import { Sheet } from '../ui.tsx';
+import { Avatar, NameForm, Sheet, message } from '../ui.tsx';
 import { askNotify, notifySupported } from '../lib/notify.ts';
 import { signOut } from 'firebase/auth';
 import { auth } from '../firebase.ts';
+import { displayName, setAvatar, syncMemberName } from '../lib/data.ts';
+import { useProfile } from '../lib/live.ts';
+import { toAvatar } from '../lib/avatar.ts';
 
 const canVibrate = typeof navigator !== 'undefined' && typeof navigator.vibrate === 'function';
 const isIOS = typeof navigator !== 'undefined' && /iP(hone|ad|od)/.test(navigator.userAgent);
@@ -27,12 +31,87 @@ const ROWS: { key: keyof Prefs; label: string; note: string }[] = [
   },
 ];
 
-export default function Settings({ onClose }: { onClose: () => void }) {
+/** 頭像（撳就換相）＋名 */
+export function ProfileHead({ name, email, photo, busy, onPick, right }: {
+  name: string; email: string | null; photo: string | null; busy: boolean; onPick: (f: File | undefined) => void; right?: ReactNode;
+}) {
+  return (
+    <div className="row">
+      <label className={`avatar-edit${busy ? ' busy' : ''}`} title="更換頭像">
+        <Avatar name={name} photo={photo} size="lg" />
+        <span className="avatar-cam" aria-hidden="true">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><path d="M4 8h3l2-3h6l2 3h3v11H4z" /><circle cx="12" cy="13" r="3.5" /></svg>
+        </span>
+        <input type="file" accept="image/*" className="visually-hidden" aria-label="更換頭像" disabled={busy} onChange={(e) => { onPick(e.target.files?.[0]); e.target.value = ''; }} />
+      </label>
+      <div className="grow">
+        <h2>{name}</h2>
+        {email && <p className="muted small">{email}</p>}
+      </div>
+      {right}
+    </div>
+  );
+}
+
+/** 個人資料：換頭像、移除頭像、改名（會同步去所有牌友圈） */
+export function ProfileEditor() {
+  const user = auth?.currentUser ?? null;
+  const profile = useProfile(user?.uid ?? null);
+  const [editing, setEditing] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState('');
+  const [, setTick] = useState(0);
+  if (!user) return null;
+  const groups = profile.data.groups;
+  const photo = profile.data.avatar ?? user.photoURL;
+  const name = displayName(user);
+
+  async function task(t: () => Promise<void>) {
+    setBusy(true);
+    setError('');
+    try { await t(); } catch (err) { setError(message(err)); } finally { setBusy(false); }
+  }
+
+  return (
+    <div className="stack profile-edit">
+      <ProfileHead
+        name={name}
+        email={user.email}
+        photo={photo}
+        busy={busy}
+        onPick={(f) => { if (f) task(async () => setAvatar(user, await toAvatar(f), groups)); }}
+        right={!editing && <button type="button" className="btn plain small-btn" onClick={() => setEditing(true)}>改名</button>}
+      />
+      {editing && (
+        <NameForm
+          user={user}
+          initial={name}
+          onDone={() => {
+            setEditing(false);
+            setTick((t) => t + 1);
+            window.dispatchEvent(new Event('jeukbou-nav'));
+            syncMemberName(user, groups, photo).catch(() => undefined);
+          }}
+          onCancel={() => setEditing(false)}
+        />
+      )}
+      {!editing && (
+        <div className="row tight-row">
+          <span className="muted small grow">撳頭像換相</span>
+          {profile.data.avatar && <button type="button" className="textbtn" disabled={busy} onClick={() => task(() => setAvatar(user, null, groups))}>移除頭像</button>}
+        </div>
+      )}
+      {error && <p className="error" role="alert">{error}</p>}
+    </div>
+  );
+}
+
+/** 呢部機嘅偏好 */
+export function PrefsList() {
   const p = usePrefs();
   const [note, setNote] = useState('');
   return (
-    <Sheet onClose={onClose} label="設定">
-      <h2>設定</h2>
+    <>
       <div className="list flat">
         {ROWS.map((r) => (
           <div key={r.key} className="rule-row">
@@ -63,9 +142,28 @@ export default function Settings({ onClose }: { onClose: () => void }) {
         ))}
       </div>
       {note && <p className="error small">{note}</p>}
-      <p className="muted small">設定只儲存在這部裝置。</p>
+      <p className="muted small">聲效、震動同通知只儲存在這部裝置。</p>
+    </>
+  );
+}
+
+export function SignOutButton({ onDone }: { onDone?: () => void }) {
+  if (!auth?.currentUser) return null;
+  return (
+    <button type="button" className="btn plain" onClick={() => { onDone?.(); if (auth) signOut(auth); }}>
+      登出 {auth.currentUser.email ?? ''}
+    </button>
+  );
+}
+
+export default function Settings({ onClose }: { onClose: () => void }) {
+  return (
+    <Sheet onClose={onClose} label="設定">
+      <h2>設定</h2>
+      <ProfileEditor />
+      <PrefsList />
       <button type="button" className="btn big" onClick={onClose}>完成</button>
-      {auth?.currentUser && <button type="button" className="btn plain" onClick={() => { onClose(); if (auth) signOut(auth); }}>登出 {auth.currentUser.email ?? ''}</button>}
+      <SignOutButton onDone={onClose} />
     </Sheet>
   );
 }

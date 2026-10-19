@@ -65,14 +65,14 @@ export function applyExpenses(balances: Record<string, number>, expenses: Expens
   return out;
 }
 
-/** 一 pair 一齊計：合埋做一個戶口，名叫「A + B」 */
-export function mergePairs(balances: Record<string, number>, pairs: [PlayerId, PlayerId][]): Record<string, number> {
+/** 一個 Group 一齊計：合埋做一個戶口，名叫「A + B + C」 */
+export function mergePairs(balances: Record<string, number>, pairs: PlayerId[][]): Record<string, number> {
   const owner: Record<string, string> = {};
-  for (const [a, b] of pairs) {
-    if (owner[a] || owner[b]) throw new Error(`${owner[a] ? a : b} 已經喺第二個 pair`);
-    const name = `${a} + ${b}`;
-    owner[a] = name;
-    owner[b] = name;
+  for (const grp of pairs) {
+    const clash = grp.find((x) => owner[x]);
+    if (clash) throw new Error(`${clash} 已經喺第二個 Group`);
+    const name = grp.join(' + ');
+    for (const x of grp) owner[x] = name;
   }
   const cents: Record<string, number> = {};
   for (const [k, v] of Object.entries(balances)) {
@@ -81,6 +81,24 @@ export function mergePairs(balances: Record<string, number>, pairs: [PlayerId, P
   }
   const out: Record<string, number> = {};
   for (const [k, v] of Object.entries(cents)) out[k] = fromCents(v);
+  return out;
+}
+
+/**
+ * 今晚實際生效嘅 Group：
+ * 預設 Group（牌友圈層面）同今晚臨時加嘅合埋；只計今晚有份嘅人（present），
+ * 得返一個人就唔使合；同一個人唔會入兩個 Group（先到先得，預設優先）。
+ */
+export function effectiveGroups(defaults: PlayerId[][], extra: PlayerId[][], present: PlayerId[]): PlayerId[][] {
+  const here = new Set(present);
+  const used = new Set<PlayerId>();
+  const out: PlayerId[][] = [];
+  for (const grp of [...defaults, ...extra]) {
+    const members = [...new Set(grp)].filter((x) => here.has(x) && !used.has(x));
+    if (members.length < 2) continue;
+    members.forEach((x) => used.add(x));
+    out.push(members);
+  }
   return out;
 }
 
@@ -131,7 +149,8 @@ export interface SettleInput {
   /** 開支（晚餐等），同麻雀數分開計 */
   expenses: Expense[];
   players: PlayerId[];
-  pairs: [PlayerId, PlayerId][];
+  /** 一齊計數嘅 Group（每組兩人或以上） */
+  pairs: PlayerId[][];
 }
 
 export type MoneyRounding = 'up' | 'round' | 'none';
@@ -160,7 +179,7 @@ export interface SettleResult {
 const ceilAbs = (cents: number) => Math.sign(cents) * Math.ceil(Math.abs(cents) / 100 - 1e-9) * 100;
 const roundAbs = (cents: number) => Math.sign(cents) * Math.round(Math.abs(cents) / 100) * 100;
 
-function ledger(balances: Record<string, number>, pairs: [PlayerId, PlayerId][]): Ledger {
+function ledger(balances: Record<string, number>, pairs: PlayerId[][]): Ledger {
   const accounts = mergePairs(balances, pairs);
   return { accounts, transfers: minimalTransfers(accounts) };
 }

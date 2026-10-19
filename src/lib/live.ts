@@ -3,7 +3,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { collection, doc, onSnapshot, orderBy, query } from 'firebase/firestore';
 import type { DocumentData } from 'firebase/firestore';
 import { fs } from './data.ts';
-import type { Dice, ExpenseDoc, FanTableLog, Group, JoinRequest, Member, PairDoc, Session, StoredEvent, SwapRequest, TableDoc } from './data.ts';
+import type { Dice, ExpenseDoc, FanTableLog, Group, JoinRequest, Member, TeamDoc, PairDoc, Session, StoredEvent, SwapRequest, TableDoc } from './data.ts';
 
 export interface Live<T> {
   data: T;
@@ -123,6 +123,11 @@ export function useUserGroups(uid: string | null): Live<string[]> {
   return { data: r.data.groups, loading: r.loading, error: r.error };
 }
 
+const toTeam = (id: string, d: DocumentData): TeamDoc => ({
+  id, members: Array.isArray(d.members) ? d.members.map(String) : [], accepted: Array.isArray(d.accepted) ? d.accepted.map(String) : [], by: String(d.by ?? ''),
+});
+export const useTeams = (g: string | null) => useLiveList(g ? ['groups', g, 'teams'] : null, null, toTeam);
+
 export const useJoinRequests = (g: string | null) => useLiveList(g ? ['groups', g, 'joinRequests'] : null, null, toJoinRequest);
 /** 申請人自己：成員文件有冇、申請仲喺唔喺 */
 export const useMyMember = (g: string, uid: string) => useLiveDoc(['groups', g, 'members', uid], toMember);
@@ -157,3 +162,8 @@ export function useManyEvents(g: string, s: string, tableIds: string[]): Record<
   }, [g, s, key]);
   return useMemo(() => all, [all]);
 }
+
+// 一次過讀（唔即時跟）嘅地方用
+export const toGroupDoc = toGroup;
+export const toMemberDoc = toMember;
+export const toSessionDoc = toSession;

@@ -77,6 +77,19 @@ service cloud.firestore {
         allow delete: if isOwner(g) || (signedIn() && request.auth.uid == uid);
       }
 
+      // 預設 Group（每次埋數一齊計）：成員開；入面嘅人逐個同意；入面嘅人或者局主刪
+      match /teams/{t} {
+        allow read: if isMember(g);
+        allow create: if isMember(g) && request.resource.data.by == request.auth.uid
+          && request.resource.data.members is list
+          && request.resource.data.members.size() >= 2 && request.resource.data.members.size() <= 8
+          && request.resource.data.accepted.hasOnly([request.auth.uid]);
+        allow update: if isMember(g) && request.auth.uid in resource.data.members
+          && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['accepted'])
+          && request.resource.data.accepted.hasOnly(resource.data.members);
+        allow delete: if isOwner(g) || (signedIn() && request.auth.uid in resource.data.members);
+      }
+
       // 加入申請（「要批准」模式）：自己申請、自己睇、自己取消；局主睇晒同批核
       match /joinRequests/{uid} {
         allow get: if (signedIn() && request.auth.uid == uid) || isOwner(g);

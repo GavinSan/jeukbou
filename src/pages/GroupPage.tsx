@@ -1,15 +1,18 @@
 import { useEffect, useState } from 'react';
 import type { User } from 'firebase/auth';
 import { approveJoin, deleteGroup, deleteSession, ensureJoinCode, rejectJoin, removeMember, resetInvite, setJoinMode, legacyMap } from '../lib/data.ts';
-import type { Group, JoinMode, JoinRequest } from '../lib/data.ts';
+import type { Group, JoinMode, JoinRequest, Member } from '../lib/data.ts';
 import { useSuperAdmin } from '../lib/admin.ts';
 import { go } from '../lib/router.tsx';
 import { useGroup, useJoinRequests, useMembers, useSessions } from '../lib/live.ts';
 import { Link } from '../lib/router.tsx';
-import { Avatar, ConfirmDelete, CopyLink, Hint, Loading, TopBar, message } from '../ui.tsx';
+import { Avatar, ConfirmDelete, Hint, Loading, TopBar, fmt, message } from '../ui.tsx';
 import { SettingsButton } from '../components/Settings.tsx';
 import { Leaderboard } from '../components/Charts.tsx';
-import { useBoard } from '../lib/history.ts';
+import { boardRows, useHistory } from '../lib/history.ts';
+import { PlayerSheet } from '../components/BoardView.tsx';
+import { TierChip } from '../components/Tier.tsx';
+import { pointsFor, tierOf } from '../lib/stats.ts';
 
 const MODES: { key: JoinMode; label: string; note: string }[] = [
   { key: 'auto', label: '自動加入', note: '有加入碼或連結就可以直接加入' },
@@ -47,35 +50,57 @@ export function JoinRequestsView({ reqs, onApprove, onReject }: { reqs: JoinRequ
   );
 }
 
-/** 邀請：加入碼、連結、加入方式 */
+/** 複製文字；唔得就俾人自己揀 */
+async function copyText(text: string): Promise<boolean> {
+  try { await navigator.clipboard.writeText(text); return true; } catch { return false; }
+}
+
+export function inviteMessage(g: Pick<Group, 'id' | 'name' | 'inviteCode' | 'joinCode' | 'joinMode'>, origin = window.location.origin): string {
+  const link = `${origin}/join/${g.id}/${g.inviteCode}`;
+  return [
+    '一齊用「雀簿」計麻雀數！',
+    `撳連結加入牌友圈「${g.name}」${g.joinMode === 'approve' ? '（要局主批准）' : ''}：`,
+    link,
+    g.joinCode ? `或者喺雀簿首頁按「新增」，輸入加入碼 ${g.joinCode}` : '',
+  ].filter(Boolean).join('\n');
+}
+
+/** 邀請（局主）：撳加入碼即複製；一個掣複製成段邀請訊息；加入方式 */
 export function Invite({ g, canManage, onMode }: { g: Group; canManage: boolean; onMode?: (m: JoinMode) => void }) {
   const [error, setError] = useState('');
   const [resetArmed, setResetArmed] = useState(false);
+  const [copied, setCopied] = useState<'' | 'code' | 'msg'>('');
+  const [manual, setManual] = useState('');
   const mode = g.joinMode ?? 'auto';
   useEffect(() => {
     if (canManage && !g.joinCode) ensureJoinCode(g, g.name).catch((err) => setError(message(err)));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [canManage, g.joinCode, g.inviteCode]);
-  const invite = `${window.location.origin}/join/${g.id}/${g.inviteCode}`;
-  const share = typeof navigator !== 'undefined' && typeof navigator.share === 'function'
-    ? () => navigator.share({ title: '雀簿', text: `加入我的雀簿牌友圈「${g.name}」${g.joinCode ? `，加入碼 ${g.joinCode}` : ''}`, url: invite }).catch(() => undefined)
-    : null;
+
+  async function copy(kind: 'code' | 'msg', text: string) {
+    if (await copyText(text)) {
+      setManual('');
+      setCopied(kind);
+      setTimeout(() => setCopied(''), 1800);
+    } else setManual(text);
+  }
+
   return (
     <div className="stack invite">
       {mode === 'closed' ? (
-        <p className="muted small">此牌友圈暫停接收新成員。</p>
+        <p className="muted small">暫停接收新成員。</p>
       ) : (
         <>
-          <div className="join-code">
-            <span className="muted small">加入碼</span>
-            <b className="code num" aria-label={`加入碼 ${g.joinCode ?? ''}`}>{g.joinCode ?? '······'}</b>
-          </div>
-          <Hint>{mode === 'approve' ? '牌友在首頁按「新增」輸入加入碼，或打開連結申請；局主批准後加入。' : '牌友在首頁按「新增」輸入加入碼，或打開連結，即可加入。'}</Hint>
-          <div className="row invite-btns">
-            {g.joinCode && <CopyLink url={g.joinCode} label="複製加入碼" />}
-            <CopyLink url={invite} />
-            {share && <button type="button" className="btn plain" onClick={share}>分享</button>}
-          </div>
+          <button type="button" className="join-code" disabled={!g.joinCode} onClick={() => g.joinCode && copy('code', g.joinCode)} aria-label={`加入碼 ${g.joinCode ?? ''}，撳一下複製`}>
+            <span className="join-code-label">加入碼<small>撳一下複製</small></span>
+            <b className="code num">{g.joinCode ?? '······'}</b>
+            <span className={`copied-flag${copied === 'code' ? ' on' : ''}`} aria-hidden={copied !== 'code'}>已複製</span>
+          </button>
+          <button type="button" className={`btn plain invite-copy${copied === 'msg' ? ' done' : ''}`} onClick={() => copy('msg', inviteMessage(g))}>
+            {copied === 'msg' ? '已複製邀請訊息' : '複製邀請訊息'}
+          </button>
+          <Hint>訊息有連結同加入碼，貼去 WhatsApp 就得。</Hint>
+          {manual && <textarea className="input copybox" readOnly rows={4} value={manual} onFocus={(e) => e.currentTarget.select()} aria-label="邀請訊息" />}
         </>
       )}
       {canManage && (
@@ -103,19 +128,58 @@ export function Invite({ g, canManage, onMode }: { g: Group; canManage: boolean;
   );
 }
 
+export interface MemberStat {
+  played: number;
+  total: number;
+  points: number;
+}
+
+/** 成員：一行一個，有場數、段位、總數；撳入去睇佢喺呢個牌友圈嘅統計 */
+export function MemberList({ members, ownerId, stats, manage, onPick, onRemove }: {
+  members: Member[]; ownerId: string; stats: Record<string, MemberStat>; manage: boolean;
+  onPick: (uid: string) => void; onRemove: (m: Member) => void;
+}) {
+  const sorted = [...members].sort((a, b) => (stats[b.uid]?.played ?? 0) - (stats[a.uid]?.played ?? 0) || a.name.localeCompare(b.name));
+  return (
+    <ul className="list member-list">
+      {sorted.map((m) => {
+        const st = stats[m.uid];
+        return (
+          <li key={m.uid} className="member-row">
+            <button type="button" className="member-main" onClick={() => onPick(m.uid)} disabled={!st?.played} aria-label={`${m.name} 統計`}>
+              <Avatar name={m.name} photo={m.photoURL} size="md" />
+              <span className="grow member-text">
+                <span className="ellipsis">{m.name}{m.uid === ownerId && <span className="tag instant">局主</span>}</span>
+                <small className="muted">{st?.played ? <>{st.played} 場 · <TierChip tier={tierOf(st.points).tier} /></> : '未有紀錄'}</small>
+              </span>
+              {st?.played ? <b className={`num member-total ${st.total > 0 ? 'gain' : st.total < 0 ? 'loss' : ''}`}>{fmt(st.total)}</b> : null}
+            </button>
+            {manage && m.uid !== ownerId && (
+              <button type="button" className="btn plain small-btn remove-btn" onClick={() => onRemove(m)}>移除</button>
+            )}
+          </li>
+        );
+      })}
+    </ul>
+  );
+}
+
 export default function GroupPage({ user, groupId }: { user: User; groupId: string }) {
   const group = useGroup(groupId);
   const members = useMembers(groupId);
   const sessions = useSessions(groupId);
   const memberNames = Object.fromEntries(members.data.map((m) => [m.uid, m.name]));
-  const board = useBoard(group.data, sessions.loading ? [] : sessions.data, memberNames, legacyMap(group.data, members.data));
+  const history = useHistory(group.data, sessions.loading ? [] : sessions.data, memberNames, legacyMap(group.data, members.data));
+  const board = { rows: boardRows(history.sessions, history.names) };
   const admin = useSuperAdmin(user.uid);
   const [manage, setManage] = useState(false);
+  const [manageMembers, setManageMembers] = useState(false);
+  const [pick, setPick] = useState<string | null>(null);
   const [showAllSessions, setShowAllSessions] = useState(false);
   const [confirm, setConfirm] = useState<null | { title: string; detail: string; word: string; run: () => Promise<void> }>(null);
 
-  if (group.error) return <main className="page"><TopBar back="/" /><p className="error">{group.error}</p></main>;
-  if (!group.data) return <main className="page"><TopBar back="/" /><Loading /></main>;
+  if (group.error) return <main className="page"><TopBar back="/groups" /><p className="error">{group.error}</p></main>;
+  if (!group.data) return <main className="page"><TopBar back="/groups" /><Loading /></main>;
 
   const g = group.data;
   const list = [...sessions.data].reverse();
@@ -124,10 +188,12 @@ export default function GroupPage({ user, groupId }: { user: User; groupId: stri
   const lmap = legacyMap(g, members.data);
   const claimed = Object.values(lmap).includes(user.uid);
   const canManage = g.ownerId === user.uid || admin;
+  const memberStats: Record<string, MemberStat> = {};
+  for (const r of board.rows) memberStats[r.id] = { played: r.sessions, total: r.total, points: pointsFor(r.id, history.sessions) };
 
   return (
     <main className="page">
-      <TopBar back="/" title={g.name} right={<SettingsButton />} />
+      <TopBar back="/groups" title={g.name} right={<SettingsButton />} />
 
       <section className="stack">
         <Link to={`/g/${groupId}/new`} className="btn big">
@@ -163,7 +229,7 @@ export default function GroupPage({ user, groupId }: { user: User; groupId: stri
                     type="button"
                     className="row-del"
                     aria-label={`刪除 ${s.name}`}
-                    onClick={() => setConfirm({ title: '刪除大局', detail: `會永久刪除「${s.name}」所有枱、每一鋪、開支同 GP，無法復原。`, word: s.name, run: () => deleteSession(groupId, s.id) })}
+                    onClick={() => setConfirm({ title: '刪除大局', detail: `會永久刪除「${s.name}」所有枱、每一鋪、開支同 Group，無法復原。`, word: s.name, run: () => deleteSession(groupId, s.id) })}
                   >刪除</button>
                 )}
               </div>
@@ -192,32 +258,31 @@ export default function GroupPage({ user, groupId }: { user: User; groupId: stri
         <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" aria-hidden="true"><path d="M9 6l6 6-6 6" /></svg>
       </Link>
 
-      <section className="panel">
-        <div className="between">
+      <section className="stack">
+        <div className="section-head">
           <h2>成員（{members.data.length}）</h2>
-          {g.ownerId === user.uid && <span className="muted small">你是局主</span>}
+          {canManage && <button type="button" className="textbtn" onClick={() => setManageMembers((v) => !v)}>{manageMembers ? '完成' : '管理'}</button>}
         </div>
-        <div className="member-grid">
-          {members.data.map((m) => (
-            <div key={m.uid} className="member">
-              <Avatar name={m.name} photo={m.photoURL} size="sm" />
-              <span className="ellipsis">{m.name}</span>
-              {manage && m.uid !== g.ownerId && (
-                <button
-                  type="button"
-                  className="member-del"
-                  aria-label={`移除 ${m.name}`}
-                  onClick={() => setConfirm({ title: '移除成員', detail: `${m.name} 會離開牌友圈，佢以前嘅紀錄會保留。`, word: m.name, run: () => removeMember(groupId, m.uid) })}
-                >✕</button>
-              )}
-            </div>
-          ))}
-        </div>
-        <Invite g={g} canManage={canManage} />
-        {canManage && !manage && <button type="button" className="textbtn" onClick={() => setManage(true)}>管理成員</button>}
-        {hasLegacy && <Link to={`/g/${groupId}/players`} className="textbtn">對應舊紀錄玩家</Link>}
-        {canManage && <Link to={`/g/${groupId}/import`} className="textbtn">匯入舊紀錄</Link>}
+        <MemberList
+          members={members.data}
+          ownerId={g.ownerId}
+          stats={memberStats}
+          manage={manageMembers}
+          onPick={setPick}
+          onRemove={(m) => setConfirm({ title: '移除成員', detail: `${m.name} 會離開牌友圈，佢以前嘅紀錄會保留。`, word: m.name, run: () => removeMember(groupId, m.uid) })}
+        />
       </section>
+
+      {canManage && (
+        <section className="panel">
+          <h2>邀請牌友</h2>
+          <Invite g={g} canManage={canManage} />
+          <div className="row wrap-row">
+            {hasLegacy && <Link to={`/g/${groupId}/players`} className="textbtn">對應舊紀錄玩家</Link>}
+            <Link to={`/g/${groupId}/import`} className="textbtn">匯入舊紀錄</Link>
+          </div>
+        </section>
+      )}
 
       {canManage && (
         <section className="danger-zone">
@@ -226,11 +291,22 @@ export default function GroupPage({ user, groupId }: { user: User; groupId: stri
           <button
             type="button"
             className="btn danger"
-            onClick={() => setConfirm({ title: '刪除牌友圈', detail: `會永久刪除「${g.name}」所有大局、紀錄同成員名單，無法復原。`, word: g.name, run: async () => { await deleteGroup(groupId); go('/'); } })}
+            onClick={() => setConfirm({ title: '刪除牌友圈', detail: `會永久刪除「${g.name}」所有大局、紀錄同成員名單，無法復原。`, word: g.name, run: async () => { await deleteGroup(groupId); go('/groups'); } })}
           >刪除牌友圈</button>
         </section>
       )}
 
+      {pick && (
+        <PlayerSheet
+          id={pick}
+          name={history.names[pick] || members.data.find((m) => m.uid === pick)?.name || '玩家'}
+          sessions={history.sessions.filter((x) => pick in x.totals)}
+          all={history.sessions.filter((x) => pick in x.totals)}
+          scope={g.name}
+          sessionHref={(sid) => `/g/${groupId}/s/${sid}`}
+          onClose={() => setPick(null)}
+        />
+      )}
       {confirm && <ConfirmDelete title={confirm.title} detail={confirm.detail} word={confirm.word} onConfirm={confirm.run} onClose={() => setConfirm(null)} />}
     </main>
   );

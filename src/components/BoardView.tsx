@@ -94,7 +94,7 @@ export default function BoardView({ sessions, names, me, sessionHref }: {
   );
 }
 
-function PlayerSheet({ id, name, sessions, all, scope, sessionHref, onClose }: {
+export function PlayerSheet({ id, name, sessions, all, scope, sessionHref, onClose }: {
   id: string; name: string; sessions: SessionResult[]; all: SessionResult[]; scope: string; sessionHref?: (id: string) => string; onClose: () => void;
 }) {
   const vals = sessions.map((s) => s.totals[id] ?? 0);

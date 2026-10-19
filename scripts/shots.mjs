@@ -8,7 +8,7 @@ mkdirSync(out, { recursive: true });
 
 const browser = await chromium.launch();
 for (const scheme of ['light', 'dark']) {
-  const ctx = await browser.newContext({ viewport: { width: 390, height: 844 }, deviceScaleFactor: 2, colorScheme: scheme });
+  const ctx = await browser.newContext({ viewport: { width: 390, height: 844 }, deviceScaleFactor: 2, colorScheme: scheme, permissions: ['clipboard-read', 'clipboard-write'] });
   const page = await ctx.newPage();
   const errors = [];
   page.on('pageerror', (e) => errors.push(e.message));
@@ -246,19 +246,41 @@ for (const scheme of ['light', 'dark']) {
     });
     await step('home', async () => {
       await page.goto(`${base}/demo/home`, { waitUntil: 'networkidle' });
-      await page.waitForTimeout(600);
-      await page.screenshot({ path: `${out}/home.png`, fullPage: true });
+      await page.waitForTimeout(1500);
       await page.getByRole('button', { name: '關閉' }).click();
-      await page.getByRole('radio', { name: '自動加入' }).click();
-      await page.getByRole('button', { name: '批准' }).first().click();
-      await page.waitForTimeout(200);
-      await page.screenshot({ path: `${out}/home-invite.png`, fullPage: true });
-      await page.getByLabel('搜尋我的牌友圈').fill('星期');
+      await page.screenshot({ path: `${out}/home.png`, fullPage: true });
+      await page.goto(`${base}/demo/rank`, { waitUntil: 'networkidle' });
+      await page.waitForTimeout(1300);
+      await page.screenshot({ path: `${out}/rank.png`, fullPage: true });
+      await page.goto(`${base}/demo/groups`, { waitUntil: 'networkidle' });
+      await page.waitForTimeout(400);
+      await page.screenshot({ path: `${out}/groups.png` });
       await page.getByRole('button', { name: '新增' }).click();
       await page.waitForTimeout(300);
       await page.getByRole('dialog').getByLabel('加入碼', { exact: true }).fill('k7pq2m');
-      await page.waitForTimeout(200);
-      await page.screenshot({ path: `${out}/home-add.png` });
+      await page.screenshot({ path: `${out}/groups-add.png` });
+      await page.goto(`${base}/demo/group`, { waitUntil: 'networkidle' });
+      await page.waitForTimeout(400);
+      await page.screenshot({ path: `${out}/group-members.png`, fullPage: true });
+      await page.getByRole('button', { name: /^加入碼 K7PQ2M/ }).click();
+      await page.waitForTimeout(150);
+      await page.screenshot({ path: `${out}/group-code-copied.png` });
+      await page.getByRole('button', { name: '管理' }).click();
+      await page.waitForTimeout(150);
+      await page.screenshot({ path: `${out}/group-manage.png` });
+      await page.getByRole('button', { name: '完成' }).click();
+      await page.getByRole('button', { name: 'Athena 統計' }).click();
+      await page.waitForTimeout(400);
+      await page.screenshot({ path: `${out}/group-player.png` });
+    });
+    await step('teams', async () => {
+      await page.goto(`${base}/demo/settle`, { waitUntil: 'networkidle' });
+      await page.waitForTimeout(500);
+      await page.getByRole('heading', { name: 'Group 一齊計' }).scrollIntoViewIfNeeded();
+      await page.screenshot({ path: `${out}/settle-groups.png` });
+      await page.goto(`${base}/demo/rules#settle`, { waitUntil: 'networkidle' });
+      await page.waitForTimeout(400);
+      await page.screenshot({ path: `${out}/rules-teams.png`, fullPage: true });
     });
   }
   const overflow = await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth);

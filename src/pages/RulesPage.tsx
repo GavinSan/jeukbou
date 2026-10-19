@@ -3,8 +3,9 @@ import RulesEditor from '../components/RulesEditor.tsx';
 import HouseRules from '../components/HouseRules.tsx';
 import { FanTableView } from '../components/FanTable.tsx';
 import { SettleConfigForm } from '../components/SettleScreen.tsx';
-import { fanTableOf, saveFanTable, saveRules, saveSettleConfig, settleConfigOf } from '../lib/data.ts';
-import { useGroup, useMembers, useSession } from '../lib/live.ts';
+import { acceptTeam, createTeam, deleteTeam, fanTableOf, saveFanTable, saveRules, saveSettleConfig, settleConfigOf } from '../lib/data.ts';
+import TeamsEditor from '../components/Teams.tsx';
+import { useGroup, useMembers, useSession, useTeams } from '../lib/live.ts';
 import { Loading, TopBar } from '../ui.tsx';
 import { useEffect, useState } from 'react';
 import { useSuperAdmin } from '../lib/admin.ts';
@@ -16,6 +17,7 @@ import { message } from '../ui.tsx';
 export default function RulesPage({ user, groupId, sessionId }: { user: User; groupId: string; sessionId?: string }) {
   const group = useGroup(groupId);
   const members = useMembers(groupId);
+  const teams = useTeams(groupId);
   const session = useSession(groupId, sessionId ?? '_');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
@@ -63,6 +65,15 @@ export default function RulesPage({ user, groupId, sessionId }: { user: User; gr
               }}
             />
             {saved && <p className="ok" role="status">{saved}</p>}
+            <TeamsEditor
+              teams={teams.data}
+              people={members.data.map((m) => ({ id: m.uid, name: m.name }))}
+              me={user.uid}
+              canDeleteAny={canEdit}
+              onCreate={(ms) => createTeam(groupId, user.uid, ms)}
+              onAccept={(id) => acceptTeam(groupId, id, user.uid)}
+              onDelete={(id) => deleteTeam(groupId, id)}
+            />
           </>
         }
       />

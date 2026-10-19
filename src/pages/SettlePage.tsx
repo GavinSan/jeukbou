@@ -2,7 +2,7 @@ import { useMemo } from 'react';
 import type { User } from 'firebase/auth';
 import SettleScreen from '../components/SettleScreen.tsx';
 import { acceptPair, addExpense, approveClose, cancelClose, closeSession, deleteExpense, deletePair, isGuest, proposePair, requestClose, saveSettleConfig, setSessionWaterTo, settleConfigOf } from '../lib/data.ts';
-import { useExpenses, useGroup, useManyEvents, useMembers, usePairs, useSession, useTables } from '../lib/live.ts';
+import { useExpenses, useGroup, useManyEvents, useMembers, usePairs, useSession, useTables, useTeams } from '../lib/live.ts';
 import { computeTable, rulesOf } from '../lib/score.ts';
 import type { Computed } from '../lib/score.ts';
 import { sessionSummary } from '../lib/totals.ts';
@@ -15,6 +15,7 @@ export default function SettlePage({ user, groupId, sessionId }: { user: User; g
   const events = useManyEvents(groupId, sessionId, tables.data.map((t) => t.id));
   const expenses = useExpenses(groupId, sessionId);
   const pairs = usePairs(groupId, sessionId);
+  const teams = useTeams(groupId);
   const members = useMembers(groupId);
   const rules = useMemo(() => rulesOf(group.data, session.data), [group.data, session.data]);
   const computed = useMemo(() => {
@@ -74,6 +75,8 @@ export default function SettlePage({ user, groupId, sessionId }: { user: User; g
       accounts={accounts}
       expenses={expenses.data}
       pairs={pairs.data}
+      teams={teams.data}
+      teamsHref={`/g/${groupId}/rules#settle`}
       me={user.uid}
       onSaveConfig={(c) => saveSettleConfig(groupId, c)}
       settingsHref={`/g/${groupId}/s/${sessionId}/rules#settle`}

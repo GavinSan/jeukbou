@@ -519,6 +519,29 @@ export async function deletePair(g: string, s: string, id: string): Promise<void
   await deleteDoc(doc(fs(), 'groups', g, 'sessions', s, 'pairs', id));
 }
 
+/** 預設 Group（牌友圈層面）：每次埋數自動一齊計；全部成員同意先生效 */
+export interface TeamDoc {
+  id: string;
+  members: string[];
+  accepted: string[];
+  by: string;
+}
+
+export const teamActive = (t: Pick<TeamDoc, 'members' | 'accepted'>) => t.members.length >= 2 && t.members.every((id) => t.accepted.includes(id));
+
+export async function createTeam(g: string, by: string, members: string[]): Promise<void> {
+  const ref = doc(collection(fs(), 'groups', g, 'teams'));
+  await setDoc(ref, { members, accepted: members.includes(by) ? [by] : [], by, at: serverTimestamp() });
+}
+
+export async function acceptTeam(g: string, id: string, uid: string): Promise<void> {
+  await updateDoc(doc(fs(), 'groups', g, 'teams', id), { accepted: arrayUnion(uid) });
+}
+
+export async function deleteTeam(g: string, id: string): Promise<void> {
+  await deleteDoc(doc(fs(), 'groups', g, 'teams', id));
+}
+
 /** pair 生效：兩個人入面，有帳戶嘅都同意咗 */
 export const pairActive = (p: Pick<PairDoc, 'a' | 'b' | 'accepted'>) =>
   [p.a, p.b].every((id) => isGuest(id) || p.accepted.includes(id));
@@ -582,6 +605,7 @@ export async function deleteGroup(g: string): Promise<void> {
   const sessions = await listRefs('groups', g, 'sessions');
   for (const s of sessions) await deleteSession(g, s.path.split('/').pop() ?? '');
   await deleteRefs(await listRefs('groups', g, 'joinRequests').catch(() => []));
+  await deleteRefs(await listRefs('groups', g, 'teams').catch(() => []));
   const snap = await getDoc(doc(fs(), 'groups', g)).catch(() => null);
   const code = snap?.exists() ? snap.data().joinCode : null;
   if (code) await deleteDoc(doc(fs(), 'codes', String(code))).catch(() => undefined);
