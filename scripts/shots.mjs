@@ -13,7 +13,9 @@ for (const scheme of ['light', 'dark']) {
   const errors = [];
   page.on('pageerror', (e) => errors.push(e.message));
   const closeReceipt = async () => {
-    await page.waitForTimeout(500);
+    // 食糊動畫（同慶祝）播完先出找數單
+    await page.waitForSelector('.party', { state: 'detached', timeout: 8000 }).catch(() => undefined);
+    await page.waitForTimeout(1500);
     const d = page.getByRole('dialog', { name: '找數單' });
     if (await d.count()) await d.getByRole('button', { name: '好' }).click();
   };
@@ -254,7 +256,7 @@ for (const scheme of ['light', 'dark']) {
       await page.getByLabel('搜尋我的牌友圈').fill('星期');
       await page.getByRole('button', { name: '新增' }).click();
       await page.waitForTimeout(300);
-      await page.getByLabel('加入碼').fill('k7pq2m');
+      await page.getByRole('dialog').getByLabel('加入碼', { exact: true }).fill('k7pq2m');
       await page.waitForTimeout(200);
       await page.screenshot({ path: `${out}/home-add.png` });
     });

@@ -41,7 +41,7 @@ export function FanTableView({ table, canEdit, onSave, log }: {
 }) {
   const [q, setQ] = useState('');
   const [open, setOpen] = useState<string | null>(null);
-  const [shut, setShut] = useState<Set<number>>(() => new Set(table.sections.map((_, i) => i).filter((i) => i > 0)));
+  const [shut, setShut] = useState<Set<number>>(() => new Set([-1, ...table.sections.map((_, i) => i)]));
   const [editing, setEditing] = useState<FanTable | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
@@ -89,7 +89,7 @@ export function FanTableView({ table, canEdit, onSave, log }: {
       <div className="between ft-meta">
         <span className="muted small">{log?.at ? `${log.byName || '局主'} 於 ${fmtDate(log.at)} 更新` : '撳牌型睇解說'}</span>
         {!query && (
-          <button type="button" className="textbtn" onClick={() => setShut(allOpen ? new Set(table.sections.map((_, i) => i)) : new Set())}>
+          <button type="button" className="textbtn" onClick={() => setShut(allOpen ? new Set([-1, ...table.sections.map((_, i) => i)]) : new Set())}>
             {allOpen ? '全部收起' : '全部展開'}
           </button>
         )}
