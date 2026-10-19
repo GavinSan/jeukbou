@@ -1149,3 +1149,16 @@ button.join-code:active { background: var(--line); }
 .invite-copy.done { color: var(--gain); box-shadow: 0 0 0 1.5px var(--gain) inset; }
 @media (prefers-reduced-motion: reduce) { .tile-stat, .badge.got .badge-mark, .tier-tile.lg, .tier-tile.t7::after { animation: none; } }
 .exp-text .tag, .member-text .tag, .listrow .grow > .tag { margin-left: 6px; vertical-align: 1px; }
+
+/* 掉位：自己揀（東南西北排成枱咁） */
+.pick-seats { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.pick-seat {
+  display: flex; flex-direction: column; align-items: center; gap: 2px; min-height: 92px; padding: 10px; border-radius: 14px; cursor: pointer;
+  border: 2px solid transparent; background: var(--tile); color: var(--tile-ink); font: inherit; font-size: 16px;
+  box-shadow: 0 3px 0 var(--tile-back), 0 0 0 1px rgba(0, 0, 0, .06) inset; transition: transform .12s, border-color .12s;
+}
+.pick-seat:active { transform: translateY(2px); }
+.pick-seat.on { border-color: var(--felt); transform: translateY(-3px); box-shadow: 0 6px 0 var(--tile-back), 0 8px 18px rgba(0, 0, 0, .18); }
+.pick-wind { font-family: var(--font-kai); font-size: 28px; font-weight: 700; line-height: 1.1; color: var(--tile-loss); }
+.pick-seat small { font-size: 11px; color: var(--tile-muted); }
+.pick-seat .ellipsis { max-width: 100%; }

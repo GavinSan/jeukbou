@@ -696,7 +696,7 @@ export default function TableScreen(props: TableScreenProps) {
               <div className="choices three">
                 {props.onSwap && !ended && <button type="button" className="choice" onClick={() => { setSwapOut(''); setSwapIn(''); setGuestName(''); setMore('swap'); }}>換人<small>有人加入</small></button>}
                 {props.onDice && !ended && <button type="button" className="choice" onClick={() => run(() => props.onDice!(), '')}>擲骰<small>三粒骰</small></button>}
-                {props.onReseat && !ended && c.steps.length === 0 && <button type="button" className="choice" onClick={() => setMore('reseat')}>掉位<small>抽風牌</small></button>}
+                {props.onReseat && !ended && c.steps.length === 0 && <button type="button" className="choice" onClick={() => setMore('reseat')}>掉位<small>抽風牌或自己揀</small></button>}
                 {!ended && <button type="button" className="choice" disabled={locked} onClick={() => setMore('falseWin')}>詐糊<small>付每家 {rules.falseWinPenalty}</small></button>}
                 <button type="button" className="choice" aria-pressed={pf.sound} onClick={() => { unlock(); setPref('sound', !pf.sound); if (!pf.sound) setTimeout(() => sfx.tap(), 30); }}>
                   聲效<small>{pf.sound ? '開' : '關'}</small>

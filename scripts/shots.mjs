@@ -141,6 +141,12 @@ for (const scheme of ['light', 'dark']) {
       await page.getByRole('button', { name: '抽風牌' }).click();
       await page.waitForTimeout(2200);
       await page.screenshot({ path: `${out}/reseat.png` });
+      await page.getByRole('tab', { name: '自己揀' }).click();
+      await page.locator('.pick-seat').nth(0).click();
+      await page.locator('.pick-seat').nth(2).click();
+      await page.locator('.pick-seat').nth(1).click();
+      await page.waitForTimeout(200);
+      await page.screenshot({ path: `${out}/reseat-pick.png` });
     });
     await step('settle-page', async () => {
       await page.goto(`${base}/demo/settle`, { waitUntil: 'networkidle' });
