@@ -1148,3 +1148,4 @@ button.join-code:active { background: var(--line); }
 .invite-copy { width: 100%; }
 .invite-copy.done { color: var(--gain); box-shadow: 0 0 0 1.5px var(--gain) inset; }
 @media (prefers-reduced-motion: reduce) { .tile-stat, .badge.got .badge-mark, .tier-tile.lg, .tier-tile.t7::after { animation: none; } }
+.exp-text .tag, .member-text .tag, .listrow .grow > .tag { margin-left: 6px; vertical-align: 1px; }
