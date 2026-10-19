@@ -19,6 +19,7 @@ const ImportPage = lazy(() => import('./pages/ImportPage.tsx'));
 const PlayersPage = lazy(() => import('./pages/PlayersPage.tsx'));
 import TabBar, { appTabs } from './components/TabBar.tsx';
 import { navContext } from './lib/nav.ts';
+import { GroupWatchers, NoticeBar } from './components/Watch.tsx';
 const Demo = lazy(() => import('./demo.tsx'));
 
 function Routes({ user, refresh }: { user: User; refresh: () => void }) {
@@ -75,7 +76,7 @@ export default function App() {
     return (
       <>
         <Suspense fallback={<main className="page narrow"><Loading /></main>}><Demo /></Suspense>
-        <TabBar tabs={demoTabs} active={active} />
+        {path !== '/demo/home' && <TabBar tabs={demoTabs} active={active} />}
       </>
     );
   }
@@ -105,7 +106,10 @@ export default function App() {
   return (
     <>
       <Suspense fallback={<main className="page narrow"><Loading /></main>}><Routes user={user} refresh={refresh} /></Suspense>
-      {!path.startsWith('/join/') && <TabBar tabs={nav.tabs} active={nav.active} />}
+      {/* 首頁同加入頁唔使底部 tab */}
+      {!path.startsWith('/join/') && path !== '/' && path !== '/admin' && <TabBar tabs={nav.tabs} active={nav.active} />}
+      <GroupWatchers uid={user.uid} />
+      <NoticeBar />
     </>
   );
 }

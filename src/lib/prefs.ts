@@ -7,10 +7,12 @@ export interface Prefs {
   sound: boolean;
   /** 震機 */
   vibe: boolean;
+  /** 番數表更新時彈系統通知 */
+  notify: boolean;
 }
 
 const KEY = 'jeukbou-prefs';
-const DEFAULTS: Prefs = { hints: true, sound: true, vibe: true };
+const DEFAULTS: Prefs = { hints: true, sound: true, vibe: true, notify: false };
 const listeners = new Set<() => void>();
 
 function load(): Prefs {

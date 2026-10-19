@@ -6,7 +6,10 @@ import { SettleConfigForm } from '../components/SettleScreen.tsx';
 import { fanTableOf, saveFanTable, saveRules, saveSettleConfig, settleConfigOf } from '../lib/data.ts';
 import { useGroup, useMembers, useSession } from '../lib/live.ts';
 import { Loading, TopBar } from '../ui.tsx';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
+import { useSuperAdmin } from '../lib/admin.ts';
+import { markSeen } from '../lib/notify.ts';
+import { displayName } from '../lib/data.ts';
 import { message } from '../ui.tsx';
 
 /** /g/:g/rules（牌友圈預設）或者 /g/:g/s/:s/rules（呢個大局） */
@@ -18,12 +21,16 @@ export default function RulesPage({ user, groupId, sessionId }: { user: User; gr
   const [error, setError] = useState('');
   const [saved, setSaved] = useState('');
   const back = sessionId ? `/g/${groupId}/s/${sessionId}` : `/g/${groupId}`;
+  const admin = useSuperAdmin(user.uid);
+  const logAt = group.data?.fanTableLog?.at;
+  // 打開咗家規頁 = 睇過最新番數表
+  useEffect(() => { markSeen(groupId, logAt); }, [groupId, logAt]);
 
   if (group.error) return <main className="page"><TopBar back={back} /><p className="error">{group.error}</p></main>;
   if (!group.data || (sessionId && session.loading)) return <main className="page"><TopBar back={back} /><Loading /></main>;
 
   const g = group.data;
-  const canEdit = g.ownerId === user.uid;
+  const canEdit = g.ownerId === user.uid || admin;
   const initial = sessionId ? (session.data?.rules ?? g.rules) : g.rules;
   const cfg = settleConfigOf(g);
 
@@ -31,7 +38,7 @@ export default function RulesPage({ user, groupId, sessionId }: { user: User; gr
     <main className="page">
       <TopBar back={back} title={<div className="stack tight"><h1>家規</h1><span className="muted small">{g.name}</span></div>} />
       <HouseRules
-        fans={<FanTableView table={fanTableOf(g)} canEdit={canEdit} onSave={(t) => saveFanTable(groupId, t)} />}
+        fans={<FanTableView table={fanTableOf(g)} log={g.fanTableLog} canEdit={canEdit} onSave={(t, changes) => saveFanTable(groupId, t, { uid: user.uid, name: displayName(user), changes })} />}
         scoring={
           <RulesEditor
             key={sessionId ?? 'group'}

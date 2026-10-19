@@ -3,7 +3,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { collection, doc, onSnapshot, orderBy, query } from 'firebase/firestore';
 import type { DocumentData } from 'firebase/firestore';
 import { fs } from './data.ts';
-import type { Dice, ExpenseDoc, Group, Member, PairDoc, Session, StoredEvent, SwapRequest, TableDoc } from './data.ts';
+import type { Dice, ExpenseDoc, FanTableLog, Group, JoinRequest, Member, PairDoc, Session, StoredEvent, SwapRequest, TableDoc } from './data.ts';
 
 export interface Live<T> {
   data: T;
@@ -53,6 +53,17 @@ const toGroup = (id: string, d: DocumentData): Group => ({
   fanTable: d.fanTable ?? undefined,
   legacyNames: d.legacyNames ?? undefined,
   aliases: d.aliases ?? undefined,
+  joinMode: d.joinMode === 'approve' || d.joinMode === 'closed' ? d.joinMode : 'auto',
+  joinCode: d.joinCode ? String(d.joinCode) : undefined,
+  fanTableLog: toLog(d.fanTableLog),
+});
+const millis = (v: unknown): number | null => (v && typeof (v as { toMillis?: unknown }).toMillis === 'function' ? (v as { toMillis: () => number }).toMillis() : null);
+function toLog(d: DocumentData | undefined): FanTableLog | null {
+  if (!d) return null;
+  return { at: millis(d.at), by: String(d.by ?? ''), byName: String(d.byName ?? ''), changes: Array.isArray(d.changes) ? d.changes.map(String) : [] };
+}
+const toJoinRequest = (id: string, d: DocumentData): JoinRequest => ({
+  uid: id, name: String(d.name ?? '玩家'), photoURL: d.photoURL ?? null, inviteCode: String(d.inviteCode ?? ''), at: millis(d.at),
 });
 const toMember = (id: string, d: DocumentData): Member => ({ uid: id, name: String(d.name ?? '玩家'), photoURL: d.photoURL ?? null, legacyKey: d.legacyKey ? String(d.legacyKey) : undefined });
 const toSession = (id: string, d: DocumentData): Session => ({
@@ -88,10 +99,34 @@ export const toEvent = (_id: string, d: DocumentData): StoredEvent => ({
   at: d.at && typeof d.at.toMillis === 'function' ? d.at.toMillis() : null,
 });
 
-export function useUserGroups(uid: string | null): Live<string[]> {
-  const r = useLiveDoc(uid ? ['users', uid] : null, (_id, d) => (Array.isArray(d.groups) ? d.groups.map(String) : []));
-  return { data: r.data ?? [], loading: r.loading, error: r.error };
+export interface Profile {
+  groups: string[];
+  /** 等緊批准：牌友圈 id → 名 */
+  pending: Record<string, string>;
+  /** 自己上載嘅頭像（data URL） */
+  avatar: string | null;
 }
+
+const toProfile = (_id: string, d: DocumentData): Profile => ({
+  groups: Array.isArray(d.groups) ? d.groups.map(String) : [],
+  pending: d.pending && typeof d.pending === 'object' ? Object.fromEntries(Object.entries(d.pending).map(([k, v]) => [k, String(v)])) : {},
+  avatar: typeof d.avatar === 'string' ? d.avatar : null,
+});
+
+export function useProfile(uid: string | null): Live<Profile> {
+  const r = useLiveDoc(uid ? ['users', uid] : null, toProfile);
+  return { data: r.data ?? { groups: [], pending: {}, avatar: null }, loading: r.loading, error: r.error };
+}
+
+export function useUserGroups(uid: string | null): Live<string[]> {
+  const r = useProfile(uid);
+  return { data: r.data.groups, loading: r.loading, error: r.error };
+}
+
+export const useJoinRequests = (g: string | null) => useLiveList(g ? ['groups', g, 'joinRequests'] : null, null, toJoinRequest);
+/** 申請人自己：成員文件有冇、申請仲喺唔喺 */
+export const useMyMember = (g: string, uid: string) => useLiveDoc(['groups', g, 'members', uid], toMember);
+export const useMyJoinRequest = (g: string, uid: string) => useLiveDoc(['groups', g, 'joinRequests', uid], toJoinRequest);
 
 export const useGroup = (g: string | null) => useLiveDoc(g ? ['groups', g] : null, toGroup);
 export const useMembers = (g: string | null) => useLiveList(g ? ['groups', g, 'members'] : null, null, toMember);

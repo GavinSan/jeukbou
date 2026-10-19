@@ -73,11 +73,17 @@ for (const scheme of ['light', 'dark']) {
     await step('settle', async () => {
       // 上一鋪 Athena 食咗，Gavin 對 Ivan 嘅拉斷咗；連食三鋪先會問找數
       for (let k = 0; k < 3; k++) {
-        await page.waitForTimeout(1200);
+        await page.waitForTimeout(1500);
         await page.getByRole('button', { name: /^Gavin，/ }).click();
         await page.getByRole('button', { name: 'Ivan 出銃' }).click();
         await page.getByRole('dialog', { name: '入數' }).getByRole('button', { name: '10', exact: true }).click();
         await page.getByRole('button', { name: /^入數/ }).click();
+        if (k === 2) {
+          await page.waitForTimeout(350);
+          console.log('hold: ask banners during win anim =', await page.locator('.settle-ask').count());
+          await page.screenshot({ path: `${out}/win-hold.png` });
+        }
+        await page.waitForTimeout(1300);
         await closeReceipt();
       }
       await page.waitForTimeout(1400);
@@ -224,10 +230,33 @@ for (const scheme of ['light', 'dark']) {
       await page.waitForTimeout(200);
       await page.screenshot({ path: `${out}/rules-settle.png` });
       await page.getByRole('tab', { name: '番數表' }).click();
-      await page.getByRole('button', { name: /^十三么/ }).click();
+      await page.waitForTimeout(200);
+      await page.screenshot({ path: `${out}/fan-collapsed.png` });
+      await page.getByRole('button', { name: '全部展開' }).click();
+      await page.getByRole('button', { name: /^十三么/ }).first().click();
+      await page.waitForTimeout(200);
+      await page.screenshot({ path: `${out}/fan-open.png`, fullPage: true });
       await page.getByRole('button', { name: '編輯' }).click();
       await page.waitForTimeout(200);
+      await page.getByLabel('番數').first().fill('2');
+      await page.waitForTimeout(200);
       await page.screenshot({ path: `${out}/fan-edit.png` });
+    });
+    await step('home', async () => {
+      await page.goto(`${base}/demo/home`, { waitUntil: 'networkidle' });
+      await page.waitForTimeout(600);
+      await page.screenshot({ path: `${out}/home.png`, fullPage: true });
+      await page.getByRole('button', { name: '關閉' }).click();
+      await page.getByRole('radio', { name: '自動加入' }).click();
+      await page.getByRole('button', { name: '批准' }).first().click();
+      await page.waitForTimeout(200);
+      await page.screenshot({ path: `${out}/home-invite.png`, fullPage: true });
+      await page.getByLabel('搜尋我的牌友圈').fill('星期');
+      await page.getByRole('button', { name: '新增' }).click();
+      await page.waitForTimeout(300);
+      await page.getByLabel('加入碼').fill('k7pq2m');
+      await page.waitForTimeout(200);
+      await page.screenshot({ path: `${out}/home-add.png` });
     });
   }
   const overflow = await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth);

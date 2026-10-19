@@ -114,6 +114,11 @@ export default function TableScreen(props: TableScreenProps) {
   const [party, setParty] = useState<{ fan: number; key: number } | null>(null);
   const [gag, setGag] = useState<{ name: string; key: number } | null>(null);
   const endGag = useCallback(() => setGag(null), []);
+  // 食糊動畫播緊：找數單同「夠拉」提示等佢播完先出，唔好撞埋一齊
+  const [winHold, setWinHold] = useState(false);
+  const holdTimer = useRef<number | undefined>(undefined);
+  const deferredSettle = useRef(false);
+  const held = winHold || !!party || !!gag;
   const [picking, setPicking] = useState(false);
   const [pickedNote, setPickedNote] = useState('');
 
@@ -163,7 +168,15 @@ export default function TableScreen(props: TableScreenProps) {
     setFx((f) => ({ up, down, delta, hp, key: f.key + 1 }));
     // 有人找數（包括斷拉、劈、完場、換人）：全枱彈找數單
     // 淨係新入嘅一鋪先彈（改舊數唔彈）
-    if (lastStep && lastStep.seq > before.lastSeq && lastStep.result.lines.some((l) => l.kind === 'settle')) setReceipt(lastStep.seq);
+    if (lastStep && lastStep.seq > before.lastSeq && lastStep.result.lines.some((l) => l.kind === 'settle')) {
+      setReceipt(lastStep.seq);
+      if (last?.type === 'win') deferredSettle.current = true;
+    }
+    if (isNew && last?.type === 'win') {
+      setWinHold(true);
+      window.clearTimeout(holdTimer.current);
+      holdTimer.current = window.setTimeout(() => setWinHold(false), 1300);
+    }
     const art = last ? artOf(last) : null;
     if (art && last?.type === 'special') {
       const rep = last.meta?.repeat ?? 0;
@@ -191,6 +204,18 @@ export default function TableScreen(props: TableScreenProps) {
     return () => clearTimeout(t);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [snapshot]);
+
+  // 食糊動畫完咗：先播找數聲，再出找數單／夠拉提示
+  const askCount = settleableCount(c, rules, ended, table.declined ?? [], dismissed);
+  const wasHeld = useRef(false);
+  useEffect(() => {
+    if (held) { wasHeld.current = true; return; }
+    if (!wasHeld.current) return;
+    wasHeld.current = false;
+    if (deferredSettle.current) { deferredSettle.current = false; sfx.settle(); buzz('hit'); }
+    else if (askCount > 0) { sfx.tap(); buzz('tap'); }
+  }, [held]); // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => () => window.clearTimeout(holdTimer.current), []);
 
   // 擲骰：全枱同步，啱啱擲（20 秒內）先播
   // 角落嗰三粒要等動畫播完先換，唔好劇透
@@ -398,7 +423,7 @@ export default function TableScreen(props: TableScreenProps) {
         </div>
       ))}
 
-      {settleable.map((ch) => (
+      {!held && settleable.map((ch) => (
         <div key={ch.puller + ch.pulled} className="banner settle-ask">
           <span className="grow">第 {ch.count} 拉：{name(ch.pulled)} 欠 {name(ch.puller)} <b className="num">{ch.owed}</b>，由 {name(ch.pulled)} 決定是否找數。</span>
           <button type="button" className="btn danger" disabled={busy} onClick={() => push({ type: 'settle', puller: ch.puller, pulled: ch.pulled }, '已找數')}>找數</button>
@@ -937,7 +962,7 @@ export default function TableScreen(props: TableScreenProps) {
       {delTable && props.onDeleteTable && (
         <ConfirmDelete title="刪除此枱" detail={`會永久刪除「${table.name}」所有紀錄，無法復原。`} word={table.name} onConfirm={props.onDeleteTable} onClose={() => setDelTable(false)} />
       )}
-      {receipt !== null && (() => {
+      {receipt !== null && !held && (() => {
         const st = c.steps.find((x) => x.seq === receipt);
         if (!st) return null;
         const settles = st.result.lines.filter((l) => l.kind === 'settle');
@@ -987,6 +1012,16 @@ export default function TableScreen(props: TableScreenProps) {
       {toast && <div className="toast" role="status">{toast}</div>}
     </main>
   );
+}
+
+/** 有幾多條拉夠數要問找唔找（同上面 settleable 一樣嘅條件） */
+function settleableCount(c: Computed, rules: Rules, ended: boolean, declined: string[], dismissed: string[]): number {
+  const every = rules.la.settleEvery;
+  if (!rules.la.enabled || every <= 0 || ended) return 0;
+  return c.state.chains.filter((ch) => {
+    const key = `${ch.puller}>${ch.pulled}#${ch.count}`;
+    return ch.count % every === 0 && !dismissed.includes(key) && !declined.includes(key);
+  }).length;
 }
 
 const tone2 = (n: number) => (n > 0 ? 'gain' : n < 0 ? 'loss' : 'even');

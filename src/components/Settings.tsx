@@ -5,6 +5,9 @@ import type { Prefs } from '../lib/prefs.ts';
 import { buzz } from '../lib/haptics.ts';
 import { sfx, unlock } from '../lib/sound.ts';
 import { Sheet } from '../ui.tsx';
+import { askNotify, notifySupported } from '../lib/notify.ts';
+import { signOut } from 'firebase/auth';
+import { auth } from '../firebase.ts';
 
 const canVibrate = typeof navigator !== 'undefined' && typeof navigator.vibrate === 'function';
 const isIOS = typeof navigator !== 'undefined' && /iP(hone|ad|od)/.test(navigator.userAgent);
@@ -17,10 +20,16 @@ const ROWS: { key: keyof Prefs; label: string; note: string }[] = [
     label: '震動',
     note: canVibrate ? '同枱有人食糊或找數時震動' : isIOS ? 'iPhone 網頁版只有輕震；App 版會完整支援' : '此瀏覽器不支援震動',
   },
+  {
+    key: 'notify',
+    label: '通知',
+    note: notifySupported() ? '牌友圈番數表有更新時通知你' : isIOS ? 'iPhone 要先在 Safari「加入主畫面」，再從主畫面開啟' : '此瀏覽器不支援通知',
+  },
 ];
 
 export default function Settings({ onClose }: { onClose: () => void }) {
   const p = usePrefs();
+  const [note, setNote] = useState('');
   return (
     <Sheet onClose={onClose} label="設定">
       <h2>設定</h2>
@@ -34,9 +43,17 @@ export default function Settings({ onClose }: { onClose: () => void }) {
               className="switch"
               aria-checked={p[r.key]}
               aria-label={r.label}
-              onClick={() => {
+              onClick={async () => {
                 unlock();
                 const on = !p[r.key];
+                if (r.key === 'notify' && on) {
+                  const res = await askNotify();
+                  if (res !== 'granted') {
+                    setNote(res === 'denied' ? '通知已被封鎖，請到手機或瀏覽器設定允許「雀簿」通知。' : '此裝置不支援通知。');
+                    return;
+                  }
+                  setNote('');
+                }
                 setPref(r.key, on);
                 if (on && r.key === 'sound') setTimeout(() => sfx.tap(), 30);
                 if (on && r.key === 'vibe') buzz('tap');
@@ -45,8 +62,10 @@ export default function Settings({ onClose }: { onClose: () => void }) {
           </div>
         ))}
       </div>
+      {note && <p className="error small">{note}</p>}
       <p className="muted small">設定只儲存在這部裝置。</p>
       <button type="button" className="btn big" onClick={onClose}>完成</button>
+      {auth?.currentUser && <button type="button" className="btn plain" onClick={() => { onClose(); if (auth) signOut(auth); }}>登出 {auth.currentUser.email ?? ''}</button>}
     </Sheet>
   );
 }

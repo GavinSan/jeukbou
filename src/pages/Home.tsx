@@ -1,43 +1,138 @@
-import { useState } from 'react';
-import type { FormEvent } from 'react';
-import { signOut } from 'firebase/auth';
+// 首頁：自己、搜尋牌友圈、一個「新增」掣（開新牌友圈／用加入碼加入）。唔使底部 tab。
+import { useEffect, useState } from 'react';
+import type { FormEvent, ReactNode } from 'react';
 import type { User } from 'firebase/auth';
-import { auth } from '../firebase.ts';
-import { createGroup, displayName, syncMemberName } from '../lib/data.ts';
-import { useGroup, useUserGroups } from '../lib/live.ts';
+import {
+  cancelJoinRequest, createGroup, displayName, joinGroup, lookupJoinCode, setAvatar, settlePending, syncMemberName,
+} from '../lib/data.ts';
+import { useGroup, useJoinRequests, useMyJoinRequest, useMyMember, useProfile, useSession } from '../lib/live.ts';
 import { Link, go } from '../lib/router.tsx';
-import { Avatar, NameForm, TopBar, message } from '../ui.tsx';
+import { Avatar, NameForm, Sheet, TopBar, message } from '../ui.tsx';
 import { SettingsButton } from '../components/Settings.tsx';
 import { useSuperAdmin } from '../lib/admin.ts';
+import { toAvatar } from '../lib/avatar.ts';
+import { navContext } from '../lib/nav.ts';
+import { seenAt } from '../lib/notify.ts';
 
-function GroupRow({ id }: { id: string }) {
-  const { data } = useGroup(id);
-  if (!data) return null;
+const Chevron = () => (
+  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" aria-hidden="true"><path d="M9 6l6 6-6 6" /></svg>
+);
+
+function OwnerBadge({ id }: { id: string }) {
+  const reqs = useJoinRequests(id);
+  return reqs.data.length ? <span className="tag ask">{reqs.data.length} 人申請</span> : null;
+}
+
+export function GroupRowView({ href, name, fresh, badge }: { href: string; name: string; fresh?: boolean; badge?: ReactNode }) {
   return (
-    <Link to={`/g/${id}`} className="listrow">
-      <span className="grow">{data.name}</span>
-      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" aria-hidden="true"><path d="M9 6l6 6-6 6" /></svg>
+    <Link to={href} className="listrow">
+      <span className="grow">{name}</span>
+      {fresh && <span className="tag new">番數表更新</span>}
+      {badge}
+      <Chevron />
     </Link>
   );
 }
 
-export default function Home({ user, refresh }: { user: User; refresh: () => void }) {
-  const groups = useUserGroups(user.uid);
-  const [editing, setEditing] = useState(false);
-  const [newName, setNewName] = useState('');
+function GroupRow({ id, q, uid }: { id: string; q: string; uid: string }) {
+  const { data } = useGroup(id);
+  if (!data) return null;
+  if (q && !data.name.toLowerCase().includes(q.toLowerCase())) return null;
+  const log = data.fanTableLog;
+  const fresh = !!log?.at && log.by !== uid && log.at > seenAt(id);
+  return <GroupRowView href={`/g/${id}`} name={data.name} fresh={fresh} badge={data.ownerId === uid ? <OwnerBadge id={id} /> : null} />;
+}
+
+/** 頭像（撳就換相）＋名 */
+export function ProfileHead({ name, email, photo, busy, onPick, right }: {
+  name: string; email: string | null; photo: string | null; busy: boolean; onPick: (f: File | undefined) => void; right?: ReactNode;
+}) {
+  return (
+    <div className="row">
+      <label className={`avatar-edit${busy ? ' busy' : ''}`} title="更換頭像">
+        <Avatar name={name} photo={photo} size="lg" />
+        <span className="avatar-cam" aria-hidden="true">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><path d="M4 8h3l2-3h6l2 3h3v11H4z" /><circle cx="12" cy="13" r="3.5" /></svg>
+        </span>
+        <input type="file" accept="image/*" className="visually-hidden" aria-label="更換頭像" disabled={busy} onChange={(e) => { onPick(e.target.files?.[0]); e.target.value = ''; }} />
+      </label>
+      <div className="grow">
+        <h2>{name}</h2>
+        {email && <p className="muted small">{email}</p>}
+      </div>
+      {right}
+    </div>
+  );
+}
+
+export function SearchAdd({ q, onQ, onAdd }: { q: string; onQ: (v: string) => void; onAdd: () => void }) {
+  return (
+    <div className="home-search">
+      <svg className="home-search-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" aria-hidden="true"><circle cx="11" cy="11" r="7" /><path d="M20 20l-3.5-3.5" /></svg>
+      <input className="input" type="search" value={q} onChange={(e) => onQ(e.target.value)} placeholder="搜尋我的牌友圈" aria-label="搜尋我的牌友圈" />
+      <button type="button" className="btn add-btn" onClick={onAdd}>
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" aria-hidden="true"><path d="M12 5v14M5 12h14" /></svg>
+        新增
+      </button>
+    </div>
+  );
+}
+
+/** 等緊批准嘅牌友圈：批咗自動搬去「我的牌友圈」 */
+function PendingRow({ g, name, uid }: { g: string; name: string; uid: string }) {
+  const member = useMyMember(g, uid);
+  const req = useMyJoinRequest(g, uid);
+  const joined = !!member.data;
+  useEffect(() => { if (joined) settlePending(uid, g, true).catch(() => undefined); }, [joined, uid, g]);
+  if (joined || member.loading || req.loading) return null;
+  const rejected = !req.data;
+  return (
+    <div className="listrow pending-row">
+      <span className="grow">{name}<small className="muted">{rejected ? '　申請未獲批准' : '　等待局主批准'}</small></span>
+      <button type="button" className="textbtn" onClick={() => cancelJoinRequest(uid, g).catch(() => undefined)}>{rejected ? '移除' : '取消申請'}</button>
+    </div>
+  );
+}
+
+/** 上次去開嘅大局（未埋數先顯示） */
+function Resume({ g, s, t }: { g: string; s: string; t?: string }) {
+  const { data } = useSession(g, s);
+  if (!data || data.closed || data.legacy) return null;
+  return (
+    <Link to={t ? `/g/${g}/s/${s}/t/${t}` : `/g/${g}/s/${s}`} className="listrow list resume">
+      <span className="resume-dot" aria-hidden="true" />
+      <span className="grow">繼續：{data.name}</span>
+      <Chevron />
+    </Link>
+  );
+}
+
+export function AddSheet({ user, photo, groups, onClose }: { user: User | null; photo: string | null; groups: string[]; onClose: () => void }) {
+  const [mode, setMode] = useState<'join' | 'create'>('join');
+  const [name, setName] = useState('');
+  const [code, setCode] = useState('');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
-  const name = displayName(user);
-  const admin = useSuperAdmin(user.uid);
+  const [done, setDone] = useState('');
 
-  async function create(e: FormEvent) {
+  async function submit(e: FormEvent) {
     e.preventDefault();
-    if (!newName.trim()) return;
+    if (!user) { setError('示範模式不會儲存'); return; }
     setBusy(true);
     setError('');
     try {
-      const id = await createGroup(user, newName.trim());
-      go(`/g/${id}`);
+      if (mode === 'create') {
+        if (!name.trim()) return;
+        const id = await createGroup(user, name.trim(), photo);
+        go(`/g/${id}`);
+        return;
+      }
+      const found = await lookupJoinCode(code);
+      if (!found) { setError('找不到此加入碼，請檢查後再試'); return; }
+      if (groups.includes(found.g)) { go(`/g/${found.g}`); return; }
+      const res = await joinGroup(user, found.g, found.invite, photo, found.name);
+      if (res === 'joined') go(`/g/${found.g}`);
+      else setDone(`已向「${found.name}」送出申請，局主批准後會出現在你的牌友圈。`);
     } catch (err) {
       setError(message(err));
     } finally {
@@ -46,49 +141,126 @@ export default function Home({ user, refresh }: { user: User; refresh: () => voi
   }
 
   return (
-    <main className="page">
-      <TopBar right={<><SettingsButton /><button type="button" className="btn plain" onClick={() => auth && signOut(auth)}>登出</button></>} />
+    <Sheet onClose={onClose} label="新增牌友圈">
+      <div className="seg wide" role="tablist">
+        <button type="button" role="tab" aria-selected={mode === 'join'} aria-pressed={mode === 'join'} onClick={() => { setMode('join'); setError(''); }}>用加入碼</button>
+        <button type="button" role="tab" aria-selected={mode === 'create'} aria-pressed={mode === 'create'} onClick={() => { setMode('create'); setError(''); }}>開新牌友圈</button>
+      </div>
+      {done ? (
+        <>
+          <p className="ok">{done}</p>
+          <button type="button" className="btn big" onClick={onClose}>好</button>
+        </>
+      ) : (
+        <form className="stack" onSubmit={submit}>
+          {mode === 'join' ? (
+            <label className="field">
+              <span>加入碼</span>
+              <input
+                className="code-input"
+                value={code}
+                onChange={(e) => setCode(e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 6))}
+                placeholder="6 位，例如 K7PQ2M"
+                autoCapitalize="characters"
+                autoComplete="off"
+                spellCheck={false}
+                aria-label="加入碼"
+              />
+              <small className="muted">向局主或者牌友索取，在牌友圈頁面「成員」下面可以見到。</small>
+            </label>
+          ) : (
+            <label className="field">
+              <span>名稱</span>
+              <input id="group-name" value={name} onChange={(e) => setName(e.target.value)} placeholder="例如：不打不相識" maxLength={30} />
+            </label>
+          )}
+          {error && <p className="error" role="alert">{error}</p>}
+          <button type="submit" className="btn big" disabled={busy || (mode === 'join' ? code.length !== 6 : !name.trim())}>
+            {busy ? '請稍候…' : mode === 'join' ? '加入' : '建立'}
+          </button>
+        </form>
+      )}
+    </Sheet>
+  );
+}
+
+export default function Home({ user, refresh }: { user: User; refresh: () => void }) {
+  const profile = useProfile(user.uid);
+  const groups = profile.data.groups;
+  const pending = Object.entries(profile.data.pending).filter(([g]) => !groups.includes(g));
+  const photo = profile.data.avatar ?? user.photoURL;
+  const [editing, setEditing] = useState(false);
+  const [adding, setAdding] = useState(false);
+  const [q, setQ] = useState('');
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState('');
+  const name = displayName(user);
+  const admin = useSuperAdmin(user.uid);
+  const last = navContext('/');
+
+  async function pickAvatar(file: File | undefined) {
+    if (!file) return;
+    setBusy(true);
+    setError('');
+    try {
+      await setAvatar(user, await toAvatar(file), groups);
+    } catch (err) {
+      setError(message(err));
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <main className="page home">
+      <TopBar right={<SettingsButton />} />
 
       <section className="panel">
-        <div className="row">
-          <Avatar name={name} photo={user.photoURL} size="lg" />
-          <div className="grow">
-            <h2>{name}</h2>
-            <p className="muted small">{user.email}</p>
-          </div>
-          {!editing && <button type="button" className="btn plain" onClick={() => setEditing(true)}>改名</button>}
-        </div>
+        <ProfileHead
+          name={name}
+          email={user.email}
+          photo={photo}
+          busy={busy}
+          onPick={pickAvatar}
+          right={!editing && <button type="button" className="btn plain" onClick={() => setEditing(true)}>改名</button>}
+        />
+        {profile.data.avatar && !editing && (
+          <button type="button" className="textbtn" disabled={busy} onClick={() => { setBusy(true); setAvatar(user, null, groups).catch((err) => setError(message(err))).finally(() => setBusy(false)); }}>
+            移除頭像
+          </button>
+        )}
+        {error && <p className="error" role="alert">{error}</p>}
         {editing && (
           <NameForm
             user={user}
             initial={name}
-            onDone={() => { setEditing(false); refresh(); syncMemberName(user, groups.data).catch(() => undefined); }}
+            onDone={() => { setEditing(false); refresh(); syncMemberName(user, groups, photo).catch(() => undefined); }}
             onCancel={() => setEditing(false)}
           />
         )}
       </section>
 
+      {last.g && last.s && <Resume g={last.g} s={last.s} t={last.t} />}
+
       <section className="stack">
-        <h2 className="section-head">我的牌友圈</h2>
-        {groups.data.length > 0 ? (
-          <div className="list">{groups.data.map((g) => <GroupRow key={g} id={g} />)}</div>
+        <SearchAdd q={q} onQ={setQ} onAdd={() => setAdding(true)} />
+        {pending.length > 0 && (
+          <div className="list">{pending.map(([g, n]) => <PendingRow key={g} g={g} name={n} uid={user.uid} />)}</div>
+        )}
+        {groups.length > 0 ? (
+          <div className="list">{groups.map((g) => <GroupRow key={g} id={g} q={q.trim()} uid={user.uid} />)}</div>
         ) : (
-          !groups.loading && <p className="muted">未有牌友圈。</p>
+          !profile.loading && !pending.length && (
+            <div className="empty">
+              <p>未有牌友圈。</p>
+              <button type="button" className="btn" onClick={() => setAdding(true)}>用加入碼加入或開新牌友圈</button>
+            </div>
+          )
         )}
       </section>
 
-      <section className="panel">
-        <h2>開新牌友圈</h2>
-        <form className="row" style={{ alignItems: 'flex-end' }} onSubmit={create}>
-          <label className="field grow">
-            <span>名稱</span>
-            <input id="group-name" value={newName} onChange={(e) => setNewName(e.target.value)} placeholder="例如：不打不相識" maxLength={30} />
-          </label>
-          <button type="submit" className="btn" disabled={busy || !newName.trim()}>建立</button>
-        </form>
-        {error && <p className="error" role="alert">{error}</p>}
-      </section>
       {admin && <Link to="/admin" className="listrow list"><span className="grow">超級管理員</span><span className="muted small">所有牌友圈</span></Link>}
+      {adding && <AddSheet user={user} photo={photo} groups={groups} onClose={() => setAdding(false)} />}
     </main>
   );
 }

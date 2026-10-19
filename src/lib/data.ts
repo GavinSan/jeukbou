@@ -39,6 +39,29 @@ export interface Group {
   legacyNames?: Record<string, string>;
   /** 局主配對：舊紀錄 key → 成員 uid */
   aliases?: Record<string, string>;
+  /** 加入方式；冇 = 自動加入 */
+  joinMode?: JoinMode;
+  /** 6 位加入碼 */
+  joinCode?: string;
+  /** 番數表最近一次修改 */
+  fanTableLog?: FanTableLog | null;
+}
+
+export type JoinMode = 'auto' | 'approve' | 'closed';
+
+export interface FanTableLog {
+  at: number | null;
+  by: string;
+  byName: string;
+  changes: string[];
+}
+
+export interface JoinRequest {
+  uid: string;
+  name: string;
+  photoURL: string | null;
+  inviteCode: string;
+  at: number | null;
 }
 
 export interface Member {
@@ -198,44 +221,153 @@ export function guestId(): string {
 }
 
 /** 開新牌友圈，自己做局主 */
-export async function createGroup(user: User, name: string): Promise<string> {
+export async function createGroup(user: User, name: string, photo: string | null = user.photoURL): Promise<string> {
   const ref = doc(collection(fs(), 'groups'));
   const inviteCode = randomCode();
-  await setDoc(ref, { name, ownerId: user.uid, inviteCode, rules: {}, createdAt: serverTimestamp() });
+  await setDoc(ref, { name, ownerId: user.uid, inviteCode, joinMode: 'auto', rules: {}, createdAt: serverTimestamp() });
   await setDoc(doc(fs(), 'groups', ref.id, 'members', user.uid), {
     name: displayName(user),
-    photoURL: user.photoURL ?? null,
+    photoURL: photo ?? null,
     inviteCode,
     joinedAt: serverTimestamp(),
   });
   await setDoc(doc(fs(), 'users', user.uid), { groups: arrayUnion(ref.id), updatedAt: serverTimestamp() }, { merge: true });
+  ensureJoinCode({ id: ref.id, inviteCode, joinCode: undefined }, name).catch(() => undefined);
   return ref.id;
 }
 
-/** 用邀請碼加入；已經係成員就直接返 true */
-export async function joinGroup(user: User, groupId: string, code: string): Promise<void> {
+const isDenied = (err: unknown) => typeof err === 'object' && !!err && 'code' in err && (err as { code: unknown }).code === 'permission-denied';
+
+/**
+ * 用邀請連結或者加入碼加入。
+ * 自動加入 → 'joined'；要批准 → 送出申請 'requested'；不收新人或者碼錯 → 拋錯。
+ */
+export async function joinGroup(user: User, groupId: string, code: string, photo: string | null = user.photoURL, groupName = ''): Promise<'joined' | 'requested'> {
   const memberRef = doc(fs(), 'groups', groupId, 'members', user.uid);
+  const userRef = doc(fs(), 'users', user.uid);
   const existing = await getDoc(memberRef);
-  if (!existing.exists()) {
-    await setDoc(memberRef, {
-      name: displayName(user),
-      photoURL: user.photoURL ?? null,
-      inviteCode: code,
-      joinedAt: serverTimestamp(),
-    });
+  if (existing.exists()) {
+    await setDoc(userRef, { groups: arrayUnion(groupId), pending: { [groupId]: deleteField() }, updatedAt: serverTimestamp() }, { merge: true });
+    return 'joined';
   }
-  await setDoc(doc(fs(), 'users', user.uid), { groups: arrayUnion(groupId), updatedAt: serverTimestamp() }, { merge: true });
+  const me = { name: displayName(user), photoURL: photo ?? null, inviteCode: code };
+  try {
+    await setDoc(memberRef, { ...me, joinedAt: serverTimestamp() });
+    await setDoc(userRef, { groups: arrayUnion(groupId), updatedAt: serverTimestamp() }, { merge: true });
+    return 'joined';
+  } catch (err) {
+    if (!isDenied(err)) throw err;
+  }
+  try {
+    const reqRef = doc(fs(), 'groups', groupId, 'joinRequests', user.uid);
+    const had = await getDoc(reqRef).catch(() => null);
+    if (!had?.exists()) await setDoc(reqRef, { ...me, at: serverTimestamp() });
+    await setDoc(userRef, { pending: { [groupId]: groupName || '牌友圈' }, updatedAt: serverTimestamp() }, { merge: true });
+    return 'requested';
+  } catch (err) {
+    if (isDenied(err)) throw new Error('此牌友圈暫時不接受新成員，或連結已失效。請向局主查詢。');
+    throw err;
+  }
 }
 
-/** 改名之後同步去所有牌友圈 */
-export async function syncMemberName(user: User, groupIds: string[]): Promise<void> {
+/** 申請批咗：搬去「我的牌友圈」；被拒或者取消：清走 */
+export async function settlePending(uid: string, groupId: string, joined: boolean): Promise<void> {
+  const data: Record<string, unknown> = { pending: { [groupId]: deleteField() }, updatedAt: serverTimestamp() };
+  if (joined) data.groups = arrayUnion(groupId);
+  await setDoc(doc(fs(), 'users', uid), data, { merge: true });
+}
+
+export async function cancelJoinRequest(uid: string, groupId: string): Promise<void> {
+  await deleteDoc(doc(fs(), 'groups', groupId, 'joinRequests', uid)).catch(() => undefined);
+  await settlePending(uid, groupId, false);
+}
+
+/** 局主批准：開成員、刪申請（一齊做） */
+export async function approveJoin(groupId: string, req: JoinRequest): Promise<void> {
+  const batch = writeBatch(fs());
+  batch.set(doc(fs(), 'groups', groupId, 'members', req.uid), { name: req.name, photoURL: req.photoURL, inviteCode: req.inviteCode, joinedAt: serverTimestamp() });
+  batch.delete(doc(fs(), 'groups', groupId, 'joinRequests', req.uid));
+  await batch.commit();
+}
+
+export async function rejectJoin(groupId: string, uid: string): Promise<void> {
+  await deleteDoc(doc(fs(), 'groups', groupId, 'joinRequests', uid));
+}
+
+export async function setJoinMode(groupId: string, mode: JoinMode): Promise<void> {
+  await updateDoc(doc(fs(), 'groups', groupId), { joinMode: mode });
+}
+
+const CODE_ALPHABET = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+function joinCodeCandidate(): string {
+  const bytes = new Uint8Array(6);
+  crypto.getRandomValues(bytes);
+  return Array.from(bytes, (b) => CODE_ALPHABET[b % CODE_ALPHABET.length]).join('');
+}
+
+/** 局主：未有加入碼就開一個（撞碼就再試） */
+const making = new Map<string, Promise<string>>();
+export function ensureJoinCode(g: Pick<Group, 'id' | 'inviteCode' | 'joinCode'>, name: string): Promise<string> {
+  if (g.joinCode) return Promise.resolve(g.joinCode);
+  const key = `${g.id}:${g.inviteCode}`;
+  const running = making.get(key);
+  if (running) return running;
+  const p = makeJoinCode(g, name).finally(() => making.delete(key));
+  making.set(key, p);
+  return p;
+}
+
+async function makeJoinCode(g: Pick<Group, 'id' | 'inviteCode'>, name: string): Promise<string> {
+  for (let i = 0; i < 5; i++) {
+    const code = joinCodeCandidate();
+    try {
+      await setDoc(doc(fs(), 'codes', code), { g: g.id, invite: g.inviteCode, name, at: serverTimestamp() });
+      await updateDoc(doc(fs(), 'groups', g.id), { joinCode: code });
+      return code;
+    } catch (err) {
+      if (!isDenied(err)) throw err;
+    }
+  }
+  throw new Error('未能產生加入碼，請再試');
+}
+
+/** 局主：重設連結同加入碼（舊連結、舊碼即時失效） */
+export async function resetInvite(g: Group): Promise<void> {
+  if (g.joinCode) await deleteDoc(doc(fs(), 'codes', g.joinCode)).catch(() => undefined);
+  const inviteCode = randomCode();
+  await updateDoc(doc(fs(), 'groups', g.id), { inviteCode, joinCode: deleteField() });
+  await ensureJoinCode({ id: g.id, inviteCode, joinCode: undefined }, g.name);
+}
+
+/** 用加入碼搵牌友圈 */
+export async function lookupJoinCode(code: string): Promise<{ g: string; invite: string; name: string } | null> {
+  const c = code.trim().toUpperCase().replace(/[^A-Z0-9]/g, '');
+  if (c.length !== 6) return null;
+  try {
+    const snap = await getDoc(doc(fs(), 'codes', c));
+    if (!snap.exists()) return null;
+    const d = snap.data();
+    return { g: String(d.g ?? ''), invite: String(d.invite ?? ''), name: String(d.name ?? '') };
+  } catch {
+    return null;
+  }
+}
+
+/** 改名或者換頭像之後同步去所有牌友圈 */
+export async function syncMemberName(user: User, groupIds: string[], photo: string | null = user.photoURL): Promise<void> {
   await Promise.all(
     groupIds.map(async (g) => {
       const ref = doc(fs(), 'groups', g, 'members', user.uid);
       const snap = await getDoc(ref);
-      if (snap.exists()) await setDoc(ref, { name: displayName(user), photoURL: user.photoURL ?? null }, { merge: true });
+      if (snap.exists()) await setDoc(ref, { name: displayName(user), photoURL: photo ?? null }, { merge: true });
     }),
   );
+}
+
+/** 換頭像（null = 用返登入帳戶張相） */
+export async function setAvatar(user: User, avatar: string | null, groupIds: string[]): Promise<void> {
+  await setDoc(doc(fs(), 'users', user.uid), { avatar: avatar ?? deleteField(), updatedAt: serverTimestamp() }, { merge: true });
+  await syncMemberName(user, groupIds, avatar ?? user.photoURL);
 }
 
 export interface NewTable {
@@ -399,9 +531,12 @@ export async function declineSettle(g: string, s: string, t: string, key: string
 export const fanTableOf = (g: Group | null | undefined): FanTable =>
   g?.fanTable && Array.isArray(g.fanTable.sections) && g.fanTable.sections.length ? g.fanTable : DEFAULT_FAN_TABLE;
 
-/** 淨係局主改得 */
-export async function saveFanTable(g: string, table: FanTable | null): Promise<void> {
-  await updateDoc(doc(fs(), 'groups', g), { fanTable: table ?? deleteField() });
+/** 淨係局主改得；記低改咗乜，同圈成員會收到提示 */
+export async function saveFanTable(g: string, table: FanTable | null, by: { uid: string; name: string; changes: string[] }): Promise<void> {
+  await updateDoc(doc(fs(), 'groups', g), {
+    fanTable: table ?? deleteField(),
+    fanTableLog: { at: serverTimestamp(), by: by.uid, byName: by.name, changes: by.changes.slice(0, 12) },
+  });
 }
 
 // ---------- 刪除（局主／超級管理員） ----------
@@ -446,6 +581,10 @@ export async function deleteTable(g: string, s: string, t: string): Promise<void
 export async function deleteGroup(g: string): Promise<void> {
   const sessions = await listRefs('groups', g, 'sessions');
   for (const s of sessions) await deleteSession(g, s.path.split('/').pop() ?? '');
+  await deleteRefs(await listRefs('groups', g, 'joinRequests').catch(() => []));
+  const snap = await getDoc(doc(fs(), 'groups', g)).catch(() => null);
+  const code = snap?.exists() ? snap.data().joinCode : null;
+  if (code) await deleteDoc(doc(fs(), 'codes', String(code))).catch(() => undefined);
   await deleteRefs(await listRefs('groups', g, 'members'));
   await deleteRefs([{ path: `groups/${g}` }]);
 }

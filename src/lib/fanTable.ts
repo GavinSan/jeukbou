@@ -212,3 +212,24 @@ export function glossaryOf(name: string): string | undefined {
   const base = name.replace(/（.*?）|\(.*?\)/g, '').split(/[／/]/)[0].trim();
   return FAN_GLOSSARY[base] ?? FAN_GLOSSARY[name];
 }
+
+/** 兩份番數表有咩唔同（俾同圈成員睇嘅簡短說明） */
+export function diffFanTable(before: FanTable, after: FanTable): string[] {
+  const flat = (t: FanTable) => {
+    const m = new Map<string, string>();
+    for (const sec of t.sections) for (const it of sec.items) if (it.name.trim()) m.set(it.name.trim(), it.value.trim());
+    return m;
+  };
+  const a = flat(before);
+  const b = flat(after);
+  const out: string[] = [];
+  for (const [name, v] of b) {
+    if (!a.has(name)) out.push(`新增 ${name} ${v}`);
+    else if (a.get(name) !== v) out.push(`${name} ${a.get(name)} → ${v}`);
+  }
+  for (const name of a.keys()) if (!b.has(name)) out.push(`刪除 ${name}`);
+  const titles = (t: FanTable) => t.sections.map((s) => s.title).join('|');
+  if (titles(before) !== titles(after)) out.push('分類有修改');
+  if (before.rules.join('\n').trim() !== after.rules.join('\n').trim()) out.push('牌例有修改');
+  return out;
+}
