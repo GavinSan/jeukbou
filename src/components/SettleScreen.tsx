@@ -241,7 +241,7 @@ export default function SettleScreen(p: SettleScreenProps) {
             {gameBlocks.map((b) => b.members ? (
               <div key={b.key} className="st-group">
                 <div className="st-row three st-group-head">
-                  <span className="ellipsis">{b.name}<span className="tag instant">Group</span></span>
+                  <span className="ellipsis">{b.name}</span>
                   <span className={`num ${tone(b.fan)}`}>{fanTxt(b.fan)}</span>
                   <b className={`num ${tone(b.cash)}`}>{money(b.cash, true)}</b>
                 </div>
