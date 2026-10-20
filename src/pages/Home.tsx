@@ -178,12 +178,12 @@ export function DashboardView({ name, photo, joined, groupCount, mine, loading, 
             <section className="stack">
               <h2 className="section-head">我嘅數據</h2>
               <div className="my-stats">
-                <div className="ms ms-gold"><span className="ms-mark">食</span><b className="num"><CountUp value={st.wins} /></b><small>食糊</small></div>
+                <div className="ms ms-gold"><span className="ms-mark">食</span><b className="num"><CountUp value={st.handWins} /></b><small>食糊</small></div>
                 <div className="ms ms-green"><span className="ms-mark">摸</span><b className="num"><CountUp value={st.selfDraws} /></b><small>自摸</small></div>
                 <div className="ms ms-red"><span className="ms-mark">銃</span><b className="num"><CountUp value={st.dealIns} /></b><small>出銃</small></div>
                 <div className="ms ms-purple"><span className="ms-mark">大</span><b className="num"><CountUp value={st.bestFan} /></b><small>最大一鋪</small></div>
               </div>
-              <p className="muted small">每場平均食糊 {(st.wins / st.detailed).toFixed(1)} 次、出銃 {(st.dealIns / st.detailed).toFixed(1)} 次（{st.detailed} 場有詳細紀錄）</p>
+              <p className="muted small">每場平均食糊 {(st.handWins / st.detailed).toFixed(1)} 次、出銃 {(st.dealIns / st.detailed).toFixed(1)} 次（{st.detailed} 場有詳細紀錄）</p>
             </section>
           )}
 

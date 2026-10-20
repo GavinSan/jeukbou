@@ -116,7 +116,7 @@ export interface Stats {
   month: number;
   maxMonth: number;
   /** 有詳細紀錄嘅場（唔計舊紀錄）入面：食糊、自摸、出銃、最大一鋪 */
-  wins: number;
+  handWins: number;
   selfDraws: number;
   dealIns: number;
   bestFan: number;
@@ -164,7 +164,7 @@ export function statsOf(list: MySession[]): Stats {
     curve,
     month: sorted.filter((s) => now - s.at < 30 * 86400000).length,
     maxMonth: Math.max(0, ...perMonth.values()),
-    wins: sorted.reduce((a, s) => a + (s.wins ?? 0), 0),
+    handWins: sorted.reduce((a, s) => a + (s.wins ?? 0), 0),
     selfDraws: sorted.reduce((a, s) => a + (s.selfDraws ?? 0), 0),
     dealIns: sorted.reduce((a, s) => a + (s.dealIns ?? 0), 0),
     bestFan: Math.max(0, ...sorted.map((s) => s.best ?? 0)),
@@ -205,7 +205,7 @@ export function badgesOf(st: Stats): Badge[] {
     b('iron', '鐵人', '鐵', '一個月打 8 場', st.maxMonth, 8),
     b('multi', '周圍打', '圈', '喺 2 個牌友圈有紀錄', st.groups, 2),
     b('self10', '自摸王', '摸', '自摸 10 次', st.selfDraws, 10),
-    b('win50', '食糊機', '食', '食糊 50 次', st.wins, 50),
+    b('win50', '食糊機', '食', '食糊 50 次', st.handWins, 50),
     b('hundred-fan', '百番', '番', '一鋪食 100 番', st.bestFan, 100),
   ];
 }
