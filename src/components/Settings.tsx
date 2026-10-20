@@ -16,7 +16,7 @@ import { toAvatar } from '../lib/avatar.ts';
 const canVibrate = typeof navigator !== 'undefined' && typeof navigator.vibrate === 'function';
 const isIOS = typeof navigator !== 'undefined' && /iP(hone|ad|od)/.test(navigator.userAgent);
 
-const ROWS: { key: keyof Prefs; label: string; note: string }[] = [
+const ROWS: { key: Exclude<keyof Prefs, 'skin'>; label: string; note: string }[] = [
   { key: 'hints', label: '提示文字', note: '顯示各頁的簡短說明' },
   { key: 'sound', label: '聲效', note: '食糊、找數、擲骰' },
   {
