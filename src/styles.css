@@ -1268,3 +1268,7 @@ button.join-code:active { background: var(--line); }
   padding: 12px 18px; border-radius: 12px; background: var(--tile); color: var(--tile-ink); font-size: 17px; font-weight: 700;
   box-shadow: 0 4px 0 var(--tile-back), 0 14px 28px rgba(0, 0, 0, .3);
 }
+/* 長名：枱上嘅牌唔好俾名撐大 */
+.tile .t-name { width: 100%; max-width: 100%; overflow: hidden; }
+.tile .t-name > .ellipsis { flex: 0 1 auto; display: block; }
+.tile .t-name > .dealer-mark { flex: none; }

@@ -18,7 +18,8 @@ export function shuffle<T>(list: T[]): T[] {
 }
 
 /** players = 掉位前嘅次序；result[i] = 坐第 i 個風位嘅人 */
-export default function SeatDraw({ players, name, onConfirm, onCancel, busy }: {
+export default function SeatDraw({ players, name, onConfirm, onCancel, busy, title = '掉位' }: {
+  title?: string;
   players: string[];
   name: (id: string) => string;
   onConfirm: (seats: string[]) => void;
@@ -98,7 +99,7 @@ export default function SeatDraw({ players, name, onConfirm, onCancel, busy }: {
     const changed = order.some((p, i) => p !== players[i]);
     return (
       <div className="stack">
-        <h2>掉位</h2>
+        <h2>{title}</h2>
         {tabs}
         <Hint>拖一個人去另一個位放手就對調（或者撳兩個位）。坐東位的做首莊。</Hint>
         <div className="pick-seats">
@@ -133,7 +134,7 @@ export default function SeatDraw({ players, name, onConfirm, onCancel, busy }: {
 
   return (
     <div className="stack">
-      <h2>掉位</h2>
+      <h2>{title}</h2>
       {tabs}
       <Hint>每人抽一隻風牌，抽到東的坐東位做首莊，其後南、西、北。</Hint>
       <div className="draw-row">

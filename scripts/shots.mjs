@@ -341,7 +341,7 @@ for (const scheme of ['light', 'dark']) {
     await step('dealer', async () => {
       await page.goto(`${base}/demo/t/2`, { waitUntil: 'networkidle' });
       await page.waitForTimeout(1200);
-      await page.getByRole('button', { name: /^Robin，/ }).click();
+      await page.getByRole('button', { name: /^TS，/ }).click();
       await page.getByRole('button', { name: /^自摸/ }).click();
       await page.waitForTimeout(300);
       await page.getByRole('radio', { name: '當 1 番' }).click();

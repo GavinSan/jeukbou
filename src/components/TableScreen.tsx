@@ -934,7 +934,7 @@ export default function TableScreen(props: TableScreenProps) {
             </>
           )}
           {more === 'reseat' && props.onReseat && (
-            <SeatDraw players={seats} name={name} busy={busy} onCancel={() => setMore(null)} onConfirm={(s) => run(() => props.onReseat!(s), '已掉位')} />
+            <SeatDraw players={seats} name={name} busy={busy} title={c.steps.length ? '換位' : '掉位'} onCancel={() => setMore(null)} onConfirm={(s) => run(() => props.onReseat!(s), '已掉位')} />
           )}
           {error && <p className="error" role="alert">{error}</p>}
         </Sheet>
