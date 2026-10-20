@@ -39,6 +39,8 @@ export interface TableStats {
   roundMs: number[];
   /** 第一鋪到最後一鋪 */
   playMs: number;
+  /** 每人拉咗幾多次（第 2 拉起計，即係食返同一個人） */
+  pulls: Record<string, number>;
 }
 
 export interface Computed {
@@ -122,7 +124,7 @@ export function netOf(d: Step['delta'], fallback = true): Record<string, number>
 function statsOf(steps: Step[]): TableStats {
   const s: TableStats = {
     hands: 0, biggest: null, selfDraws: 0, wins: {}, dealIns: {}, selfDrawBy: {}, bestBy: {}, falseWins: {}, specials: 0,
-    maxStreak: null, maxChain: null, roundMs: [], playMs: 0,
+    maxStreak: null, maxChain: null, roundMs: [], playMs: 0, pulls: {},
   };
   let first: number | null = null;
   let last: number | null = null;
@@ -148,6 +150,9 @@ function statsOf(steps: Step[]): TableStats {
     if (event.type === 'falseWin') s.falseWins[event.player] = (s.falseWins[event.player] ?? 0) + 1;
     if (event.type === 'draw') s.hands += 1;
     if (event.type !== 'win') continue;
+    for (const l of result.lines) {
+      if (l.kind === 'pending' && l.to && /第 \d+ 拉/.test(l.note ?? '')) s.pulls[l.to] = (s.pulls[l.to] ?? 0) + 1;
+    }
     s.hands += 1;
     if (event.loser === null) {
       s.selfDraws += 1;
@@ -177,15 +182,18 @@ export interface PlayStats {
   maxChain: { puller: string; pulled: string; count: number } | null;
   roundMs: number[];
   playMs: number;
+  /** 每人拉咗幾多次（舊快取冇） */
+  pulls?: Record<string, number>;
 }
 
 export function emptyPlay(): PlayStats {
-  return { hands: 0, wins: {}, selfDraws: {}, dealIns: {}, falseWins: {}, best: {}, biggest: null, maxStreak: null, maxChain: null, roundMs: [], playMs: 0 };
+  return { hands: 0, wins: {}, selfDraws: {}, dealIns: {}, falseWins: {}, best: {}, biggest: null, maxStreak: null, maxChain: null, roundMs: [], playMs: 0, pulls: {} };
 }
 
 export function addPlay(a: PlayStats, b: Pick<PlayStats, keyof PlayStats> | TableStats): PlayStats {
   const add = (x: Record<string, number>, y: Record<string, number>) => { for (const [k, v] of Object.entries(y)) x[k] = (x[k] ?? 0) + v; };
-  const out: PlayStats = { ...a, wins: { ...a.wins }, selfDraws: { ...a.selfDraws }, dealIns: { ...a.dealIns }, falseWins: { ...a.falseWins }, best: { ...a.best }, roundMs: [...a.roundMs] };
+  const out: PlayStats = { ...a, wins: { ...a.wins }, selfDraws: { ...a.selfDraws }, dealIns: { ...a.dealIns }, falseWins: { ...a.falseWins }, best: { ...a.best }, roundMs: [...a.roundMs], pulls: { ...(a.pulls ?? {}) } };
+  add(out.pulls!, b.pulls ?? {});
   for (const [k, v] of Object.entries('bestBy' in b ? b.bestBy : b.best)) out.best[k] = Math.max(out.best[k] ?? 0, v);
   out.hands += b.hands;
   add(out.wins, b.wins);

@@ -2,7 +2,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { CSSProperties, ReactNode } from 'react';
 import { applyEvent, replay, seatWind } from '../engine/table.ts';
-import type { Line, TableEvent } from '../engine/table.ts';
+import type { Line, TableEvent, TableState } from '../engine/table.ts';
 import type { Rules } from '../engine/rules.ts';
 import type { SwapRequest, TableDoc, LogEvent } from '../lib/data.ts';
 import type { Computed } from '../lib/score.ts';
@@ -24,6 +24,8 @@ import DiceRoll, { Die } from './Dice.tsx';
 import SeatDraw from './SeatDraw.tsx';
 import { CHASE_MAX_REPEAT, SPECIAL_ITEMS, SpecialArt, SpecialBurst, artOf, chaseAmount, suggestRepeat } from './Specials.tsx';
 import type { Art } from './Specials.tsx';
+
+const WIND_NAMES = ['東', '南', '西', '北'];
 
 const SPOTS = ['s-bottom', 's-right', 's-top', 's-left'];
 // 快捷番數：每 10 一格，10 至 300
@@ -364,6 +366,32 @@ export default function TableScreen(props: TableScreenProps) {
   const diceCorner = ({ 's-bottom': 'bl', 's-right': 'br', 's-top': 'tr', 's-left': 'tl' } as Record<string, string>)[dealerSpot] ?? 'bl';
   const lastStep = c.steps[c.steps.length - 1];
   const log = [...c.steps].reverse().slice(0, showAll ? undefined : 5);
+  // 每一鋪：邊個圈、邊個做莊、有冇冧莊；番數點樣變成金額（例如 8 番 + 底 3 = 11）
+  const handInfo = useMemo(() => {
+    const out: Record<number, { wind: string; label: string; stay: boolean; how: string }> = {};
+    let prev: TableState | null = null;
+    for (const st of c.steps) {
+      const before = prev;
+      const turns = before?.dealerTurns ?? 0;
+      const wind = WIND_NAMES[Math.floor(turns / 4) % 4];
+      const seatW = WIND_NAMES[turns % 4];
+      const streak = before?.streak ?? 0;
+      const hand = st.event.type === 'win' || st.event.type === 'draw';
+      const after = st.result.state;
+      const stay = hand && after.dealerTurns === turns && !after.ended;
+      let how = '';
+      if (st.event.type === 'win') {
+        const winners = st.event.winners.map((w) => w.player);
+        const notes = st.result.lines
+          .filter((l) => (l.kind === 'pending' || l.kind === 'settle') && l.to !== null && winners.includes(l.to) && l.note && !/斷拉|劈/.test(l.note))
+          .map((l) => `${l.note} = ${l.amount}`);
+        how = [...new Set(notes)].slice(0, 2).join('／');
+      }
+      out[st.seq] = { wind, label: hand ? `${wind}圈${seatW}${streak ? ` 連${streak}` : ''}` : '', stay, how };
+      prev = after;
+    }
+    return out;
+  }, [c]);
   const trend = useMemo(() => {
     const t = trendOf(c, seats);
     return seats.map((id) => ({ id, name: name(id), values: t[id] }));
@@ -568,10 +596,15 @@ export default function TableScreen(props: TableScreenProps) {
               {cols.map((id) => <span key={id} className={id === me ? 'me' : ''}>{name(id)}</span>)}
             </div>
             <ol className="lg-rows">
-              {log.map((st) => {
+              {log.map((st, li) => {
                 const net = netOf(st.delta, false);
+                const hi = handInfo[st.seq];
+                const newer = li > 0 ? handInfo[log[li - 1].seq] : null;
+                const divider = hi && (!newer || newer.wind !== hi.wind) ? hi.wind : '';
+                const collect = st.event.type === 'end' || st.event.type === 'settle';
                 return (
-                  <li key={st.seq}>
+                  <li key={st.seq} className={divider ? 'has-div' : ''}>
+                    {divider && <span className="lg-div" aria-hidden="true">{divider}圈</span>}
                     <button
                       type="button"
                       className="lg-row"
@@ -579,9 +612,15 @@ export default function TableScreen(props: TableScreenProps) {
                       onClick={() => { unlock(); setError(''); setEditing({ seq: st.seq, event: st.event, current: st.event.type === 'win' ? st.event.winners[0].player : '' }); }}
                     >
                       <span className="lg-head">
-                        <span className="lg-what">{describe(st.event, name)}{st.edited && <span className="tag instant">改過</span>}</span>
+                        <span className="lg-what">
+                          {hi?.label && <span className="lg-hand">{hi.label}</span>}
+                          {describe(st.event, name)}
+                          {hi?.stay && <span className="tag stay">冧莊</span>}
+                          {st.edited && <span className="tag instant">改過</span>}
+                        </span>
                         <span className="lg-when">{ago(st.at, now)}</span>
                       </span>
+                      {hi?.how && <span className="lg-how">{hi.how}</span>}
                       <span className="lg-cells">
                         {cols.map((id) => {
                           const v = net[id] ?? 0;
@@ -590,7 +629,7 @@ export default function TableScreen(props: TableScreenProps) {
                           return (
                             <span key={id} className={`lg-cell${id === me ? ' me' : ''}`}>
                               {v ? <b className={`num ${tone2(v)}`}>{fmt(v)}</b> : !cash ? <span className="lg-dash">·</span> : null}
-                              {cash && cash !== v ? <small className={`lg-pend ${tone2(cash)}`}>{cash > 0 ? '袋' : '找'} {fmt(cash)}</small> : null}
+                              {cash && cash !== v ? <small className={`lg-pend ${tone2(cash)}`}>{collect ? (cash > 0 ? '收枱面' : '找枱面') : cash > 0 ? '袋' : '找'} {fmt(cash)}</small> : null}
                               {water ? <small className="lg-pend lg-water">水 −{water}</small> : null}
                             </span>
                           );
@@ -618,7 +657,7 @@ export default function TableScreen(props: TableScreenProps) {
             </div>
           </div>
         )}
-        {c.steps.length > 0 && !ended && <Hint>每格是該鋪輸贏。「找」是當鋪已找的數，「水」是抽水。合計 =「袋」（已找）+「枱面」（拉住未找）。按任何一鋪可修改或刪除。</Hint>}
+        {c.steps.length > 0 && <Hint>大數字係嗰鋪輸贏；細字「找」係即時找咗嘅錢，「水」係抽水。完場嘅「收／找枱面」只係將之前拉住未找嘅數找晒，唔係新輸贏。合計 =「袋」（已找）+「枱面」（拉住未找）。</Hint>}
         {c.steps.length > 5 && (
           <button type="button" className="textbtn" onClick={() => setShowAll((v) => !v)}>{showAll ? '收起' : `顯示全部 ${c.steps.length} 項`}</button>
         )}

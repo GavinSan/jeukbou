@@ -1,7 +1,7 @@
 import { useMemo } from 'react';
 import type { User } from 'firebase/auth';
 import SettleScreen from '../components/SettleScreen.tsx';
-import { markPaid, savePayout, acceptPair, acceptTeam, addExpense, updateExpense, approveClose, cancelClose, closeSession, deleteExpense, deletePair, isGuest, proposePair, requestClose, saveSettleConfig, setSessionWaterTo, settleConfigOf } from '../lib/data.ts';
+import { addSessionPerson, removeSessionPerson, markPaid, savePayout, acceptPair, acceptTeam, addExpense, updateExpense, approveClose, cancelClose, closeSession, deleteExpense, deletePair, isGuest, proposePair, requestClose, saveSettleConfig, setSessionWaterTo, settleConfigOf } from '../lib/data.ts';
 import { useSuperAdmin } from '../lib/admin.ts';
 import { useExpenses, useGroup, useManyEvents, useMembers, usePairs, useSession, useTables, useTeams } from '../lib/live.ts';
 import { computeTable, rulesOf, rulesTimeline } from '../lib/score.ts';
@@ -45,6 +45,14 @@ export default function SettlePage({ user, groupId, sessionId }: { user: User; g
   const waterOptions = [...sum.players];
   if (!waterOptions.some((x) => x.id === hostId)) waterOptions.unshift({ id: hostId, name: `${members.data.find((m) => m.uid === hostId)?.name ?? '場主'}（場主）` });
   const needed = sum.players.map((x) => x.id).filter((id) => !isGuest(id));
+  const perTable = tables.data.map((t) => {
+    const c = computed[t.id];
+    const fan: Record<string, number> = {};
+    if (c) for (const id of Object.keys(c.state.settled)) fan[id] = (c.state.settled[id] ?? 0) + (c.pending[id] ?? 0);
+    return { id: t.id, name: t.name, fan };
+  });
+  const teamOf = (id: string) => teams.data.find((t) => t.id === id);
+  const pairOf = (id: string) => pairs.data.find((x) => x.id === id);
   const openTables = tables.data.filter((t) => computed[t.id] && !computed[t.id]!.state.ended).map((t) => t.id);
 
   return (
@@ -86,7 +94,17 @@ export default function SettlePage({ user, groupId, sessionId }: { user: User; g
       onMarkPaid={(key, on) => markPaid(groupId, sessionId, key, user.uid, on)}
       onSavePayout={(po) => savePayout(groupId, sessionId, po)}
       payHref={`/g/${groupId}/s/${sessionId}/pay`}
-      onAcceptTeam={(id) => acceptTeam(groupId, id, user.uid)}
+      onAcceptTeam={async (id) => {
+        // 超級管理員：代所有成員同意，即刻生效
+        const ids = admin ? (teamOf(id)?.members ?? [user.uid]) : [user.uid];
+        for (const uid of ids) await acceptTeam(groupId, id, uid);
+      }}
+      people={sess.people ?? []}
+      onAddPerson={(pl) => addSessionPerson(groupId, sessionId, pl)}
+      onRemovePerson={(pl) => removeSessionPerson(groupId, sessionId, pl)}
+      locked={!!sess.closed && !isOwner}
+      perTable={perTable}
+      isAdmin={admin}
       teamsHref={`/g/${groupId}/rules#settle`}
       me={user.uid}
       onSaveConfig={(c) => saveSettleConfig(groupId, c)}
@@ -94,8 +112,12 @@ export default function SettlePage({ user, groupId, sessionId }: { user: User; g
       onAddExpense={(e) => addExpense(groupId, sessionId, { ...e, by: user.uid })}
       onDeleteExpense={(id) => deleteExpense(groupId, sessionId, id)}
       onUpdateExpense={(id, e) => updateExpense(groupId, sessionId, id, e)}
-      onProposePair={(a, b) => proposePair(groupId, sessionId, { a, b, by: user.uid, accepted: [a, b].filter((x) => x === user.uid) })}
-      onAcceptPair={(id) => acceptPair(groupId, sessionId, id, user.uid)}
+      onProposePair={(a, b) => proposePair(groupId, sessionId, { a, b, by: user.uid, accepted: admin ? [a, b] : [a, b].filter((x) => x === user.uid) })}
+      onAcceptPair={async (id) => {
+        const pr = pairOf(id);
+        const ids = admin && pr ? [pr.a, pr.b] : [user.uid];
+        for (const uid of ids) await acceptPair(groupId, sessionId, id, uid);
+      }}
       onDeletePair={(id) => deletePair(groupId, sessionId, id)}
     />
   );

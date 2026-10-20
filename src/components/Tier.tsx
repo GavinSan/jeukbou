@@ -1,7 +1,7 @@
 // 段位牌、成就牌、數字跳動、圓環：首頁同段位頁用
 import { useEffect, useRef, useState } from 'react';
 import type { CSSProperties } from 'react';
-import type { Badge, Tier } from '../lib/stats.ts';
+import type { Badge, Stats, Tier } from '../lib/stats.ts';
 import { BADGE_CATS } from '../lib/stats.ts';
 
 /** 段位：一隻象牙色牌，刻住段位字，邊框顏色分段 */
@@ -20,7 +20,7 @@ export function TierChip({ tier }: { tier: Tier }) {
 export function BadgeTile({ b }: { b: Badge }) {
   const color = BADGE_CATS.find((c) => c.key === b.cat)?.color ?? '#C08A16';
   return (
-    <div className={`badge${b.got ? ' got' : ''}`} title={b.note} style={{ '--bc': color } as CSSProperties}>
+    <div className={`badge${b.got ? ` got lv${b.level}` : ''}`} title={b.note} style={{ '--bc': color } as CSSProperties}>
       <span className="badge-mark" aria-hidden="true">{b.mark}</span>
       <b>{b.name}</b>
       <small>{b.note}</small>
@@ -74,29 +74,32 @@ export function Progress({ value }: { value: number }) {
   return <span className="tier-progress" aria-hidden="true"><i style={{ width: `${Math.round(v * 100)}%` }} /></span>;
 }
 
-/** 段位頁：成就按類顯示，每類一行，逐級亮 */
-export function BadgeCats({ badges }: { badges: Badge[] }) {
+/** 段位頁：成就按類顯示，每類 8 級，越高級越深色、會閃 */
+export function BadgeCats({ badges, stats }: { badges: Badge[]; stats?: Stats }) {
   return (
     <div className="bcats">
-      {BADGE_CATS.map((c) => {
+      {BADGE_CATS.map((c, ci) => {
         const list = badges.filter((b) => b.cat === c.key);
-        const got = list.filter((b) => b.got).length;
+        const got = list.filter((b) => b.got);
+        const top = got[got.length - 1];
         const next = list.find((b) => !b.got);
+        const need = c.need && stats ? c.need(stats) : null;
+        const progressTxt = next ? (c.show ? c.show(next.now, next.goal) : `${next.now}/${next.goal} ${c.unit}`) : '';
         return (
-          <div key={c.key} className="bcat" style={{ '--bc': c.color } as CSSProperties}>
+          <div key={c.key} className={`bcat${top ? ` lv${top.level}` : ''}`} style={{ '--bc': c.color, animationDelay: `${ci * 0.03}s` } as CSSProperties}>
             <div className="bcat-head">
-              <span className={`badge-mark${got ? ' on' : ''}`} aria-hidden="true">{c.mark}</span>
+              <span className={`badge-mark${top ? ` on lv${top.level}` : ''}`} aria-hidden="true">{c.mark}</span>
               <span className="grow">
-                <b>{c.title}</b>
-                <small className="muted">{next ? `下一個「${next.name}」：${next.now}/${next.goal} ${c.unit}` : '全部完成！'}</small>
+                <b>{c.title}{top && <span className={`bcat-title lv${top.level}`}>{top.name}</span>}</b>
+                <small className="muted">{need ?? (next ? `下一個「${next.name}」：${progressTxt}` : '全部完成！')}</small>
               </span>
-              <span className="bcat-count num">{got}/{list.length}</span>
+              <span className="bcat-count num">{got.length}/{list.length}</span>
             </div>
             <span className="bcat-bar" aria-hidden="true"><i style={{ width: `${Math.round((next ? next.progress : 1) * 100)}%` }} /></span>
             <div className="bcat-tiers">
               {list.map((b) => (
-                <span key={b.key} className={`btier${b.got ? ' got' : ''}${b === next ? ' next' : ''}`} title={b.note}>
-                  {b.name}<small>{b.goal}</small>
+                <span key={b.key} className={`btier lv${b.level}${b.got ? ' got' : ''}${b === next ? ' next' : ''}`} title={b.note}>
+                  {b.name}<small>{c.show ? `${c.key === 'safe' ? 100 - b.goal : b.goal}%` : b.goal}</small>
                 </span>
               ))}
             </div>

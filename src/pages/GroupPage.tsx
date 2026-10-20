@@ -132,6 +132,31 @@ export interface MemberStat {
   played: number;
   total: number;
   points: number;
+  /** 最近一次打牌（毫秒） */
+  last?: number;
+}
+
+const lastTxt = (t: number) => {
+  const d = new Date(t);
+  const days = Math.floor((Date.now() - t) / 86400000);
+  const md = `${d.getMonth() + 1}月${d.getDate()}日`;
+  return days <= 0 ? '今日' : days === 1 ? '琴日' : days < 7 ? `${days} 日前` : d.getFullYear() === new Date().getFullYear() ? md : `${d.getFullYear()}年${md}`;
+};
+
+/** 每個人喺呢堆大局入面：場數、總數、雀力分、最近一次 */
+export function memberStatsOf(sessions: { at: number; totals: Record<string, number> }[], points: (id: string) => number): Record<string, MemberStat> {
+  const out: Record<string, MemberStat> = {};
+  for (const s of sessions) {
+    for (const [id, v] of Object.entries(s.totals)) {
+      const row = out[id] ?? { played: 0, total: 0, points: 0, last: 0 };
+      row.played += 1;
+      row.total += v;
+      row.last = Math.max(row.last ?? 0, s.at);
+      out[id] = row;
+    }
+  }
+  for (const id of Object.keys(out)) out[id].points = points(id);
+  return out;
 }
 
 /** 成員：一行一個，有場數、段位、總數；撳入去睇佢喺呢個牌友圈嘅統計 */
@@ -139,7 +164,8 @@ export function MemberList({ members, ownerId, stats, manage, onPick, onRemove }
   members: Member[]; ownerId: string; stats: Record<string, MemberStat>; manage: boolean;
   onPick: (uid: string) => void; onRemove: (m: Member) => void;
 }) {
-  const sorted = [...members].sort((a, b) => (stats[b.uid]?.played ?? 0) - (stats[a.uid]?.played ?? 0) || a.name.localeCompare(b.name));
+  // 最近有打嘅排前，之後按雀力分
+  const sorted = [...members].sort((a, b) => (stats[b.uid]?.last ?? 0) - (stats[a.uid]?.last ?? 0) || (stats[b.uid]?.points ?? 0) - (stats[a.uid]?.points ?? 0) || a.name.localeCompare(b.name));
   return (
     <ul className="list member-list">
       {sorted.map((m) => {
@@ -150,7 +176,9 @@ export function MemberList({ members, ownerId, stats, manage, onPick, onRemove }
               <Avatar name={m.name} photo={m.photoURL} size="md" />
               <span className="grow member-text">
                 <span className="ellipsis">{m.name}{m.uid === ownerId && <span className="tag instant">局主</span>}</span>
-                <small className="muted">{st?.played ? <>{st.played} 場 · <TierChip tier={tierOf(st.points).tier} /></> : '未有紀錄'}</small>
+                <small className="muted member-meta">
+                  {st?.played ? <><TierChip tier={tierOf(st.points).tier} /><span className="num">{st.points} 分</span><span>{st.played} 局</span>{st.last ? <span>最近 {lastTxt(st.last)}</span> : null}</> : '未有紀錄'}
+                </small>
               </span>
               {st?.played ? <b className={`num member-total ${st.total > 0 ? 'gain' : st.total < 0 ? 'loss' : ''}`}>{fmt(st.total)}</b> : null}
             </button>
@@ -188,8 +216,7 @@ export default function GroupPage({ user, groupId }: { user: User; groupId: stri
   const lmap = legacyMap(g, members.data);
   const claimed = Object.values(lmap).includes(user.uid);
   const canManage = g.ownerId === user.uid || admin;
-  const memberStats: Record<string, MemberStat> = {};
-  for (const r of board.rows) memberStats[r.id] = { played: r.sessions, total: r.total, points: pointsFor(r.id, history.sessions) };
+  const memberStats = memberStatsOf(history.sessions, (id) => pointsFor(id, history.sessions));
 
   return (
     <main className="page">
@@ -245,7 +272,7 @@ export default function GroupPage({ user, groupId }: { user: User; groupId: stri
         <section className="stack">
           <div className="section-head">
             <h2>龍虎榜</h2>
-            <Link to={`/g/${groupId}/board`} className="textbtn">按日／週／月查看</Link>
+            <Link to={`/g/${groupId}/board`} className="textbtn">按日／月／季／年查看</Link>
           </div>
           <div className="list pad">
             <Leaderboard rows={board.rows} me={user.uid} />

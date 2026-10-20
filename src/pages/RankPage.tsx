@@ -4,7 +4,7 @@ import type { User } from 'firebase/auth';
 import { useProfile } from '../lib/live.ts';
 import { POINT_RULES, TIERS, badgesOf, pointsFor, statsOf, tierOf, useMyHistory } from '../lib/stats.ts';
 import type { GroupResults, MySession } from '../lib/stats.ts';
-import { BadgeCats, BadgeTile, CountUp, Progress, TierChip, TierTile } from '../components/Tier.tsx';
+import { BadgeCats, CountUp, Progress, TierChip, TierTile } from '../components/Tier.tsx';
 import { TopBar } from '../ui.tsx';
 
 export function RankView({ me, mine, groups, loading }: { me: string; mine: MySession[]; groups: GroupResults[]; loading: boolean }) {
@@ -30,7 +30,7 @@ export function RankView({ me, mine, groups, loading }: { me: string; mine: MySe
           <TierTile tier={t.tier} size="lg" />
           <div className="grow">
             <h2>{t.tier.name}</h2>
-            <p className="hero-sub"><CountUp value={st.points} /> 分 · {st.played} 場</p>
+            <p className="hero-sub"><CountUp value={st.points} /> 分 · {st.played} 局</p>
           </div>
         </div>
         <div className="hero-tier">
@@ -64,8 +64,7 @@ export function RankView({ me, mine, groups, loading }: { me: string; mine: MySe
 
       <section className="stack">
         <h2 className="section-head">成就 {badges.filter((b) => b.got).length}/{badges.length}</h2>
-        <BadgeCats badges={badges} />
-        <div className="badge-grid">{badges.filter((b) => b.cat === 'rate').map((b) => <BadgeTile key={b.key} b={b} />)}</div>
+        <BadgeCats badges={badges} stats={st} />
       </section>
 
       {groups.length > 0 && (
@@ -84,7 +83,7 @@ export function RankView({ me, mine, groups, loading }: { me: string; mine: MySe
               return (
                 <li key={r.id} className={r.id === me ? 'here' : ''}>
                   <span className="rank-dot">{i + 1}</span>
-                  <span className="grow ellipsis">{r.name}<small className="muted">　{r.played} 場</small></span>
+                  <span className="grow ellipsis">{r.name}<small className="muted">　{r.played} 局</small></span>
                   <TierChip tier={tt} />
                   <b className="num">{r.points}</b>
                 </li>

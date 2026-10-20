@@ -1,4 +1,5 @@
 // 首頁：自己嘅戰績（段位、雀力分、場數、勝率、走勢、最近幾場、成就）
+import { useState } from 'react';
 import type { ReactNode } from 'react';
 import type { User } from 'firebase/auth';
 import { displayName } from '../lib/data.ts';
@@ -17,7 +18,7 @@ const Chevron = () => (
 
 const md = (t: number) => { const d = new Date(t); return `${d.getMonth() + 1}月${d.getDate()}日`; };
 
-/** 段位梯：八格顏色，去到邊格就亮到邊格 */
+/** 段位梯：十格顏色，去到邊格就亮到邊格 */
 function TierStrip({ points }: { points: number }) {
   return (
     <div className="tier-strip" aria-hidden="true">
@@ -35,31 +36,53 @@ function TierStrip({ points }: { points: number }) {
 }
 
 /** 最近 12 個星期：每日一格，贏綠輸紅，越深越多 */
-function Heatmap({ mine }: { mine: MySession[] }) {
-  const today = new Date();
-  today.setHours(0, 0, 0, 0);
-  const start = new Date(today);
-  start.setDate(start.getDate() - ((today.getDay() + 6) % 7) - 7 * 11);
-  const byDay = new Map<number, number>();
+/** 打牌日曆：真係一個月嘅日曆，有打嘅日子顯示輸贏；左右轉月 */
+function MonthCalendar({ mine, sessionHref }: { mine: MySession[]; sessionHref: (s: MySession) => string }) {
+  const [offset, setOffset] = useState(0);
+  const base = new Date();
+  base.setDate(1);
+  base.setHours(0, 0, 0, 0);
+  base.setMonth(base.getMonth() + offset);
+  const year = base.getFullYear();
+  const month = base.getMonth();
+  const days = new Date(year, month + 1, 0).getDate();
+  const lead = (base.getDay() + 6) % 7; // 星期一開始
+  const byDay = new Map<number, MySession[]>();
   for (const s of mine) {
     const d = new Date(s.at);
-    d.setHours(0, 0, 0, 0);
-    byDay.set(d.getTime(), (byDay.get(d.getTime()) ?? 0) + s.mine);
+    if (d.getFullYear() !== year || d.getMonth() !== month) continue;
+    const k = d.getDate();
+    byDay.set(k, [...(byDay.get(k) ?? []), s]);
   }
-  const max = Math.max(1, ...[...byDay.values()].map(Math.abs));
-  const days = Array.from({ length: 84 }, (_, i) => { const d = new Date(start); d.setDate(start.getDate() + i); return d; });
-  const played = days.filter((d) => byDay.has(d.getTime())).length;
+  const today = new Date();
+  const isToday = (d: number) => today.getFullYear() === year && today.getMonth() === month && today.getDate() === d;
+  const total = [...byDay.values()].flat().reduce((a, s) => a + s.mine, 0);
+  const first = mine.length ? new Date(Math.min(...mine.map((s) => s.at))) : today;
+  const canBack = year > first.getFullYear() || (year === first.getFullYear() && month > first.getMonth());
   return (
-    <div className="heat-wrap">
-      <div className="heat" role="img" aria-label={`最近 12 個星期打咗 ${played} 日`}>
-        {days.map((d) => {
-          const v = byDay.get(d.getTime());
-          const level = v === undefined ? 0 : Math.min(4, 1 + Math.floor((Math.abs(v) / max) * 3.99));
-          const cls = v === undefined ? '' : v >= 0 ? `w${level}` : `l${level}`;
-          return <span key={d.getTime()} className={`hc ${cls}${d > today ? ' future' : ''}`} title={v === undefined ? md(d.getTime()) : `${md(d.getTime())}：${fmt(v)}`} />;
+    <div className="mcal">
+      <div className="mcal-head">
+        <button type="button" className="iconbtn" aria-label="上個月" disabled={!canBack} onClick={() => setOffset((o) => o - 1)}>‹</button>
+        <span className="grow center-text"><b>{year}年{month + 1}月</b><small className="muted">{byDay.size ? ` · 打咗 ${byDay.size} 日 · ` : ' · 未打過'}{byDay.size ? <span className={total > 0 ? 'gain' : total < 0 ? 'loss' : ''}>{fmt(total)}</span> : null}</small></span>
+        <button type="button" className="iconbtn" aria-label="下個月" disabled={offset >= 0} onClick={() => setOffset((o) => o + 1)}>›</button>
+      </div>
+      <div className="mcal-grid">
+        {['一', '二', '三', '四', '五', '六', '日'].map((w) => <span key={w} className="mcal-w">{w}</span>)}
+        {Array.from({ length: lead }, (_, i) => <span key={`b${i}`} />)}
+        {Array.from({ length: days }, (_, i) => {
+          const d = i + 1;
+          const list = byDay.get(d);
+          const v = list?.reduce((a, s) => a + s.mine, 0) ?? 0;
+          const cls = `mcal-d${list ? (v > 0 ? ' win' : v < 0 ? ' lose' : ' even') : ''}${isToday(d) ? ' today' : ''}`;
+          if (!list) return <span key={d} className={cls}><span>{d}</span></span>;
+          return (
+            <Link key={d} to={sessionHref(list[list.length - 1])} className={cls} ariaLabel={`${month + 1}月${d}日 ${fmt(v)}`}>
+              <span>{d}</span>
+              <small className="num">{fmt(v)}</small>
+            </Link>
+          );
         })}
       </div>
-      <div className="heat-legend muted small"><span>12 星期前</span><span>打咗 {played} 日</span><span>今日</span></div>
     </div>
   );
 }
@@ -78,7 +101,7 @@ function MonthBars({ months }: { months: { label: string; total: number; played:
               <i className={m.total >= 0 ? 'up' : 'down'} style={{ height: `${Math.max(m.played ? 3 : 0, h)}px`, animationDelay: `${i * 0.06}s` }} />
             </span>
             <small>{m.label}</small>
-            <small className="muted">{m.played ? `${m.played} 場` : '–'}</small>
+            <small className="muted">{m.played ? `${m.played} 局` : '–'}</small>
           </div>
         );
       })}
@@ -149,16 +172,16 @@ export function DashboardView({ name, photo, joined, groupCount, mine, loading, 
         <div className="dash-skel" aria-label="載入中"><span /><span /><span /><span /></div>
       ) : !mine.length ? (
         <section className="empty">
-          <p>打完第一場，就會見到你嘅戰績、段位同成就。</p>
+          <p>打完第一個大局，就會見到你嘅戰績、段位同成就。</p>
           <Link to="/groups" className="btn">去牌友圈</Link>
         </section>
       ) : (
         <>
           <section className="tiles">
             <div className="tile-stat">
-              <small>場數</small>
+              <small>大局</small>
               <b className="num"><CountUp value={st.played} /></b>
-              <span className="muted small">近 30 日 {st.month} 場</span>
+              <span className="muted small">近 30 日 {st.month} 局</span>
             </div>
             <div className="tile-stat ring-tile">
               <Ring value={st.winRate} label={`勝率 ${Math.round(st.winRate * 100)}%`} />
@@ -168,31 +191,18 @@ export function DashboardView({ name, photo, joined, groupCount, mine, loading, 
             <div className="tile-stat">
               <small>總番數</small>
               <b className={`num ${st.total > 0 ? 'gain' : st.total < 0 ? 'loss' : ''}`}><CountUp value={st.total} format={signed} /></b>
-              <span className="muted small">平均每場 {fmt(st.avg)}</span>
+              <span className="muted small">平均每局 {fmt(st.avg)}</span>
             </div>
             <div className="tile-stat">
-              <small>最好一場</small>
+              <small>最好一局</small>
               <b className="num gain"><CountUp value={st.best} format={signed} /></b>
               <span className="muted small">龍頭 {st.tops} 次 · 最長連贏 {st.bestStreak}</span>
             </div>
           </section>
 
-          {st.detailed > 0 && (
-            <section className="stack">
-              <h2 className="section-head">我嘅數據</h2>
-              <div className="my-stats">
-                <div className="ms ms-gold"><span className="ms-mark">食</span><b className="num"><CountUp value={st.handWins} /></b><small>食糊</small></div>
-                <div className="ms ms-green"><span className="ms-mark">摸</span><b className="num"><CountUp value={st.selfDraws} /></b><small>自摸</small></div>
-                <div className="ms ms-red"><span className="ms-mark">銃</span><b className="num"><CountUp value={st.dealIns} /></b><small>出銃</small></div>
-                <div className="ms ms-purple"><span className="ms-mark">大</span><b className="num"><CountUp value={st.bestFan} /></b><small>最大一鋪</small></div>
-              </div>
-              <p className="muted small">每場平均食糊 {(st.handWins / st.detailed).toFixed(1)} 次、出銃 {(st.dealIns / st.detailed).toFixed(1)} 次（{st.detailed} 場有詳細紀錄）</p>
-            </section>
-          )}
-
           <section className="stack">
             <h2 className="section-head">打牌日曆</h2>
-            <div className="list pad"><Heatmap mine={mine} /></div>
+            <div className="list pad"><MonthCalendar mine={mine} sessionHref={sessionHref} /></div>
           </section>
 
           <section className="stack">
@@ -200,12 +210,16 @@ export function DashboardView({ name, photo, joined, groupCount, mine, loading, 
             <div className="list pad"><MonthBars months={st.months} /></div>
           </section>
 
-          {st.curve.length > 2 && (
+          {st.detailed > 0 && (
             <section className="stack">
-              <h2 className="section-head">累計走勢</h2>
-              <div className="list pad">
-                <TrendChart series={[{ id: 'me', name: '累計番數', values: st.curve }]} labels={['開始', ...mine.map((s) => md(s.at))]} me="me" />
+              <h2 className="section-head">數據</h2>
+              <div className="my-stats">
+                <div className="ms ms-gold"><span className="ms-mark">食</span><b className="num"><CountUp value={st.handWins} /></b><small>食糊</small></div>
+                <div className="ms ms-green"><span className="ms-mark">摸</span><b className="num"><CountUp value={st.selfDraws} /></b><small>自摸</small></div>
+                <div className="ms ms-red"><span className="ms-mark">銃</span><b className="num"><CountUp value={st.dealIns} /></b><small>出銃</small></div>
+                <div className="ms ms-purple"><span className="ms-mark">大</span><b className="num"><CountUp value={st.bestFan} /></b><small>最大一鋪</small></div>
               </div>
+              <p className="muted small">每局平均：食 {(st.handWins / st.detailed).toFixed(1)}・銃 {(st.dealIns / st.detailed).toFixed(1)}・拉 {(st.pulls / st.detailed).toFixed(1)}</p>
             </section>
           )}
 
@@ -216,6 +230,15 @@ export function DashboardView({ name, photo, joined, groupCount, mine, loading, 
             </div>
             <div className="badge-row">{preview.map((b) => <BadgeTile key={b.key} b={b} />)}</div>
           </section>
+
+          {st.curve.length > 2 && (
+            <section className="stack">
+              <h2 className="section-head">累計走勢</h2>
+              <div className="list pad">
+                <TrendChart series={[{ id: 'me', name: '累計番數', values: st.curve }]} labels={['開始', ...mine.map((s) => md(s.at))]} me="me" />
+              </div>
+            </section>
+          )}
 
           <section className="stack">
             <h2 className="section-head">最近</h2>
@@ -230,7 +253,7 @@ export function DashboardView({ name, photo, joined, groupCount, mine, loading, 
                     </span>
                     <span className="recent-right">
                       <b className={`num ${s.mine > 0 ? 'gain' : s.mine < 0 ? 'loss' : ''}`}>{fmt(s.mine)}</b>
-                      <small className="muted">+{sessionPoints(s.mine, s.rank, s.players)} 分</small>
+                      <small className="muted">+{sessionPoints(s)} 分</small>
                     </span>
                   </Link>
                 </li>

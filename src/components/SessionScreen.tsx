@@ -1,11 +1,11 @@
 // 大局總覽：每張枱最新一鋪、統計、全場排名、最新動態、加枱
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import type { ReactNode } from 'react';
 import type { TableDoc } from '../lib/data.ts';
 import { Link } from '../lib/router.tsx';
 import type { Computed } from '../lib/score.ts';
 import { addPlay, ago, describe, emptyPlay, netOf, trendOf } from '../lib/score.ts';
-import Awards, { PlayTable } from './Awards.tsx';
+import Awards, { PlayTable, kingsOf, paceOf } from './Awards.tsx';
 import { Sparkline } from './Charts.tsx';
 import { Avatar, Chips, ConfirmDelete, CopyLink, Hint, RollingNumber, fmt, Sheet, TopBar, message, tone, useNow, clampName } from '../ui.tsx';
 import type { Candidate } from './TableScreen.tsx';
@@ -31,9 +31,22 @@ export interface SessionScreenProps {
   notice?: ReactNode;
   candidates?: Candidate[];
   onAddTable?: (seats: Candidate[]) => Promise<void>;
+  me?: string | null;
 }
 
-export default function SessionScreen({ title, back, tables, computed, tableHref, invite, rulesHref, settleHref, onDeleteSession, water: waterCtl, closedNote, notice, candidates = [], onAddTable }: SessionScreenProps) {
+/** 快圈紀錄：「快東」「快南」…；再打四圈就「加四圈」 */
+function quickTags(c: Computed): string[] {
+  const out: string[] = [];
+  c.steps.forEach((st, i) => {
+    if (st.event.type !== 'extend') return;
+    const prev = i > 0 ? c.steps[i - 1].result.state : null;
+    const turns = prev?.dealerTurns ?? 0;
+    out.push((st.event.rounds ?? 1) >= 4 ? '加四圈' : `快${WINDS[Math.floor(turns / 4) % 4]}`);
+  });
+  return out;
+}
+
+export default function SessionScreen({ title, back, tables, computed, tableHref, invite, rulesHref, onDeleteSession, water: waterCtl, closedNote, notice, candidates = [], onAddTable, me = null }: SessionScreenProps) {
   const now = useNow();
   const [adding, setAdding] = useState(false);
   const [delSession, setDelSession] = useState(false);
@@ -41,6 +54,18 @@ export default function SessionScreen({ title, back, tables, computed, tableHref
   const [guest, setGuest] = useState('');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
+  // 底部中間「＋ 開枱」：網址帶 #add-table 就打開加枱
+  const canAdd = !!onAddTable;
+  useEffect(() => {
+    const check = () => {
+      if (window.location.hash !== '#add-table') return;
+      try { window.history.replaceState(null, '', window.location.pathname); } catch { /* 唔緊要 */ }
+      if (canAdd) { setAdding(true); setPicked([]); setError(''); }
+    };
+    check();
+    window.addEventListener('popstate', check);
+    return () => window.removeEventListener('popstate', check);
+  }, [canAdd]);
 
   const ranking = useMemo(() => {
     // 同一個人打過幾張枱：合埋一行，走勢接駁落去
@@ -81,6 +106,7 @@ export default function SessionScreen({ title, back, tables, computed, tableHref
   // 全場數據：幾張枱加埋
   const play = useMemo(() => tables.reduce((acc, t) => (computed[t.id] ? addPlay(acc, computed[t.id]!.stats) : acc), emptyPlay()), [tables, computed]);
   const allNames = useMemo(() => Object.assign({}, ...tables.map((t) => t.names)) as Record<string, string>, [tables]);
+  const kings = useMemo(() => kingsOf(play), [play]);
   const people = new Set(tables.flatMap((t) => Object.keys(computed[t.id]?.state.settled ?? {}).length ? Object.keys(computed[t.id]!.state.settled) : t.seats)).size;
 
   function toggle(p: Candidate) {
@@ -153,7 +179,12 @@ export default function SessionScreen({ title, back, tables, computed, tableHref
                     <div key={id} className="prow">
                       <Avatar name={name(id)} size="sm" />
                       <span className="grow prow-name">
-                        <span className="prow-text">{name(id)}{dealer && <span className="prow-dealer">莊</span>}</span>
+                        <span className="prow-text">
+                          {name(id)}
+                          {dealer && <span className="prow-dealer">莊</span>}
+                          {kings.win === id && <span className="king-tag win" title="全場食糊最多">糊王</span>}
+                          {kings.self === id && <span className="king-tag self" title="全場自摸最多">摸王</span>}
+                        </span>
                         {owe[id] ? <Chips amount={owe[id]} /> : null}
                       </span>
                       <RollingNumber value={settled} className={`num ${tone(settled)}`} />
@@ -164,6 +195,8 @@ export default function SessionScreen({ title, back, tables, computed, tableHref
               {c && (
                 <div className="facts">
                   <span className="fact"><b>{c.stats.hands}</b> 鋪</span>
+                  {paceOf(c.stats.roundMs) && <span className="fact">速度 <b>{paceOf(c.stats.roundMs)}</b></span>}
+                  {quickTags(c).map((q, i) => <span key={q + i} className="fact quick">{q}</span>)}
                   {c.stats.biggest && <span className="fact">最大 <b>{c.stats.biggest.fan}</b> 番（{name(c.stats.biggest.player)}）</span>}
                   {c.stats.selfDraws > 0 && <span className="fact">自摸 <b>{c.stats.selfDraws}</b></span>}
                   <span className="fact">水 <b>{c.state.water}</b></span>
@@ -181,31 +214,18 @@ export default function SessionScreen({ title, back, tables, computed, tableHref
         {onAddTable && <button type="button" className="btn plain" onClick={() => { setAdding(true); setPicked([]); setError(''); }}>加一張枱</button>}
       </section>
 
-      {settleHref && (
-        <Link to={settleHref} className="settle-link">
-          <span className="settle-icon" aria-hidden="true">
-            <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><rect x="4" y="3" width="16" height="18" rx="2" /><path d="M8 7h8M8 11h8M8 15h5" /></svg>
-          </span>
-          <span className="grow">
-            <b>埋數</b>
-            <small>換算金額、晚餐等開支、Group、轉賬</small>
-          </span>
-          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" aria-hidden="true"><path d="M9 6l6 6-6 6" /></svg>
-        </Link>
-      )}
-
       {ranking.length > 0 && (
         <section className="stack">
           <div className="section-head">
             <h2>全場排名</h2>
-            <span className="muted small">連枱面，抽水 {water}</span>
+            <span className="muted small">抽水 {water}</span>
           </div>
           <div className="list">
             {ranking.map((r, i) => (
               <div key={r.id} className="listrow">
                 <span className="num rank">{i + 1}</span>
                 <Avatar name={r.name} size="sm" />
-                <span className="grow rank-who"><span className="ellipsis">{r.name}</span><small className="muted">{r.table}</small></span>
+                <span className="grow rank-who"><span className="ellipsis">{r.name}{kings.win === r.id && <span className="king-tag win">糊王</span>}{kings.self === r.id && <span className="king-tag self">摸王</span>}</span><small className="muted">{r.table}</small></span>
                 <Sparkline values={r.spark} />
                 <RollingNumber value={r.net} className={`num ${tone(r.net)} big-num`} />
               </div>
@@ -217,8 +237,8 @@ export default function SessionScreen({ title, back, tables, computed, tableHref
       {play.hands > 0 && (
         <section className="stack">
           <h2 className="section-head">全場數據</h2>
+          <PlayTable play={play} ids={ranking.map((r) => r.id)} name={(id) => allNames[id] ?? '玩家'} me={me} />
           <Awards play={play} name={(id) => allNames[id] ?? '玩家'} />
-          <PlayTable play={play} ids={ranking.map((r) => r.id)} name={(id) => allNames[id] ?? '玩家'} />
         </section>
       )}
 

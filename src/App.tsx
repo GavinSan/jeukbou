@@ -78,9 +78,9 @@ export default function App() {
 
   if (path === '/demo' || path.startsWith('/demo/')) {
     const demoTabs = [
-      { key: 'table', label: '枱', href: '/demo/t/0' },
       { key: 'session', label: '大局', href: '/demo' },
       { key: 'settle', label: '埋數', href: '/demo/settle' },
+      { key: 'table', label: '枱', href: '/demo/t/0', raised: true },
       { key: 'board', label: '龍虎榜', href: '/demo/board' },
       { key: 'rules', label: '家規', href: '/demo/rules' },
     ];

@@ -74,12 +74,14 @@ const toSession = (id: string, d: DocumentData): Session => ({
   legacy: d.legacy ?? null,
   payout: d.payout && Array.isArray(d.payout.transfers) ? { at: Number(d.payout.at ?? 0), currency: String(d.payout.currency ?? ''), transfers: d.payout.transfers.map((t: DocumentData) => ({ from: String(t.from), to: String(t.to), amount: Number(t.amount) })), names: d.payout.names ?? {} } : null,
   paid: d.paid ?? {},
+  people: Array.isArray(d.people) ? d.people.filter((x: DocumentData) => x && x.id).map((x: DocumentData) => ({ id: String(x.id), name: String(x.name ?? '玩家') })) : [],
   closeReq: d.closeReq ? { by: String(d.closeReq.by ?? ''), approvals: Array.isArray(d.closeReq.approvals) ? d.closeReq.approvals.map(String) : [] } : null,
 });
 const toExpense = (id: string, d: DocumentData): ExpenseDoc => ({
   id, kind: d.kind === 'transfer' ? 'transfer' : 'expense', label: String(d.label ?? ''), payer: String(d.payer ?? ''),
   amount: Number(d.amount ?? 0), sharedBy: Array.isArray(d.sharedBy) ? d.sharedBy.map(String) : [], by: String(d.by ?? ''),
   note: d.note ? String(d.note) : undefined,
+  all: typeof d.all === 'boolean' ? d.all : undefined,
   names: d.names && typeof d.names === 'object' ? Object.fromEntries(Object.entries(d.names).map(([k, v]) => [k, String(v)])) : undefined,
   at: d.at && typeof d.at.toMillis === 'function' ? d.at.toMillis() : null,
 });
@@ -174,3 +176,6 @@ export function useManyEvents(g: string, s: string, tableIds: string[]): Record<
 export const toGroupDoc = toGroup;
 export const toMemberDoc = toMember;
 export const toSessionDoc = toSession;
+export const toExpenseDoc = toExpense;
+export const toPairDoc = toPair;
+export const toTeamDoc = toTeam;

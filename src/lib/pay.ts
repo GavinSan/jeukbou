@@ -1,7 +1,8 @@
 // 找數：由每個已埋數大局嘅轉賬快照，計出「我要俾邊個幾多」「邊個要俾我」，同邊幾筆未轉
 import { useEffect, useState } from 'react';
 import { collection, doc, getDoc, getDocs } from 'firebase/firestore';
-import { fs, legacyMap, payKey, settleConfigOf } from './data.ts';
+import { fs, legacyMap, payKey, savePayout, settleConfigOf } from './data.ts';
+import { computePayout, loadTeams } from './settleLoad.ts';
 import type { Group, Member, Session } from './data.ts';
 import { toGroupDoc, toMemberDoc, toSessionDoc } from './live.ts';
 
@@ -66,6 +67,17 @@ async function loadGroup(gid: string, uid: string): Promise<{ items: PayItem[]; 
   const lmap = legacyMap(g, members);
   const myKeys = Object.entries(lmap).filter(([, u]) => u === uid).map(([k]) => k);
   const perUnit = settleConfigOf(g).perUnit || 6;
+  // 已埋數但未有快照（舊大局、未有人打開過埋數頁）：即刻計返，順手存低
+  const missing = sessions.filter((s) => s.closed && !s.legacy && !s.payout);
+  if (missing.length) {
+    const teams = await loadTeams(gid).catch(() => []);
+    await Promise.all(missing.map(async (s) => {
+      const po = await computePayout(g, s, members, teams).catch(() => null);
+      if (!po) return;
+      s.payout = po;
+      savePayout(gid, s.id, po).catch(() => undefined);
+    }));
+  }
   for (const s of sessions) {
     if (s.payout) {
       Object.assign(names, Object.fromEntries(Object.entries(s.payout.names).filter(([k]) => !names[k])));

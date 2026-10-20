@@ -1,6 +1,7 @@
 // Firestore 讀寫：牌友圈、成員、大局、枱、每一鋪（事件）。
 // 分數唔會直接存，全部由事件用計分引擎重新計出嚟。
 import {
+  arrayRemove,
   arrayUnion,
   collection,
   deleteDoc,
@@ -97,6 +98,8 @@ export interface Session {
   payout?: Payout | null;
   /** 邊幾筆已經轉咗：key = from>to */
   paid?: Record<string, { by: string; at: number }>;
+  /** 今日有份但冇打牌嘅人（成員或者訪客），開支用 */
+  people?: { id: string; name: string }[];
 }
 
 export interface Payout {
@@ -164,6 +167,8 @@ export interface ExpenseDoc {
   sharedBy: string[];
   /** 冇打牌但有份嘅訪客名（id → 名） */
   names?: Record<string, string>;
+  /** 全部人分：之後加入嘅人都自動有份（舊紀錄冇呢欄：揀晒全部玩家就當係） */
+  all?: boolean;
   /** 備註 */
   note?: string;
   by: string;
@@ -554,8 +559,17 @@ export async function addExpense(g: string, s: string, e: Omit<ExpenseDoc, 'id' 
 export async function updateExpense(g: string, s: string, id: string, e: Omit<ExpenseDoc, 'id' | 'at' | 'by'>): Promise<void> {
   await updateDoc(doc(fs(), 'groups', g, 'sessions', s, 'expenses', id), {
     kind: e.kind, label: e.label, payer: e.payer, amount: e.amount, sharedBy: e.sharedBy,
-    names: e.names ?? deleteField(), note: e.note ?? deleteField(),
+    names: e.names ?? deleteField(), note: e.note ?? deleteField(), all: e.all ?? deleteField(),
   });
+}
+
+/** 今日人物：加一個冇打牌但有份嘅人（成員或者訪客） */
+export async function addSessionPerson(g: string, s: string, person: { id: string; name: string }): Promise<void> {
+  await updateDoc(doc(fs(), 'groups', g, 'sessions', s), { people: arrayUnion({ id: person.id, name: person.name }) });
+}
+
+export async function removeSessionPerson(g: string, s: string, person: { id: string; name: string }): Promise<void> {
+  await updateDoc(doc(fs(), 'groups', g, 'sessions', s), { people: arrayRemove({ id: person.id, name: person.name }) });
 }
 
 export async function deleteExpense(g: string, s: string, id: string): Promise<void> {

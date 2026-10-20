@@ -55,14 +55,21 @@ export default function SessionPage({ user, groupId, sessionId }: { user: User; 
       settleHref={`/g/${groupId}/s/${sessionId}/settle`}
       water={session.data.closed ? undefined : { on: !session.data.noWater, onToggle: (on) => setSessionNoWater(groupId, sessionId, !on) }}
       closedNote={session.data.closed
-        ? <Link to={`/g/${groupId}/s/${sessionId}/pay`} className="banner calm closed-banner"><span className="stamp small-stamp">已埋數</span><span className="grow">轉賬詳情：邊個俾邊個、已轉未轉</span><span className="chev" aria-hidden="true">›</span></Link>
+        ? (
+          <Link to={`/g/${groupId}/s/${sessionId}/pay`} className="link-card closed-card">
+            <span className="stamp small-stamp">已埋數</span>
+            <span className="grow"><b>轉賬詳情</b><small>邊個俾邊個、已轉未轉</small></span>
+            <span className="chev" aria-hidden="true">›</span>
+          </Link>
+        )
         : session.data.closeReq
           ? <Link to={`/g/${groupId}/s/${sessionId}/settle`} className="banner"><span className="grow">有人申請埋數，撳入去同意</span></Link>
           : null}
       onDeleteSession={group.data.ownerId === user.uid || admin ? async () => { await deleteSession(groupId, sessionId); go(`/g/${groupId}`); } : undefined}
       notice={<Incoming user={user} groupId={groupId} sessionId={sessionId} requests={requests.data} tables={tables.data} computed={computed} />}
       candidates={candidates}
-      onAddTable={async (people) => {
+      me={user.uid}
+      onAddTable={session.data.closed ? undefined : async (people) => {
         const names: Record<string, string> = {};
         for (const p of people) names[p.id] = p.name;
         await addTable(groupId, sessionId, tables.data.length, { name: `第 ${tables.data.length + 1} 枱`, seats: people.map((p) => p.id), names });

@@ -44,22 +44,24 @@ export function toMoney(fan: Record<string, number>, perUnit: number): Record<st
   return out;
 }
 
-/** 開支：俾錢嗰個 +，有份分嘅人平分 −（貨幣單位，計到仙） */
+/**
+ * 開支：俾錢嗰個 +，有份分嘅人平分 −（貨幣單位）。
+ * 先逐個人加埋精確數（唔逐項取整），最後每人先四捨五入到仙；差幾仙就由數最大嗰個吸收，總數保持 0。
+ * 例如 $23.92 六個人分：每人 −3.99，唔會因為逐項計變成 −4.02。
+ */
 export function applyExpenses(balances: Record<string, number>, expenses: Expense[]): Record<string, number> {
-  const cents: Record<string, number> = {};
-  for (const [k, v] of Object.entries(balances)) cents[k] = toCents(v);
+  const exact: Record<string, number> = {};
+  for (const [k, v] of Object.entries(balances)) exact[k] = toCents(v);
   for (const e of expenses) {
     if (e.sharedBy.length === 0) throw new Error(`「${e.label}」要揀邊個分`);
     const total = toCents(e.amount);
-    const each = Math.floor(total / e.sharedBy.length);
-    let rest = total - each * e.sharedBy.length;
-    cents[e.payer] = (cents[e.payer] ?? 0) + total;
-    for (const p of e.sharedBy) {
-      const share = each + (rest > 0 ? 1 : 0);
-      if (rest > 0) rest -= 1;
-      cents[p] = (cents[p] ?? 0) - share;
-    }
+    const each = total / e.sharedBy.length;
+    exact[e.payer] = (exact[e.payer] ?? 0) + total;
+    for (const p of e.sharedBy) exact[p] = (exact[p] ?? 0) - each;
   }
+  const cents: Record<string, number> = {};
+  for (const [k, v] of Object.entries(exact)) cents[k] = Math.round(v + 1e-9);
+  balanceCents(cents);
   const out: Record<string, number> = {};
   for (const [k, v] of Object.entries(cents)) out[k] = fromCents(v);
   return out;

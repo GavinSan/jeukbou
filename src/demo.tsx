@@ -28,7 +28,7 @@ import { RankView } from './pages/RankPage.tsx';
 import { MyPayView } from './pages/MyPayPage.tsx';
 import { AdminView } from './pages/AdminPage.tsx';
 import type { PayItem } from './lib/pay.ts';
-import { Invite, JoinRequestsView, MemberList } from './pages/GroupPage.tsx';
+import { Invite, JoinRequestsView, MemberList, memberStatsOf } from './pages/GroupPage.tsx';
 import type { MemberStat } from './pages/GroupPage.tsx';
 import { PlayerSheet } from './components/BoardView.tsx';
 import { mySessions, pointsFor } from './lib/stats.ts';
@@ -157,7 +157,10 @@ export default function Demo() {
   const [settleCfg, setSettleCfg] = useState<SettleConfig>({ ...DEFAULT_SETTLE, waterTo: 'gavin' });
   const [expenses, setExpenses] = useState<ExpenseDoc[]>([
     { id: 'e1', kind: 'expense', label: '晚餐', payer: 'gavin', amount: 186.4, sharedBy: ['gavin', 'athena', 'ivan', 'viola', 'janice', 'sang', 'clau', 'af'], by: 'demo', at: null },
+    { id: 'e2', kind: 'expense', label: '飲品', payer: 'guest-vincent', amount: 23.92, sharedBy: [], all: true, note: '奶茶', names: { 'guest-vincent': 'Vincent' }, by: 'demo', at: null },
   ]);
+  const [demoPaid, setDemoPaid] = useState<Record<string, { by: string; at: number }>>({});
+  const [people, setPeople] = useState<{ id: string; name: string }[]>([{ id: 'guest-vincent', name: 'Vincent' }]);
   const [pairs, setPairs] = useState<PairDoc[]>([{ id: 'p1', a: 'robin', b: 'tat', by: 'robin', accepted: ['robin'] }]);
   // 首頁示範
   const [q, setQ] = useState('');
@@ -285,11 +288,7 @@ export default function Demo() {
     const g = { id: 'demo', name: '不打不相識', ownerId: 'gavin', inviteCode: 'abc', joinCode: 'K7PQ2M', joinMode };
     const hist = DEMO_GROUPS[0];
     const members = ['gavin', 'athena', 'ivan', 'viola', 'janice', 'robin', 'kit'].map((uid) => ({ uid, name: DEMO_NAMES[uid] ?? uid, photoURL: null }));
-    const stats: Record<string, MemberStat> = {};
-    for (const m of members) {
-      const ss = hist.sessions.filter((x) => m.uid in x.totals);
-      if (ss.length) stats[m.uid] = { played: ss.length, total: ss.reduce((a, x) => a + x.totals[m.uid], 0), points: pointsFor(m.uid, hist.sessions) };
-    }
+    const stats: Record<string, MemberStat> = memberStatsOf(hist.sessions, (id) => pointsFor(id, hist.sessions));
     return (
       <main className="page">
         <TopBar back="/demo/groups" title={g.name} />
@@ -367,6 +366,17 @@ export default function Demo() {
         onProposePair={async (a, b) => setPairs((l) => [...l, { id: `p${Date.now()}`, a, b, by: 'gavin', accepted: [a, b].filter((x) => x === 'gavin') }])}
         onAcceptPair={async (id) => setPairs((l) => l.map((x) => (x.id === id ? { ...x, accepted: [...x.accepted, 'gavin'] } : x)))}
         onDeletePair={async (id) => setPairs((l) => l.filter((x) => x.id !== id))}
+        people={people}
+        onAddPerson={async (pl) => setPeople((l) => (l.some((x) => x.id === pl.id) ? l : [...l, pl]))}
+        onRemovePerson={async (pl) => setPeople((l) => l.filter((x) => x.id !== pl.id))}
+        perTable={tables.map((t) => {
+          const c = computed[t.id];
+          const fan: Record<string, number> = {};
+          if (c) for (const id of Object.keys(c.state.settled)) fan[id] = (c.state.settled[id] ?? 0) + (c.pending[id] ?? 0);
+          return { id: t.id, name: t.name, fan };
+        })}
+        paid={demoPaid}
+        onMarkPaid={async (key, on) => setDemoPaid((m) => { const n = { ...m }; if (on) n[key] = { by: 'gavin', at: Date.now() }; else delete n[key]; return n; })}
       />
     );
   }

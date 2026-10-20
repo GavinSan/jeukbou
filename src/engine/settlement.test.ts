@@ -47,9 +47,23 @@ test('開支：揀邊個分，晚飯 $58 四個人分，Gavin 俾咗', () => {
   assert.deepEqual(b, { Gavin: 43.5, Athena: -14.5, Ivan: -14.5, Viola: -14.5, Robin: 0 });
 });
 
-test('開支除唔盡：仙數分到最前嗰幾個', () => {
+test('開支除唔盡：每人四捨五入到仙，差額由數最大嗰個吸收', () => {
   const b = applyExpenses({}, [{ label: '蛋糕', payer: WATER, amount: 10, sharedBy: ['A', 'B', 'C'] }]);
-  assert.deepEqual(b, { [WATER]: 10, A: -3.34, B: -3.33, C: -3.33 });
+  assert.deepEqual(b, { [WATER]: 9.99, A: -3.33, B: -3.33, C: -3.33 });
+});
+
+test('幾項開支：先加埋再取整（$23.92 六個人分，每人 −3.99）', () => {
+  const all = ['J', 'V', 'G', 'T', 'A', 'K'];
+  const b = applyExpenses({}, [
+    { label: '晚餐', payer: 'V', amount: 5, sharedBy: all },
+    { label: '雞湯', payer: 'G', amount: 1, sharedBy: all },
+    { label: '晚餐', payer: 'J', amount: 17.92, sharedBy: all },
+  ]);
+  assert.equal(b.V, 1.01);
+  assert.equal(b.G, -2.99);
+  assert.equal(b.T, -3.99);
+  assert.equal(b.A, -3.99);
+  assert.equal(Math.round(Object.values(b).reduce((x, y) => x + y, 0) * 100) || 0, 0);
 });
 
 test('幾張枱加埋，連水', () => {

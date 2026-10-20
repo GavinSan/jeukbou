@@ -174,35 +174,34 @@ export function clampName(s: string): string {
   return out;
 }
 
-/** 刪除確認：要打返個名先撳得 */
-export function ConfirmDelete({ title, detail, word, onConfirm, onClose }: {
-  title: string; detail: string; word: string; onConfirm: () => Promise<void>; onClose: () => void;
+/** 刪除確認：彈出嚟問多一次就得（唔使打字） */
+export function ConfirmDelete({ title, detail, onConfirm, onClose }: {
+  title: string; detail: string; /** 舊介面：已唔使打字確認 */ word?: string; onConfirm: () => Promise<void>; onClose: () => void;
 }) {
-  const [text, setText] = useState('');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
   return (
-    <Sheet onClose={onClose} label={title}>
-      <h2>{title}</h2>
-      <p className="muted">{detail}</p>
-      <label className="field">
-        <span>輸入「{word}」確認</span>
-        <input value={text} onChange={(e) => setText(e.target.value)} autoComplete="off" />
-      </label>
-      {error && <p className="error">{error}</p>}
-      <button
-        type="button"
-        className="btn big danger"
-        disabled={busy || text.trim() !== word.trim()}
-        onClick={async () => {
-          setBusy(true); setError('');
-          try { await onConfirm(); onClose(); } catch (err) { setError(message(err)); setBusy(false); }
-        }}
-      >
-        {busy ? '刪除中…' : '永久刪除'}
-      </button>
-      <button type="button" className="btn plain" onClick={onClose}>取消</button>
-    </Sheet>
+    <div className="confirm-back" role="presentation" onClick={() => !busy && onClose()}>
+      <div className="confirm-box" role="alertdialog" aria-modal="true" aria-label={title} onClick={(e) => e.stopPropagation()}>
+        <h2>{title}？</h2>
+        <p className="muted">{detail}</p>
+        {error && <p className="error">{error}</p>}
+        <div className="confirm-actions">
+          <button type="button" className="btn plain" disabled={busy} onClick={onClose}>取消</button>
+          <button
+            type="button"
+            className="btn danger"
+            disabled={busy}
+            onClick={async () => {
+              setBusy(true); setError('');
+              try { await onConfirm(); onClose(); } catch (err) { setError(message(err)); setBusy(false); }
+            }}
+          >
+            {busy ? '刪除中…' : '刪除'}
+          </button>
+        </div>
+      </div>
+    </div>
   );
 }
 

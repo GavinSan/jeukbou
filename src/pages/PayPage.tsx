@@ -1,7 +1,9 @@
 // 一個大局嘅轉賬詳情：每筆邊個俾邊個、收款 email、已轉未轉
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import type { User } from 'firebase/auth';
-import { markPaid } from '../lib/data.ts';
+import { markPaid, savePayout } from '../lib/data.ts';
+import type { Payout } from '../lib/data.ts';
+import { computePayout, loadTeams } from '../lib/settleLoad.ts';
 import { useGroup, useMembers, useSession } from '../lib/live.ts';
 import { itemsOf } from '../lib/pay.ts';
 import { Link } from '../lib/router.tsx';
@@ -16,9 +18,25 @@ export default function PayPage({ user, groupId, sessionId }: { user: User; grou
   const [busy, setBusy] = useState('');
   const [error, setError] = useState('');
   const back = `/g/${groupId}/s/${sessionId}`;
+  // 已埋數但未有快照：即刻計返，順手存低
+  const [calc, setCalc] = useState<Payout | null>(null);
+  const needCalc = !!group.data && !!session.data && !!session.data.closed && !session.data.payout && !members.loading;
+  useEffect(() => {
+    if (!needCalc || !group.data || !session.data) return;
+    let alive = true;
+    const g = group.data;
+    const s = session.data;
+    loadTeams(groupId).catch(() => []).then((teams) => computePayout(g, s, members.data, teams)).then((po) => {
+      if (!alive || !po) return;
+      setCalc(po);
+      savePayout(groupId, sessionId, po).catch(() => undefined);
+    }).catch(() => undefined);
+    return () => { alive = false; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [needCalc]);
   if (!group.data || !session.data) return <main className="page"><TopBar back={back} />{session.error ? <p className="error">{session.error}</p> : <Loading />}</main>;
   const g = group.data;
-  const s = session.data;
+  const s = session.data.payout || !calc ? session.data : { ...session.data, payout: calc };
   const items = itemsOf(g, s, user.uid);
   const names: Record<string, string> = { ...(s.payout?.names ?? {}) };
   const emails: Record<string, string> = {};
@@ -39,7 +57,7 @@ export default function PayPage({ user, groupId, sessionId }: { user: User; grou
       <TopBar back={`/g/${groupId}/s/${sessionId}/settle`} title={<div className="stack tight"><h1>轉賬</h1><span className="muted small">{s.name}</span></div>} />
       {!s.payout ? (
         <section className="panel">
-          <p className="muted">{s.closed ? '計緊轉賬，請先打開一次埋數頁。' : '未埋數。埋數之後，轉賬會喺呢度出現。'}</p>
+          {s.closed ? <Loading /> : <p className="muted">未埋數。埋數之後，轉賬會喺呢度出現。</p>}
           <Link to={`/g/${groupId}/s/${sessionId}/settle`} className="btn">去埋數頁</Link>
         </section>
       ) : (

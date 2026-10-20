@@ -22,6 +22,10 @@ service cloud.firestore {
     function isOwner(g) {
       return isSuperAdmin() || (signedIn() && groupDoc(g).data.ownerId == request.auth.uid);
     }
+    // 大局未埋數
+    function isOpen(g, s) {
+      return get(/databases/$(database)/documents/groups/$(g)/sessions/$(s)).data.get('closed', null) == null;
+    }
     // 加入方式：auto 自動加入、approve 要局主批准、closed 不收新人（舊牌友圈冇設定 = auto）
     function joinMode(g) {
       return groupDoc(g).data.get('joinMode', 'auto');
@@ -116,7 +120,9 @@ service cloud.firestore {
         // 家規、舊紀錄、水由誰保管：淨係局主改得
         allow update: if isMember(g)
           && (!request.resource.data.diff(resource.data).affectedKeys().hasAny(['rules', 'rulesLog', 'legacy']) || isOwner(g))
-          && (!request.resource.data.diff(resource.data).affectedKeys().hasAny(['waterTo']) || isOwner(g));
+          && (!request.resource.data.diff(resource.data).affectedKeys().hasAny(['waterTo']) || isOwner(g))
+          // 已埋數：今日人物唔可以再改（局主除外）
+          && (!request.resource.data.diff(resource.data).affectedKeys().hasAny(['people']) || resource.data.get('closed', null) == null || isOwner(g));
         allow delete: if isOwner(g);
 
         // 換人請求：同局成員都睇到、發到、答到
@@ -125,16 +131,20 @@ service cloud.firestore {
           allow delete: if isOwner(g);
         }
 
-        // 埋數：開支同 GP，同局成員都可以加、改、刪
+        // 埋數：開支同 Group，同局成員都可以加、改、刪；已埋數就鎖定（局主除外）
         match /expenses/{x} {
-          allow read, create, update, delete: if isMember(g);
+          allow read: if isMember(g);
+          allow create, update, delete: if isMember(g) && (isOpen(g, s) || isOwner(g));
         }
         match /pairs/{x} {
-          allow read, create, update, delete: if isMember(g);
+          allow read: if isMember(g);
+          allow create, update, delete: if isMember(g) && (isOpen(g, s) || isOwner(g));
         }
 
         match /tables/{t} {
-          allow read, create, update: if isMember(g);
+          allow read, update: if isMember(g);
+          // 已埋數唔可以再開枱（局主除外）
+          allow create: if isMember(g) && (isOpen(g, s) || isOwner(g));
           allow delete: if isOwner(g);
 
           // 每一鋪：只可以加，唔可以改或者刪。

@@ -7,6 +7,10 @@ export interface Tab {
   key: string;
   label: string;
   href: string | null;
+  /** 中間凸出嚟嘅大掣（枱） */
+  raised?: boolean;
+  /** 未有枱：顯示「＋」 */
+  plus?: boolean;
 }
 
 const ICONS: Record<string, ReactNode> = {
@@ -19,7 +23,8 @@ const ICONS: Record<string, ReactNode> = {
   home: <><path d="M4 11l8-6.5 8 6.5" /><path d="M6 9.5V20h12V9.5" /><path d="M10 20v-5h4v5" /></>,
   groups: <><circle cx="9" cy="9" r="3.2" /><circle cx="16.5" cy="10.5" r="2.5" /><path d="M3.5 19a5.5 5.5 0 0 1 11 0" /><path d="M14.5 15.2A4.5 4.5 0 0 1 21 19" /></>,
   rank: <><path d="M8 4h8v5a4 4 0 0 1-8 0z" /><path d="M8 6H5a3 3 0 0 0 3 4M16 6h3a3 3 0 0 1-3 4" /><path d="M12 13v4M8.5 20h7" /></>,
-  settings: <><circle cx="12" cy="12" r="3" /><path d="M12 3v2.5M12 18.5V21M3 12h2.5M18.5 12H21M5.6 5.6l1.8 1.8M16.6 16.6l1.8 1.8M5.6 18.4l1.8-1.8M16.6 7.4l1.8-1.8" /></>,
+  settings: <><circle cx="12" cy="12" r="3" /><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z" /></>,
+  plus: <><path d="M12 6v12M6 12h12" /></>,
 };
 
 const HOME_PATHS = ['/', '/groups', '/pay', '/rank', '/settings'];
@@ -40,24 +45,27 @@ export const HOME_DEMO_TABS: Tab[] = [
 
 export default function TabBar({ tabs, active }: { tabs: Tab[]; active: string | null }) {
   const i = tabs.findIndex((t) => t.key === active);
+  const lens = i >= 0 && !tabs[i].raised;
   useEffect(() => {
     document.body.classList.add('has-tabbar');
     return () => document.body.classList.remove('has-tabbar');
   }, []);
   return (
-    <nav className="tabbar" aria-label="主要頁面" style={{ '--n': tabs.length, '--i': Math.max(0, i) } as CSSProperties}>
-      {i >= 0 && <span className="tab-lens" aria-hidden="true" />}
+    <nav className="tabbar icon-only" aria-label="主要頁面" style={{ '--n': tabs.length, '--i': Math.max(0, i) } as CSSProperties}>
+      {lens && <span className="tab-lens" aria-hidden="true" />}
       {tabs.map((t) => {
+        const icon = t.plus ? 'plus' : t.key;
         const body = (
           <>
-            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">{ICONS[t.key]}</svg>
-            <span>{t.label}</span>
+            <svg width={t.raised ? 28 : 26} height={t.raised ? 28 : 26} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={t.raised ? 2 : 1.8} strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">{ICONS[icon]}</svg>
+            {t.raised && t.plus && <small className="tab-plus-text">開枱</small>}
           </>
         );
+        const cls = `tab${t.key === active ? ' active' : ''}${t.raised ? ' raised' : ''}${t.plus ? ' plus' : ''}`;
         return t.href ? (
-          <Link key={t.key} to={t.href} className={`tab${t.key === active ? ' active' : ''}`} ariaLabel={t.label}>{body}</Link>
+          <Link key={t.key} to={t.href} className={cls} ariaLabel={t.plus ? `開${t.label}` : t.label}>{body}</Link>
         ) : (
-          <span key={t.key} className="tab off" aria-disabled="true" title={`${t.label}（未有）`}>{body}</span>
+          <span key={t.key} className={`${cls} off`} aria-disabled="true" aria-label={`${t.label}（未有）`} title={`${t.label}（未有）`}>{body}</span>
         );
       })}
     </nav>
@@ -72,10 +80,18 @@ export function appTabs(ctx: { g?: string; s?: string; t?: string }, path: strin
   }
   const { g, s, t } = ctx;
   const S = g && s ? `/g/${g}/s/${s}` : null;
+  // 中間凸出嘅枱：有枱就去枱；未有就「＋」開枱（大局入面）或者開大局（牌友圈）
+  const tableTab: Tab = S && t
+    ? { key: 'table', label: '枱', href: `${S}/t/${t}`, raised: true }
+    : S
+      ? { key: 'table', label: '枱', href: `${S}#add-table`, raised: true, plus: true }
+      : g
+        ? { key: 'table', label: '大局', href: `/g/${g}/new`, raised: true, plus: true }
+        : { key: 'table', label: '枱', href: null, raised: true };
   const tabs: Tab[] = [
-    { key: 'table', label: '枱', href: S && t ? `${S}/t/${t}` : null },
     { key: 'session', label: '大局', href: S ?? (g ? `/g/${g}` : '/') },
     { key: 'settle', label: '埋數', href: S ? `${S}/settle` : null },
+    tableTab,
     { key: 'board', label: '龍虎榜', href: g ? `/g/${g}/board` : null },
     { key: 'rules', label: '家規', href: S ? `${S}/rules` : g ? `/g/${g}/rules` : null },
   ];

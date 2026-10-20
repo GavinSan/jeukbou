@@ -171,14 +171,14 @@ for (const scheme of ['light', 'dark']) {
       await page.screenshot({ path: `${out}/settle-config.png` });
       await page.goBack();
       await page.waitForTimeout(400);
-      await page.getByRole('button', { name: '＋ 新增' }).first().click();
+      await page.getByRole('button', { name: '新增開支' }).click();
       await page.getByRole('dialog').getByRole('button', { name: '的士', exact: true }).click();
       await page.getByRole('dialog').getByLabel('金額').fill('36');
       await page.getByRole('dialog').getByRole('button', { name: 'Athena', exact: true }).first().click();
       await page.waitForTimeout(200);
       await page.screenshot({ path: `${out}/expense-sheet.png` });
       await page.getByLabel('備註').fill('譚仔，Kit 都有食');
-      await page.getByRole('button', { name: /^＋ 加其他人/ }).click();
+      await page.getByRole('button', { name: /^＋ 加今日有份/ }).click();
       await page.getByLabel('訪客名').fill('阿明');
       await page.getByRole('dialog').getByRole('button', { name: '加', exact: true }).click();
       await page.waitForTimeout(200);
@@ -192,6 +192,13 @@ for (const scheme of ['light', 'dark']) {
       await page.getByRole('button', { name: /^儲存 \$200/ }).click();
       await page.waitForTimeout(300);
       await page.screenshot({ path: `${out}/settle-after.png`, fullPage: true });
+      await page.getByRole('button', { name: /^Gavin 明細|Gavin \+ Athena 明細/ }).first().click();
+      await page.waitForTimeout(300);
+      await page.screenshot({ path: `${out}/settle-person.png`, fullPage: true });
+      await page.getByRole('button', { name: '完成' }).click();
+      await page.getByRole('button', { name: '修改 飲品' }).click();
+      await page.waitForTimeout(300);
+      await page.screenshot({ path: `${out}/expense-all.png`, fullPage: true });
     });
     await step('party', async () => {
       await page.goto(`${base}/demo/t/1`, { waitUntil: 'networkidle' });
@@ -212,9 +219,11 @@ for (const scheme of ['light', 'dark']) {
       await page.goto(`${base}/demo/board`, { waitUntil: 'networkidle' });
       await page.waitForTimeout(500);
       await page.screenshot({ path: `${out}/board.png`, fullPage: true });
-      await page.getByRole('tab', { name: '週' }).click();
+      await page.getByRole('tab', { name: '月' }).click();
+      await page.waitForTimeout(300);
+      await page.screenshot({ path: `${out}/board-month.png`, fullPage: true });
+      await page.getByRole('tab', { name: '全部' }).click();
       await page.waitForTimeout(200);
-      await page.screenshot({ path: `${out}/board-week.png` });
       await page.getByRole('button', { name: /^Gavin 統計/ }).click();
       await page.waitForTimeout(400);
       await page.screenshot({ path: `${out}/player.png` });
