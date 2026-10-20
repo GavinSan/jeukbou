@@ -2,6 +2,7 @@ import { useMemo } from 'react';
 import type { User } from 'firebase/auth';
 import SettleScreen from '../components/SettleScreen.tsx';
 import { acceptPair, acceptTeam, addExpense, approveClose, cancelClose, closeSession, deleteExpense, deletePair, isGuest, proposePair, requestClose, saveSettleConfig, setSessionWaterTo, settleConfigOf } from '../lib/data.ts';
+import { useSuperAdmin } from '../lib/admin.ts';
 import { useExpenses, useGroup, useManyEvents, useMembers, usePairs, useSession, useTables, useTeams } from '../lib/live.ts';
 import { computeTable, rulesOf, rulesTimeline } from '../lib/score.ts';
 import type { Computed } from '../lib/score.ts';
@@ -16,6 +17,7 @@ export default function SettlePage({ user, groupId, sessionId }: { user: User; g
   const expenses = useExpenses(groupId, sessionId);
   const pairs = usePairs(groupId, sessionId);
   const teams = useTeams(groupId);
+  const admin = useSuperAdmin(user.uid);
   const members = useMembers(groupId);
   const rules = useMemo(() => rulesOf(group.data, session.data), [group.data, session.data]);
   const timeline = useMemo(() => rulesTimeline(group.data, session.data), [group.data, session.data]);
@@ -35,7 +37,9 @@ export default function SettlePage({ user, groupId, sessionId }: { user: User; g
 
   const sess = session.data;
   const hostId = sess.createdBy;
-  const isHost = hostId === user.uid || group.data.ownerId === user.uid;
+  const isOwner = group.data.ownerId === user.uid || admin;
+  // 埋數：只有開大局嘅人（場主）同局主撳得
+  const isHost = hostId === user.uid || isOwner;
   const waterTo = sess.waterTo || hostId;
   // 水只可以畀局入面嘅人（加埋場主）保管
   const waterOptions = [...sum.players];
@@ -52,7 +56,7 @@ export default function SettlePage({ user, groupId, sessionId }: { user: User; g
       water={sum.water}
       unfinished={sum.unfinished}
       config={{ ...settleConfigOf(group.data), waterTo }}
-      canSetWater={isHost && !sess.closed}
+      canSetWater={isOwner && !sess.closed}
       waterOptions={waterOptions}
       onSetWaterTo={(uid) => setSessionWaterTo(groupId, sessionId, uid)}
       closing={{

@@ -177,6 +177,7 @@ for (const scheme of ['light', 'dark']) {
       await page.getByRole('dialog').getByRole('button', { name: 'Athena', exact: true }).first().click();
       await page.waitForTimeout(200);
       await page.screenshot({ path: `${out}/expense-sheet.png` });
+      await page.getByLabel('備註').fill('譚仔，Kit 都有食');
       await page.getByRole('button', { name: /^＋ 加其他人/ }).click();
       await page.getByLabel('訪客名').fill('阿明');
       await page.getByRole('dialog').getByRole('button', { name: '加', exact: true }).click();
@@ -219,10 +220,10 @@ for (const scheme of ['light', 'dark']) {
     await step('gag', async () => {
       await page.goto(`${base}/demo/t/2`, { waitUntil: 'networkidle' });
       await page.waitForTimeout(1200);
-      await page.getByRole('button', { name: /^其他/ }).click();
-      await page.getByRole('dialog').getByRole('button', { name: /^詐糊/ }).click();
+      await page.getByRole('button', { name: /^特別事項/ }).click();
+      await page.getByRole('dialog').getByRole('button', { name: /詐糊/ }).click();
       await page.getByRole('dialog').getByRole('button', { name: 'Tat', exact: true }).click();
-      await page.getByRole('button', { name: '入數', exact: true }).click();
+      await page.getByRole('button', { name: /^入數，付每家/ }).click();
       await page.waitForTimeout(1400);
       await page.screenshot({ path: `${out}/gag.png` });
       await page.waitForTimeout(2500);

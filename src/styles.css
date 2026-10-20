@@ -1272,3 +1272,5 @@ button.join-code:active { background: var(--line); }
 .tile .t-name { width: 100%; max-width: 100%; overflow: hidden; }
 .tile .t-name > .ellipsis { flex: 0 1 auto; display: block; }
 .tile .t-name > .dealer-mark { flex: none; }
+/* 紀錄表人名：長名分兩行，唔好切走 */
+.lg-names span { white-space: normal; overflow-wrap: anywhere; line-height: 1.15; font-size: 14px; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; align-self: end; }

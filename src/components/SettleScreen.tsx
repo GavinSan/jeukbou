@@ -290,6 +290,7 @@ export default function SettleScreen(p: SettleScreenProps) {
                   <span>{e.kind === 'transfer' ? `${nameOf(e.payer)} 已付 ${nameOf(e.sharedBy[0] ?? '')}` : e.label}</span>
                   <small className="muted">
                     {e.kind === 'transfer' ? '已轉賬' : `${nameOf(e.payer)} 付款 · ${e.sharedBy.length === ids.length ? '全部人分' : `${e.sharedBy.length} 人分`}`}
+                    {e.note ? ` · ${e.note}` : ''}
                   </small>
                 </span>
                 <b className="num">{money(e.amount)}</b>
@@ -447,6 +448,7 @@ function ExpenseSheet({ players: tonight, others, me, busy, error, onClose, onSa
   const [label, setLabel] = useState('晚餐');
   const [custom, setCustom] = useState('');
   const [amount, setAmount] = useState('');
+  const [note, setNote] = useState('');
   const [payer, setPayer] = useState(me && tonight.some((x) => x.id === me) ? me : '');
   const [shared, setShared] = useState<string[]>(tonight.map((x) => x.id));
   const [to, setTo] = useState('');
@@ -479,6 +481,11 @@ function ExpenseSheet({ players: tonight, others, me, busy, error, onClose, onSa
           <input className="input num big-input" inputMode="decimal" value={amount} onChange={(e) => setAmount(cleanMoney(e.target.value))} placeholder="0" aria-label="金額" />
         </div>
       </div>
+
+      <label className="field">
+        <span>備註</span>
+        <input className="input" value={note} onChange={(e) => setNote(e.target.value.slice(0, 60))} placeholder="可留空，例如 XX 茶餐廳、AA 咗啤酒" aria-label="備註" />
+      </label>
 
       <div className="field">
         <span>{kind === 'transfer' ? '誰付' : '誰付款'}</span>
@@ -556,7 +563,7 @@ function ExpenseSheet({ players: tonight, others, me, busy, error, onClose, onSa
         onClick={() => {
           const used = new Set([payer, ...(kind === 'transfer' ? [to] : shared)]);
           const names = Object.fromEntries(extra.filter((x) => x.guest && used.has(x.id)).map((x) => [x.id, x.name]));
-          const extraNames = Object.keys(names).length ? { names } : {};
+          const extraNames = { ...(Object.keys(names).length ? { names } : {}), ...(note.trim() ? { note: note.trim() } : {}) };
           onSave(kind === 'transfer'
             ? { kind, label: '已轉賬', payer, amount: n, sharedBy: [to], ...extraNames }
             : { kind, label: finalLabel, payer, amount: n, sharedBy: shared, ...extraNames });
@@ -617,9 +624,11 @@ function CloseBar({ c, me, nameOf, busy, run }: {
   }
   return (
     <>
-      <button type="button" className="btn big close-btn" disabled={busy} onClick={() => (c.isHost ? setAsk(true) : run(c.onRequest))}>
-        埋數{c.isHost ? '（完場並鎖定）' : '（要全部人同意）'}
-      </button>
+      {c.isHost ? (
+        <button type="button" className="btn big close-btn" disabled={busy} onClick={() => setAsk(true)}>埋數（完場並鎖定）</button>
+      ) : (
+        <p className="banner calm small">埋數要由場主（開大局嘅人）或者局主撳。</p>
+      )}
       {ask && (
         <Sheet onClose={() => setAsk(false)} label="埋數">
           <h2>埋數</h2>

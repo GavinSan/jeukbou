@@ -418,7 +418,7 @@ export default function TableScreen(props: TableScreenProps) {
   }
 
   const menuButton = (
-    <button type="button" className="iconbtn" aria-label="其他：換人、擲骰、掉位、詐糊、聲效" onClick={() => { unlock(); setError(''); setMore('menu'); }}>
+    <button type="button" className="iconbtn" aria-label="其他：換人、擲骰、掉位、聲效" onClick={() => { unlock(); setError(''); setMore('menu'); }}>
       <svg width="22" height="22" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><circle cx="5" cy="12" r="1.9" /><circle cx="12" cy="12" r="1.9" /><circle cx="19" cy="12" r="1.9" /></svg>
     </button>
   );
@@ -749,7 +749,6 @@ export default function TableScreen(props: TableScreenProps) {
                 {props.onSwap && !ended && !viewOnly && <button type="button" className="choice" onClick={() => { setSwapOut(''); setSwapIn(''); setGuestName(''); setMore('swap'); }}>換人<small>有人加入</small></button>}
                 {props.onDice && !ended && <button type="button" className="choice" onClick={() => run(() => props.onDice!(), '')}>擲骰<small>三粒骰</small></button>}
                 {props.onReseat && !ended && !viewOnly && (c.steps.length === 0 || roundsDone) && <button type="button" className="choice" onClick={() => setMore('reseat')}>{c.steps.length === 0 ? '掉位' : '換位'}<small>抽風牌或自己揀</small></button>}
-                {!ended && !viewOnly && <button type="button" className="choice" disabled={locked || roundsDone} onClick={() => setMore('falseWin')}>詐糊<small>付每家 {rules.falseWinPenalty}</small></button>}
                 <button type="button" className="choice" aria-pressed={pf.sound} onClick={() => { unlock(); setPref('sound', !pf.sound); if (!pf.sound) setTimeout(() => sfx.tap(), 30); }}>
                   聲效<small>{pf.sound ? '開' : '關'}</small>
                 </button>

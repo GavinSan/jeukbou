@@ -128,6 +128,8 @@ export interface ExpenseDoc {
   sharedBy: string[];
   /** 冇打牌但有份嘅訪客名（id → 名） */
   names?: Record<string, string>;
+  /** 備註 */
+  note?: string;
   by: string;
   at: number | null;
 }

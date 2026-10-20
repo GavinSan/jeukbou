@@ -108,10 +108,10 @@ service cloud.firestore {
         allow read: if isMember(g);
         // 匯入嘅舊紀錄（legacy）淨係局主／超級管理員寫得
         allow create: if isMember(g) && (!('legacy' in request.resource.data) || isOwner(g));
-        // 家規、舊紀錄淨係局主改得；水由誰保管淨係場主（開局嗰個）或者局主改得
+        // 家規、舊紀錄、水由誰保管：淨係局主改得
         allow update: if isMember(g)
           && (!request.resource.data.diff(resource.data).affectedKeys().hasAny(['rules', 'rulesLog', 'legacy']) || isOwner(g))
-          && (!request.resource.data.diff(resource.data).affectedKeys().hasAny(['waterTo']) || isOwner(g) || resource.data.createdBy == request.auth.uid);
+          && (!request.resource.data.diff(resource.data).affectedKeys().hasAny(['waterTo']) || isOwner(g));
         allow delete: if isOwner(g);
 
         // 換人請求：同局成員都睇到、發到、答到
