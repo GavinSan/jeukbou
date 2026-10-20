@@ -138,8 +138,8 @@ for (const scheme of ['light', 'dark']) {
       await page.getByRole('dialog').getByRole('button', { name: /^換人/ }).click();
       await page.waitForTimeout(300);
       await page.getByRole('dialog').getByRole('button', { name: /Ivan/ }).click();
-      const more = page.getByRole('dialog').locator('.more-people summary');
-      if (await more.count()) await more.click();
+      const more = page.getByRole('dialog').locator('details.more-people');
+      if (await more.count() && !(await more.evaluate((e) => e.open))) await more.locator('summary').click();
       await page.getByRole('dialog').getByRole('button', { name: /Kit/ }).click();
       await page.screenshot({ path: `${out}/swap.png` });
     });
