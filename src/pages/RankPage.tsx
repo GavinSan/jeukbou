@@ -30,7 +30,7 @@ export function RankView({ me, mine, groups, loading }: { me: string; mine: MySe
           <TierTile tier={t.tier} size="lg" />
           <div className="grow">
             <h2>{t.tier.name}</h2>
-            <p className="hero-sub"><CountUp value={st.points} /> 分 · {st.played} 局</p>
+            <p className="hero-sub"><CountUp value={st.points} /> 分 · {st.played} 次大局{st.rounds ? ` · ${st.rounds} 圈` : ''}</p>
           </div>
         </div>
         <div className="hero-tier">
@@ -83,7 +83,7 @@ export function RankView({ me, mine, groups, loading }: { me: string; mine: MySe
               return (
                 <li key={r.id} className={r.id === me ? 'here' : ''}>
                   <span className="rank-dot">{i + 1}</span>
-                  <span className="grow ellipsis">{r.name}<small className="muted">　{r.played} 局</small></span>
+                  <span className="grow ellipsis">{r.name}<small className="muted">　{r.played} 次</small></span>
                   <TierChip tier={tt} />
                   <b className="num">{r.points}</b>
                 </li>

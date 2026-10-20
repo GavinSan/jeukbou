@@ -1,7 +1,7 @@
 import { useMemo } from 'react';
 import type { User } from 'firebase/auth';
 import SettleScreen from '../components/SettleScreen.tsx';
-import { addSessionPerson, removeSessionPerson, markPaid, savePayout, acceptPair, acceptTeam, addExpense, updateExpense, approveClose, cancelClose, closeSession, deleteExpense, deletePair, isGuest, proposePair, requestClose, saveSettleConfig, setSessionWaterTo, settleConfigOf } from '../lib/data.ts';
+import { addSessionPerson, removeSessionPerson, setSkipTeam, markPaid, savePayout, acceptPair, acceptTeam, addExpense, updateExpense, approveClose, cancelClose, closeSession, deleteExpense, deletePair, isGuest, proposePair, requestClose, saveSettleConfig, setSessionWaterTo, settleConfigOf } from '../lib/data.ts';
 import { useSuperAdmin } from '../lib/admin.ts';
 import { useExpenses, useGroup, useManyEvents, useMembers, usePairs, useSession, useTables, useTeams } from '../lib/live.ts';
 import { computeTable, rulesOf, rulesTimeline } from '../lib/score.ts';
@@ -105,6 +105,9 @@ export default function SettlePage({ user, groupId, sessionId }: { user: User; g
       locked={!!sess.closed && !isOwner}
       perTable={perTable}
       isAdmin={admin}
+      ready={!tables.loading && tables.data.every((t) => t.id in events) && !expenses.loading && !pairs.loading && !teams.loading && !members.loading}
+      skipTeams={sess.skipTeams ?? []}
+      onSkipTeam={(id, skip) => setSkipTeam(groupId, sessionId, id, skip)}
       teamsHref={`/g/${groupId}/rules#settle`}
       me={user.uid}
       onSaveConfig={(c) => saveSettleConfig(groupId, c)}

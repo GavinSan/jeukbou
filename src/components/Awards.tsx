@@ -28,15 +28,30 @@ export function paceOf(roundMs: number[]): string | null {
   return `${minutes(roundMs.reduce((a, b) => a + b, 0) / roundMs.length)} 分/圈`;
 }
 
+/** 特別事項王：每款一個 */
+const SPECIAL_KINGS: [string, string, string][] = [
+  ['flower', '花', '花王'], ['grass', '草', '草王'], ['kong', '槓', '槓王'], ['heaven', '天', '天槓王'],
+  ['triple', '骰', '圍骰王'], ['dice123', '三', '一二三王'], ['pong', '碰', '叫碰王'], ['chase', '追', '被追王'], ['forgot', '忘', '唔記得王'],
+];
+
 export function awardsOf(play: PlayStats, name: (id: string) => string): Award[] {
   const out: Award[] = [];
-  if (play.biggest) out.push({ key: 'big', mark: '大', title: '最大一鋪', who: name(play.biggest.player), value: `${play.biggest.fan} 番`, cls: 'aw-purple' });
-  if (play.maxStreak && play.maxStreak.n > 0) out.push({ key: 'streak', mark: '莊', title: '連莊', who: name(play.maxStreak.player), value: `連 ${play.maxStreak.n}`, cls: 'aw-orange' });
+  const w = topOf(play.wins);
+  if (w) out.push({ key: 'win', mark: '食', title: '食糊王', who: name(w[0]), value: `${w[1]} 次`, cls: 'aw-gold' });
+  const sd = topOf(play.selfDraws);
+  if (sd) out.push({ key: 'self', mark: '摸', title: '自摸王', who: name(sd[0]), value: `${sd[1]} 次`, cls: 'aw-green' });
   const di = topOf(play.dealIns);
   if (di) out.push({ key: 'deal', mark: '銃', title: '出銃王', who: name(di[0]), value: `${di[1]} 次`, cls: 'aw-red' });
-  if (play.maxChain && play.maxChain.count > 1) out.push({ key: 'chain', mark: '拉', title: '拉最耐', who: `${name(play.maxChain.puller)}→${name(play.maxChain.pulled)}`, value: `${play.maxChain.count} 拉`, cls: 'aw-blue' });
+  if (play.biggest) out.push({ key: 'big', mark: '大', title: '最大一鋪', who: name(play.biggest.player), value: `${play.biggest.fan} 番`, cls: 'aw-purple' });
+  if (play.maxStreak && play.maxStreak.n > 0) out.push({ key: 'streak', mark: '莊', title: '連莊王', who: name(play.maxStreak.player), value: `連 ${play.maxStreak.n}`, cls: 'aw-orange' });
+  const pl = topOf(play.pulls ?? {});
+  if (pl) out.push({ key: 'pull', mark: '拉', title: '拉最多', who: name(pl[0]), value: `${pl[1]} 次`, cls: 'aw-blue' });
   const fw = topOf(play.falseWins);
   if (fw) out.push({ key: 'false', mark: '詐', title: '詐糊王', who: name(fw[0]), value: `${fw[1]} 次`, cls: 'aw-pink' });
+  for (const [art, mark, title] of SPECIAL_KINGS) {
+    const top = topOf(play.specialBy?.[art] ?? {});
+    if (top) out.push({ key: `sp-${art}`, mark, title, who: name(top[0]), value: `${top[1]} 次`, cls: `aw-sp aw-sp-${art}` });
+  }
   const pace = paceOf(play.roundMs);
   if (pace) {
     const perHand = play.hands > 1 && play.playMs > 0 ? `${Math.max(1, Math.round(play.playMs / play.hands / 60000))} 分/鋪` : `${play.roundMs.length} 圈`;
@@ -90,8 +105,8 @@ export function PlayTable({ play, ids, name, me }: { play: PlayStats; ids: strin
         <div key={r.id} className={`st-row five${r.id === me ? ' me' : ''}`}>
           <span className="ellipsis"><span className="rank-no">{i + 1}</span>{name(r.id)}</span>
           {COLS.map(([k]) => (
-            <span key={k} className={`num${k === 's' ? ' gain' : k === 'd' ? ' loss' : ''}${crown(k, r[k]) && k !== 'd' ? ' crowned' : ''}`}>
-              {r[k] || '–'}
+            <span key={k} className={`num${k === 's' ? ' gain' : k === 'd' ? ' loss' : ''}`}>
+              <span className="crown-wrap">{crown(k, r[k]) && k !== 'd' && <span className="crown" aria-label="第一">👑</span>}{r[k] || '–'}</span>
             </span>
           ))}
         </div>

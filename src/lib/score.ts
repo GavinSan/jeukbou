@@ -41,6 +41,10 @@ export interface TableStats {
   playMs: number;
   /** 每人拉咗幾多次（第 2 拉起計，即係食返同一個人） */
   pulls: Record<string, number>;
+  /** 每人打咗幾多圈（莊轉四次 = 一圈，喺枱上先計） */
+  rounds: Record<string, number>;
+  /** 特別事項：每款（花、槓…）每人幾多次 */
+  specialBy: Record<string, Record<string, number>>;
 }
 
 export interface Computed {
@@ -124,7 +128,7 @@ export function netOf(d: Step['delta'], fallback = true): Record<string, number>
 function statsOf(steps: Step[]): TableStats {
   const s: TableStats = {
     hands: 0, biggest: null, selfDraws: 0, wins: {}, dealIns: {}, selfDrawBy: {}, bestBy: {}, falseWins: {}, specials: 0,
-    maxStreak: null, maxChain: null, roundMs: [], playMs: 0, pulls: {},
+    maxStreak: null, maxChain: null, roundMs: [], playMs: 0, pulls: {}, rounds: {}, specialBy: {},
   };
   let first: number | null = null;
   let last: number | null = null;
@@ -137,6 +141,9 @@ function statsOf(steps: Step[]): TableStats {
     }
     const st = result.state;
     // 圈數：莊轉咗四次 = 一圈
+    if (st.dealerTurns > turns) {
+      for (const p of st.seats) s.rounds[p] = (s.rounds[p] ?? 0) + (st.dealerTurns - turns) / 4;
+    }
     if (st.dealerTurns !== turns) {
       if (Math.floor(st.dealerTurns / 4) > Math.floor(turns / 4) && at !== null && roundStart !== null) {
         s.roundMs.push(at - roundStart);
@@ -146,7 +153,14 @@ function statsOf(steps: Step[]): TableStats {
     }
     if (st.streak > (s.maxStreak?.n ?? 0)) s.maxStreak = { player: st.seats[st.dealerSeat], n: st.streak };
     for (const ch of st.chains) if (ch.count > (s.maxChain?.count ?? 0)) s.maxChain = { puller: ch.puller, pulled: ch.pulled, count: ch.count };
-    if (event.type === 'special') s.specials += 1;
+    if (event.type === 'special') {
+      s.specials += 1;
+      const art = event.meta?.penalty ? 'forgot' : event.meta?.art;
+      if (art) {
+        const m = s.specialBy[art] ?? (s.specialBy[art] = {});
+        m[event.player] = (m[event.player] ?? 0) + 1;
+      }
+    }
     if (event.type === 'falseWin') s.falseWins[event.player] = (s.falseWins[event.player] ?? 0) + 1;
     if (event.type === 'draw') s.hands += 1;
     if (event.type !== 'win') continue;
@@ -184,16 +198,24 @@ export interface PlayStats {
   playMs: number;
   /** 每人拉咗幾多次（舊快取冇） */
   pulls?: Record<string, number>;
+  /** 每人打咗幾多圈 */
+  rounds?: Record<string, number>;
+  /** 特別事項：每款每人幾多次 */
+  specialBy?: Record<string, Record<string, number>>;
 }
 
 export function emptyPlay(): PlayStats {
-  return { hands: 0, wins: {}, selfDraws: {}, dealIns: {}, falseWins: {}, best: {}, biggest: null, maxStreak: null, maxChain: null, roundMs: [], playMs: 0, pulls: {} };
+  return { hands: 0, wins: {}, selfDraws: {}, dealIns: {}, falseWins: {}, best: {}, biggest: null, maxStreak: null, maxChain: null, roundMs: [], playMs: 0, pulls: {}, rounds: {}, specialBy: {} };
 }
 
 export function addPlay(a: PlayStats, b: Pick<PlayStats, keyof PlayStats> | TableStats): PlayStats {
   const add = (x: Record<string, number>, y: Record<string, number>) => { for (const [k, v] of Object.entries(y)) x[k] = (x[k] ?? 0) + v; };
   const out: PlayStats = { ...a, wins: { ...a.wins }, selfDraws: { ...a.selfDraws }, dealIns: { ...a.dealIns }, falseWins: { ...a.falseWins }, best: { ...a.best }, roundMs: [...a.roundMs], pulls: { ...(a.pulls ?? {}) } };
   add(out.pulls!, b.pulls ?? {});
+  out.rounds = { ...(a.rounds ?? {}) };
+  add(out.rounds, b.rounds ?? {});
+  out.specialBy = Object.fromEntries(Object.entries(a.specialBy ?? {}).map(([k, v]) => [k, { ...v }]));
+  for (const [art, rec] of Object.entries(b.specialBy ?? {})) add(out.specialBy[art] ?? (out.specialBy[art] = {}), rec);
   for (const [k, v] of Object.entries('bestBy' in b ? b.bestBy : b.best)) out.best[k] = Math.max(out.best[k] ?? 0, v);
   out.hands += b.hands;
   add(out.wins, b.wins);

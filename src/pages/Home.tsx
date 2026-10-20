@@ -101,7 +101,7 @@ function MonthBars({ months }: { months: { label: string; total: number; played:
               <i className={m.total >= 0 ? 'up' : 'down'} style={{ height: `${Math.max(m.played ? 3 : 0, h)}px`, animationDelay: `${i * 0.06}s` }} />
             </span>
             <small>{m.label}</small>
-            <small className="muted">{m.played ? `${m.played} 局` : '–'}</small>
+            <small className="muted">{m.played ? `${m.played} 次` : '–'}</small>
           </div>
         );
       })}
@@ -179,9 +179,9 @@ export function DashboardView({ name, photo, joined, groupCount, mine, loading, 
         <>
           <section className="tiles">
             <div className="tile-stat">
-              <small>大局</small>
-              <b className="num"><CountUp value={st.played} /></b>
-              <span className="muted small">近 30 日 {st.month} 局</span>
+              <small>{st.rounds ? '打咗幾多圈' : '大局'}</small>
+              <b className="num"><CountUp value={st.rounds || st.played} />{st.rounds ? <small className="unit"> 圈</small> : null}</b>
+              <span className="muted small">{st.played} 次大局 · 近 30 日 {st.month} 次</span>
             </div>
             <div className="tile-stat ring-tile">
               <Ring value={st.winRate} label={`勝率 ${Math.round(st.winRate * 100)}%`} />
@@ -191,10 +191,10 @@ export function DashboardView({ name, photo, joined, groupCount, mine, loading, 
             <div className="tile-stat">
               <small>總番數</small>
               <b className={`num ${st.total > 0 ? 'gain' : st.total < 0 ? 'loss' : ''}`}><CountUp value={st.total} format={signed} /></b>
-              <span className="muted small">平均每局 {fmt(st.avg)}</span>
+              <span className="muted small">{st.rounds ? `平均每圈 ${fmt(Math.round(st.total / st.rounds))}` : `平均每次 ${fmt(st.avg)}`}</span>
             </div>
             <div className="tile-stat">
-              <small>最好一局</small>
+              <small>最好一次</small>
               <b className="num gain"><CountUp value={st.best} format={signed} /></b>
               <span className="muted small">龍頭 {st.tops} 次 · 最長連贏 {st.bestStreak}</span>
             </div>
@@ -219,7 +219,7 @@ export function DashboardView({ name, photo, joined, groupCount, mine, loading, 
                 <div className="ms ms-red"><span className="ms-mark">銃</span><b className="num"><CountUp value={st.dealIns} /></b><small>出銃</small></div>
                 <div className="ms ms-purple"><span className="ms-mark">大</span><b className="num"><CountUp value={st.bestFan} /></b><small>最大一鋪</small></div>
               </div>
-              <p className="muted small">每局平均：食 {(st.handWins / st.detailed).toFixed(1)}・銃 {(st.dealIns / st.detailed).toFixed(1)}・拉 {(st.pulls / st.detailed).toFixed(1)}</p>
+              {st.rounds > 0 && <p className="muted small">每圈平均：食 {(st.handWins / st.rounds).toFixed(1)}・摸 {(st.selfDraws / st.rounds).toFixed(1)}・銃 {(st.dealIns / st.rounds).toFixed(1)}（共 {st.rounds} 圈）</p>}
             </section>
           )}
 

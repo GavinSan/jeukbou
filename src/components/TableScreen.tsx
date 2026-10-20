@@ -592,8 +592,23 @@ export default function TableScreen(props: TableScreenProps) {
         ) : (
           <div className="ledger" style={{ '--cols': cols.length, '--mi': Math.max(0, cols.indexOf(me ?? '')) } as CSSProperties}>
             {me && cols.includes(me) && <span className="lg-mecol" aria-hidden="true" />}
-            <div className="lg-names" aria-hidden="true">
-              {cols.map((id) => <span key={id} className={id === me ? 'me' : ''}>{name(id)}</span>)}
+            <div className="lg-top">
+              <div className="lg-names" aria-hidden="true">
+                {cols.map((id) => <span key={id} className={id === me ? 'me' : ''}>{name(id)}</span>)}
+              </div>
+              <div className="lg-cells lg-sum" aria-label="合計">
+                {cols.map((id) => {
+                  const v = c.state.settled[id] ?? 0;
+                  const pd = c.pending[id] ?? 0;
+                  return (
+                    <span key={id} className={`lg-cell${id === me ? ' me' : ''}`}>
+                      <b className={`num ${tone2(v + pd)}`}>{fmt(v + pd)}</b>
+                      {pd ? <small className={`lg-pend ${tone2(pd)}`}>枱面 {fmt(pd)}</small> : null}
+                    </span>
+                  );
+                })}
+              </div>
+              <div className="lg-cap"><span>合計{Object.values(c.pending).some(Boolean) ? '（連枱面）' : ''}</span>{c.state.water ? <span>抽水 {c.state.water}</span> : null}</div>
             </div>
             <ol className="lg-rows">
               {log.map((st, li) => {
@@ -613,14 +628,13 @@ export default function TableScreen(props: TableScreenProps) {
                     >
                       <span className="lg-head">
                         <span className="lg-what">
-                          {hi?.label && <span className="lg-hand">{hi.label}</span>}
+                          {hi?.label && <b className="lg-hand">{hi.label}</b>}
                           {describe(st.event, name)}
                           {hi?.stay && <span className="tag stay">冧莊</span>}
                           {st.edited && <span className="tag instant">改過</span>}
                         </span>
                         <span className="lg-when">{ago(st.at, now)}</span>
                       </span>
-                      {hi?.how && <span className="lg-how">{hi.how}</span>}
                       <span className="lg-cells">
                         {cols.map((id) => {
                           const v = net[id] ?? 0;
@@ -640,24 +654,9 @@ export default function TableScreen(props: TableScreenProps) {
                 );
               })}
             </ol>
-            <div className="lg-total">
-              <span className="lg-head"><span className="lg-what">合計</span>{c.state.water ? <span className="lg-when">抽水 {c.state.water}</span> : null}</span>
-              <span className="lg-cells">
-              {cols.map((id) => {
-                const v = c.state.settled[id] ?? 0;
-                const p = c.pending[id] ?? 0;
-                return (
-                  <span key={id} className={`lg-cell${id === me ? ' me' : ''}`}>
-                    <b className={`num ${tone2(v + p)}`}>{fmt(v + p)}</b>
-                    {p ? <><small className={`lg-pend ${tone2(v)}`}>袋 {fmt(v)}</small><small className={`lg-pend ${tone2(p)}`}>枱面 {fmt(p)}</small></> : null}
-                  </span>
-                );
-              })}
-              </span>
-            </div>
           </div>
         )}
-        {c.steps.length > 0 && <Hint>大數字係嗰鋪輸贏；細字「找」係即時找咗嘅錢，「水」係抽水。完場嘅「收／找枱面」只係將之前拉住未找嘅數找晒，唔係新輸贏。合計 =「袋」（已找）+「枱面」（拉住未找）。</Hint>}
+        {c.steps.length > 0 && <Hint>頂部係合計（連拉住未找嘅枱面）。大數字係嗰鋪輸贏；細字「找」係即時找咗嘅錢，「水」係抽水。完場嘅「收／找枱面」只係將之前拉住未找嘅數找晒，唔係新輸贏。</Hint>}
         {c.steps.length > 5 && (
           <button type="button" className="textbtn" onClick={() => setShowAll((v) => !v)}>{showAll ? '收起' : `顯示全部 ${c.steps.length} 項`}</button>
         )}
@@ -698,12 +697,10 @@ export default function TableScreen(props: TableScreenProps) {
               </div>
               {entry.winners.length === 1 && (
                 <div className="dock-sp">
-                  <span className="small muted">或者 {name(entry.winners[0])} 有特別事項：</span>
-                  <div className="dock-sp-row">
-                    {SPECIAL_ITEMS.map((it) => (
-                      <button key={it.art} type="button" className={`sp-chip sp-chip-${it.art}`} onClick={() => openSpecial(entry.winners[0], it.art)}>{it.label}</button>
-                    ))}
-                  </div>
+                  <button type="button" className="btn plain dock-sp-btn" onClick={() => openSpecial(entry.winners[0])}>
+                    <span className="grow"><b>{name(entry.winners[0])} 有特別事項</b><small>花、草、槓、天槓、骰、被追、詐糊…</small></span>
+                    <span className="chev" aria-hidden="true">›</span>
+                  </button>
                 </div>
               )}
             </>
@@ -779,7 +776,7 @@ export default function TableScreen(props: TableScreenProps) {
                 )}
                 {entry.loser && entry.winners.length < 3 && <span className="muted small">一炮多響：再按枱上其他贏家</span>}
                 <span className="auto-mini">
-                  {autoChips(rules).filter((x) => x.on).map((x) => x.label).join('・') || '無自動計'}
+                  {autoChips(rules).some((x) => x.on) ? `自動計：${autoChips(rules).filter((x) => x.on).map((x) => x.label).join('・')}` : '無自動計'}
                   {rulesHref && <> · <Link to={rulesHref} className="textbtn small">家規</Link></>}
                 </span>
               </div>
@@ -894,7 +891,7 @@ export default function TableScreen(props: TableScreenProps) {
                     );
                   })}
                 </div>
-                {canForget && <p className="small muted center-text">{forgot ? '再撳一下張卡 = 返去開咗（收）' : `再撳一下張卡 = 唔記得開（罰每家 ${forgotOf(spArt)}）`}</p>}
+                {canForget && !forgot && <p className="small muted center-text">{`再撳一下張卡 = 唔記得開（罰每家 ${forgotOf(spArt)}）`}</p>}
                 {isChase && (
                   <div className="stack tight">
                     <div className="row">

@@ -3,7 +3,7 @@ import { rememberTable } from '../lib/nav.ts';
 import type { User } from 'firebase/auth';
 import SessionScreen from '../components/SessionScreen.tsx';
 import Incoming from '../components/Incoming.tsx';
-import { addTable, deleteSession, setSessionNoWater } from '../lib/data.ts';
+import { addTable, deleteSession, findTodaySession, setSessionNoWater } from '../lib/data.ts';
 import { Link } from '../lib/router.tsx';
 import { useSuperAdmin } from '../lib/admin.ts';
 import { go } from '../lib/router.tsx';
@@ -59,6 +59,14 @@ export default function SessionPage({ user, groupId, sessionId }: { user: User; 
           <Link to={`/g/${groupId}/s/${sessionId}/pay`} className="link-card closed-card">
             <span className="stamp small-stamp">已埋數</span>
             <span className="grow"><b>轉賬詳情</b><small>邊個俾邊個、已轉未轉</small></span>
+            {(() => {
+              const ts = session.data.payout?.transfers ?? [];
+              if (!ts.length) return null;
+              const done = ts.filter((t) => session.data!.paid?.[`${t.from}>${t.to}`]).length;
+              return done >= ts.length
+                ? <span className="pay-status done">已找清</span>
+                : <span className="pay-status">未找數 {done}/{ts.length}</span>;
+            })()}
             <span className="chev" aria-hidden="true">›</span>
           </Link>
         )
@@ -69,6 +77,10 @@ export default function SessionPage({ user, groupId, sessionId }: { user: User; 
       notice={<Incoming user={user} groupId={groupId} sessionId={sessionId} requests={requests.data} tables={tables.data} computed={computed} />}
       candidates={candidates}
       me={user.uid}
+      onClosedAdd={async () => {
+        const id = await findTodaySession(groupId).catch(() => null);
+        go(id && id !== sessionId ? `/g/${groupId}/s/${id}#add-table` : `/g/${groupId}/new`);
+      }}
       onAddTable={session.data.closed ? undefined : async (people) => {
         const names: Record<string, string> = {};
         for (const p of people) names[p.id] = p.name;

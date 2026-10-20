@@ -48,8 +48,10 @@ export function PersonSheet({ ids, pp, amount, onClose }: { ids: string[]; pp: P
   );
 }
 
-export function PayRows({ items, pp, showSession, busyKey, onToggle }: {
+export function PayRows({ items, pp, showSession, busyKey, onToggle, canToggle = () => true }: {
   items: PayItem[]; pp: PayPeople; showSession?: boolean; busyKey?: string; onToggle?: (it: PayItem, on: boolean) => void;
+  /** 只有俾錢嗰個先標記得 */
+  canToggle?: (it: PayItem) => boolean;
 }) {
   const [who, setWho] = useState<{ ids: string[]; amount: number } | null>(null);
   return (
@@ -71,10 +73,12 @@ export function PayRows({ items, pp, showSession, busyKey, onToggle }: {
               </span>
               </button>
               <b className={`num pay-amt ${it.dir === 'pay' ? 'loss' : it.dir === 'get' ? 'gain' : ''}`}>{money(it.amount)}</b>
-              {onToggle && (
+              {onToggle && canToggle(it) ? (
                 <button type="button" className={`tf-paid${it.paid ? ' on' : ''}`} aria-pressed={it.paid} disabled={busyKey === it.key} onClick={() => onToggle(it, !it.paid)}>
                   {it.paid ? '✓ 已轉' : '標記已轉'}
                 </button>
+              ) : (
+                <span className={`tf-paid static${it.paid ? ' on' : ''}`}>{it.paid ? '✓ 已轉' : '未轉'}</span>
               )}
             </li>
           );

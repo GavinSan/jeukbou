@@ -20,7 +20,12 @@ export interface SettleInputs {
   expenses: ExpenseDoc[];
   pairs: PairDoc[];
   teams: TeamDoc[];
+  /** 今晚唔用嘅預設 Group */
+  skipTeams?: string[];
 }
+
+/** 快照計法版本：改咗計法就加一，舊快照會重計 */
+export const PAYOUT_VERSION = 2;
 
 export interface SettleBuilt {
   r: SettleResult | null;
@@ -65,7 +70,8 @@ export function buildSettle(x: SettleInputs): SettleBuilt {
     shares[e.id] = sharesOf(e, ids, attendees);
     isAll[e.id] = isAllShare(e, ids);
   }
-  const defaults = x.teams.filter(teamActive).map((t) => t.members);
+  const skip = new Set(x.skipTeams ?? []);
+  const defaults = x.teams.filter((t) => teamActive(t) && !skip.has(t.id)).map((t) => t.members);
   const activePairs = effectiveGroups(defaults, x.pairs.filter(pairActive).map((p) => [p.a, p.b]), [...attendees, x.cfg.waterTo]);
   const expenses: Expense[] = x.expenses.map((e) => ({ label: e.label, payer: e.payer, amount: e.amount, sharedBy: shares[e.id] }));
   try {
@@ -83,12 +89,12 @@ export function buildSettle(x: SettleInputs): SettleBuilt {
 export function payoutOf(r: SettleResult, currency: string, nameOf: (id: string) => string): Payout {
   const ids = new Set<string>();
   for (const t of r.combined.transfers) for (const k of [t.from, t.to]) k.split(' + ').forEach((id) => ids.add(id));
-  return { at: Date.now(), currency, transfers: r.combined.transfers, names: Object.fromEntries([...ids].map((id) => [id, nameOf(id)])) };
+  return { v: PAYOUT_VERSION, at: Date.now(), currency, transfers: r.combined.transfers, names: Object.fromEntries([...ids].map((id) => [id, nameOf(id)])) };
 }
 
 /** 兩個快照嘅轉賬係咪一樣（唔理時間） */
 export function samePayout(a: Payout | null | undefined, b: Payout | null | undefined): boolean {
   if (!a || !b) return false;
   const key = (p: Payout) => JSON.stringify(p.transfers.map((t) => [t.from, t.to, Math.round(t.amount * 100)]));
-  return key(a) === key(b) && a.currency === b.currency;
+  return key(a) === key(b) && a.currency === b.currency && (a.v ?? 1) === (b.v ?? 1);
 }

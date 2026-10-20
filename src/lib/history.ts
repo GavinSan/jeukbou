@@ -9,7 +9,7 @@ import type { PlayStats } from './score.ts';
 import type { BoardRow } from '../components/Charts.tsx';
 
 // 已埋數嘅大局唔會再變：計過一次就記住（呢部機），下次即刻有
-const CACHE_KEY = 'jeukbou-totals-v3';
+const CACHE_KEY = 'jeukbou-totals-v4';
 type Totals = { totals: Record<string, number>; names: Record<string, string>; play?: PlayStats };
 let memo: Record<string, Totals> | null = null;
 function cacheGet(k: string) {
@@ -108,9 +108,10 @@ export function boardRows(sessions: SessionResult[], names: Record<string, strin
   const acc = new Map<string, BoardRow>();
   for (const s of sessions) {
     for (const [id, v] of Object.entries(s.totals)) {
-      const row = acc.get(id) ?? { id, name: names[id] || '玩家', total: 0, sessions: 0, best: -Infinity, history: [] };
+      const row = acc.get(id) ?? { id, name: names[id] || '玩家', total: 0, sessions: 0, best: -Infinity, history: [], rounds: 0 };
       row.total += v;
       row.sessions += 1;
+      row.rounds = (row.rounds ?? 0) + (s.play?.rounds?.[id] ?? 0);
       row.best = Math.max(row.best, v);
       row.history.push(row.total);
       acc.set(id, row);

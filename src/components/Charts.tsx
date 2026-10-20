@@ -154,6 +154,8 @@ export interface BoardRow {
   sessions: number;
   best: number;
   history: number[];
+  /** 打咗幾多圈（有詳細紀錄嘅大局先有） */
+  rounds?: number;
 }
 
 /** 龍虎榜：由中線向左右嘅橫條，數字喺條尾 */
@@ -168,7 +170,7 @@ export function Leaderboard({ rows, me, onPick }: { rows: BoardRow[]; me?: strin
             <span className="board-rank">{i === 0 && r.total > 0 ? '龍' : i === rows.length - 1 && r.total < 0 ? '虎' : i + 1}</span>
             <span className="board-who">
               <span className="ellipsis">{r.name}</span>
-              <small>{r.sessions} 局 · 最佳 {fmt(r.best)}</small>
+              <small>{r.rounds ? `${Math.round(r.rounds)} 圈` : `${r.sessions} 次`} · 最佳 {fmt(r.best)}</small>
             </span>
             <span className="board-bar" title={`${r.name} ${fmt(r.total)}`}>
               <span className="board-axis" />

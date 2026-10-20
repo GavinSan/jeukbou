@@ -45,7 +45,7 @@ function Routes({ user, refresh }: { user: User; refresh: () => void }) {
   if ((m = match('/g/:g/s/:s/pay', path))) return <PayPage user={user} groupId={m.g} sessionId={m.s} />;
   if ((m = match('/g/:g/s/:s/settle', path))) return <SettlePage user={user} groupId={m.g} sessionId={m.s} />;
   if ((m = match('/g/:g/s/:s/rules', path))) return <RulesPage user={user} groupId={m.g} sessionId={m.s} />;
-  if ((m = match('/g/:g/s/:s', path))) return <SessionPage user={user} groupId={m.g} sessionId={m.s} />;
+  if ((m = match('/g/:g/s/:s', path))) return <SessionPage key={m.s} user={user} groupId={m.g} sessionId={m.s} />;
   if ((m = match('/g/:g/import', path))) return <ImportPage user={user} groupId={m.g} />;
   if ((m = match('/g/:g/players', path))) return <PlayersPage user={user} groupId={m.g} />;
   if ((m = match('/g/:g/board', path))) return <BoardPage user={user} groupId={m.g} />;

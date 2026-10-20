@@ -100,9 +100,13 @@ export interface Session {
   paid?: Record<string, { by: string; at: number }>;
   /** 今日有份但冇打牌嘅人（成員或者訪客），開支用 */
   people?: { id: string; name: string }[];
+  /** 今晚唔用嘅預設 Group（team id） */
+  skipTeams?: string[];
 }
 
 export interface Payout {
+  /** 計法版本：舊版快照會自動重計 */
+  v?: number;
   at: number;
   currency: string;
   transfers: { from: string; to: string; amount: number }[];
@@ -566,6 +570,22 @@ export async function updateExpense(g: string, s: string, id: string, e: Omit<Ex
 /** 今日人物：加一個冇打牌但有份嘅人（成員或者訪客） */
 export async function addSessionPerson(g: string, s: string, person: { id: string; name: string }): Promise<void> {
   await updateDoc(doc(fs(), 'groups', g, 'sessions', s), { people: arrayUnion({ id: person.id, name: person.name }) });
+}
+
+/** 今日開咗、未埋數嘅大局（冇就 null） */
+export async function findTodaySession(g: string): Promise<string | null> {
+  const snap = await getDocs(collection(fs(), 'groups', g, 'sessions'));
+  const today = new Date().toDateString();
+  const hit = snap.docs
+    .map((d) => ({ id: d.id, data: d.data() }))
+    .filter((x) => !x.data.closed && !x.data.legacy && x.data.createdAt && typeof x.data.createdAt.toDate === 'function' && x.data.createdAt.toDate().toDateString() === today)
+    .sort((a, b) => b.data.createdAt.toMillis() - a.data.createdAt.toMillis())[0];
+  return hit?.id ?? null;
+}
+
+/** 今晚唔用／恢復某個預設 Group */
+export async function setSkipTeam(g: string, s: string, teamId: string, skip: boolean): Promise<void> {
+  await updateDoc(doc(fs(), 'groups', g, 'sessions', s), { skipTeams: skip ? arrayUnion(teamId) : arrayRemove(teamId) });
 }
 
 export async function removeSessionPerson(g: string, s: string, person: { id: string; name: string }): Promise<void> {

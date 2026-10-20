@@ -177,7 +177,7 @@ export function MemberList({ members, ownerId, stats, manage, onPick, onRemove }
               <span className="grow member-text">
                 <span className="ellipsis">{m.name}{m.uid === ownerId && <span className="tag instant">局主</span>}</span>
                 <small className="muted member-meta">
-                  {st?.played ? <><TierChip tier={tierOf(st.points).tier} /><span className="num">{st.points} 分</span><span>{st.played} 局</span>{st.last ? <span>最近 {lastTxt(st.last)}</span> : null}</> : '未有紀錄'}
+                  {st?.played ? <><TierChip tier={tierOf(st.points).tier} /><span className="num">{st.points} 分</span><span>{st.played} 次</span>{st.last ? <span>最近 {lastTxt(st.last)}</span> : null}</> : '未有紀錄'}
                 </small>
               </span>
               {st?.played ? <b className={`num member-total ${st.total > 0 ? 'gain' : st.total < 0 ? 'loss' : ''}`}>{fmt(st.total)}</b> : null}
@@ -247,7 +247,13 @@ export default function GroupPage({ user, groupId }: { user: User; groupId: stri
             {shown.map((s) => (
               <div key={s.id} className="listrow-wrap">
                 <Link to={`/g/${groupId}/s/${s.id}`} className="listrow">
-                  <span className="grow">{s.name}{s.legacy && <span className="tag instant">舊</span>}</span>
+                  <span className="grow">{s.name}{s.legacy && <span className="tag instant">舊</span>}{(() => {
+                    if (!s.closed) return <span className="pay-status live">進行中</span>;
+                    const ts = s.payout?.transfers ?? [];
+                    if (!ts.length) return null;
+                    const done = ts.filter((t) => s.paid?.[`${t.from}>${t.to}`]).length;
+                    return done >= ts.length ? <span className="pay-status done">已找清</span> : <span className="pay-status">未找數</span>;
+                  })()}</span>
                   <span className="muted small">{s.createdAt ? s.createdAt.toDate().toLocaleDateString('zh-HK') : ''}</span>
                   {!manage && <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" aria-hidden="true"><path d="M9 6l6 6-6 6" /></svg>}
                 </Link>

@@ -3,6 +3,7 @@ import { useEffect, useState } from 'react';
 import { collection, doc, getDoc, getDocs } from 'firebase/firestore';
 import { fs, legacyMap, payKey, savePayout, settleConfigOf } from './data.ts';
 import { computePayout, loadTeams } from './settleLoad.ts';
+import { PAYOUT_VERSION } from './settle.ts';
 import type { Group, Member, Session } from './data.ts';
 import { toGroupDoc, toMemberDoc, toSessionDoc } from './live.ts';
 
@@ -68,12 +69,13 @@ async function loadGroup(gid: string, uid: string): Promise<{ items: PayItem[]; 
   const myKeys = Object.entries(lmap).filter(([, u]) => u === uid).map(([k]) => k);
   const perUnit = settleConfigOf(g).perUnit || 6;
   // 已埋數但未有快照（舊大局、未有人打開過埋數頁）：即刻計返，順手存低
-  const missing = sessions.filter((s) => s.closed && !s.legacy && !s.payout);
+  const missing = sessions.filter((s) => s.closed && !s.legacy && (!s.payout || (s.payout.v ?? 1) < PAYOUT_VERSION));
   if (missing.length) {
     const teams = await loadTeams(gid).catch(() => []);
     await Promise.all(missing.map(async (s) => {
       const po = await computePayout(g, s, members, teams).catch(() => null);
       if (!po) return;
+      // 已轉標記：舊快照同新快照同一筆（同 key）就保留
       s.payout = po;
       savePayout(gid, s.id, po).catch(() => undefined);
     }));

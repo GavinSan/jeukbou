@@ -91,7 +91,7 @@ const DEMO_HISTORY: SessionResult[] = (() => {
       players.slice(0, -1).forEach((p) => { const v = Math.round((rnd() - 0.48) * 120); totals[p] = v; sum += v; });
       totals[players[players.length - 1]] = -sum;
       const date = new Date(at);
-      out.push({ id: `h${d}-${g}`, name: `${date.getMonth() + 1}月${date.getDate()}日 ${g ? '宵夜局' : '屋企局'}`, at, totals });
+      out.push({ id: `h${d}-${g}`, name: `${date.getMonth() + 1}月${date.getDate()}日 ${g ? '宵夜局' : '屋企局'}`, at, totals, play: { ...emptyPlay(), rounds: Object.fromEntries(players.map((p) => [p, g ? 2 : 4])) } });
     }
   }
   return out;
@@ -129,6 +129,8 @@ const DEMO_GROUPS: GroupResults[] = (() => {
         play.selfDraws[p] = Math.floor(rnd() * 3);
         play.dealIns[p] = Math.floor(rnd() * 6);
         play.best[p] = 10 + Math.floor(rnd() * 70);
+        play.rounds![p] = 4;
+        play.pulls![p] = Math.floor(rnd() * 4);
       }
       play.biggest = { player: players[Math.floor(rnd() * players.length)], fan: 60 + Math.floor(rnd() * 80) };
       play.maxStreak = { player: players[Math.floor(rnd() * players.length)], n: 1 + Math.floor(rnd() * 4) };

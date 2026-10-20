@@ -32,6 +32,8 @@ export interface SessionScreenProps {
   candidates?: Candidate[];
   onAddTable?: (seats: Candidate[]) => Promise<void>;
   me?: string | null;
+  /** 已埋數但撳咗「開枱」：去今日大局（冇就開新大局） */
+  onClosedAdd?: () => void;
 }
 
 /** 快圈紀錄：「快東」「快南」…；再打四圈就「加四圈」 */
@@ -46,7 +48,7 @@ function quickTags(c: Computed): string[] {
   return out;
 }
 
-export default function SessionScreen({ title, back, tables, computed, tableHref, invite, rulesHref, onDeleteSession, water: waterCtl, closedNote, notice, candidates = [], onAddTable, me = null }: SessionScreenProps) {
+export default function SessionScreen({ title, back, tables, computed, tableHref, invite, rulesHref, onDeleteSession, water: waterCtl, closedNote, notice, candidates = [], onAddTable, me = null, onClosedAdd }: SessionScreenProps) {
   const now = useNow();
   const [adding, setAdding] = useState(false);
   const [delSession, setDelSession] = useState(false);
@@ -61,6 +63,7 @@ export default function SessionScreen({ title, back, tables, computed, tableHref
       if (window.location.hash !== '#add-table') return;
       try { window.history.replaceState(null, '', window.location.pathname); } catch { /* 唔緊要 */ }
       if (canAdd) { setAdding(true); setPicked([]); setError(''); }
+      else onClosedAdd?.();
     };
     check();
     window.addEventListener('popstate', check);

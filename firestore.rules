@@ -122,7 +122,7 @@ service cloud.firestore {
           && (!request.resource.data.diff(resource.data).affectedKeys().hasAny(['rules', 'rulesLog', 'legacy']) || isOwner(g))
           && (!request.resource.data.diff(resource.data).affectedKeys().hasAny(['waterTo']) || isOwner(g))
           // 已埋數：今日人物唔可以再改（局主除外）
-          && (!request.resource.data.diff(resource.data).affectedKeys().hasAny(['people']) || resource.data.get('closed', null) == null || isOwner(g));
+          && (!request.resource.data.diff(resource.data).affectedKeys().hasAny(['people', 'skipTeams']) || resource.data.get('closed', null) == null || isOwner(g));
         allow delete: if isOwner(g);
 
         // 換人請求：同局成員都睇到、發到、答到

@@ -80,6 +80,11 @@ export interface SettleScreenProps {
   perTable?: { id: string; name: string; fan: Record<string, number> }[];
   /** 超級管理員：Group 即刻生效 */
   isAdmin?: boolean;
+  /** 所有資料（枱、每鋪、開支、Group）載入晒：未載晒唔好存快照 */
+  ready?: boolean;
+  /** 今晚唔用嘅預設 Group */
+  skipTeams?: string[];
+  onSkipTeam?: (teamId: string, skip: boolean) => Promise<void>;
 }
 
 const LABELS = ['晚餐', '宵夜', '飲品', '的士', '場租', '其他'];
@@ -133,9 +138,10 @@ export default function SettleScreen(p: SettleScreenProps) {
   const [error, setError] = useState('');
   const [copied, setCopied] = useState(false);
 
-  const inputKey = JSON.stringify([p.players, people, p.fan, p.water, cfg, p.expenses, p.pairs, p.teams ?? []]);
+  const skipTeams = p.skipTeams ?? [];
+  const inputKey = JSON.stringify([p.players, people, p.fan, p.water, cfg, p.expenses, p.pairs, p.teams ?? [], skipTeams]);
   const built = useMemo(
-    () => buildSettle({ players: p.players, people, fan: p.fan, water: p.water, cfg, expenses: p.expenses, pairs: p.pairs, teams: p.teams ?? [] }),
+    () => buildSettle({ players: p.players, people, fan: p.fan, water: p.water, cfg, expenses: p.expenses, pairs: p.pairs, teams: p.teams ?? [], skipTeams }),
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [inputKey],
   );
@@ -147,16 +153,20 @@ export default function SettleScreen(p: SettleScreenProps) {
   const who = sheet && typeof sheet === 'object' && 'who' in sheet ? sheet.who : null;
 
   const snapshot = (): Payout | null => (r ? payoutOf(r, cfg.currency, nameOf) : null);
-  // 已埋數：快照未有或者同而家計出嚟唔同（例如局主改過開支）就更新；每次打開最多寫一次
-  const saved = useRef(false);
+  // 已埋數：快照未有或者同而家計出嚟唔同（例如局主改過開支）就更新。
+  // 一定要等晒資料載入（唔係就會存咗一個淨係開支、冇 Group 嘅錯數）
+  const ready = p.ready !== false;
+  const savedKey = useRef('');
   useEffect(() => {
-    if (saved.current || !closed || !r || !p.onSavePayout) return;
+    if (!ready || !closed || !r || !p.onSavePayout) return;
     const snap = snapshot();
     if (!snap || samePayout(snap, p.payout)) return;
-    saved.current = true;
-    p.onSavePayout(snap).catch(() => { saved.current = false; });
+    const k = JSON.stringify(snap.transfers);
+    if (savedKey.current === k) return;
+    savedKey.current = k;
+    p.onSavePayout(snap).catch(() => { savedKey.current = ''; });
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [closed, p.payout, r]);
+  }, [ready, closed, p.payout, r]);
 
   // 每個戶口：麻雀（連水）、開支、合計
   const summary = r ? Object.keys(r.combined.accounts)
@@ -303,6 +313,8 @@ export default function SettleScreen(p: SettleScreenProps) {
                 {led.transfers.map((t, i) => {
                   const key = payKey(t);
                   const done = !!p.paid?.[key];
+                  // 只有俾錢嗰個（Group 入面任何一個）先標記得
+                  const canMark = mine(t.from) || !!p.isAdmin;
                   return (
                     <li key={i} className={showPaid && done ? 'done' : ''}>
                       <Acct k={t.from} cls="tf-from" />
@@ -311,11 +323,13 @@ export default function SettleScreen(p: SettleScreenProps) {
                       </span>
                       <Acct k={t.to} cls="tf-to" />
                       <b className="num tf-amt">{money(t.amount)}</b>
-                      {showPaid && (
+                      {showPaid && (canMark ? (
                         <button type="button" className={`tf-paid${done ? ' on' : ''}`} aria-pressed={done} aria-label={done ? '已轉，撳一下改返未轉' : '未轉，撳一下標記已轉'} disabled={busy} onClick={() => run(() => p.onMarkPaid!(key, !done), true)}>
                           {done ? '✓ 已轉' : '未轉'}
                         </button>
-                      )}
+                      ) : (
+                        <span className={`tf-paid static${done ? ' on' : ''}`}>{done ? '✓ 已轉' : '未轉'}</span>
+                      ))}
                     </li>
                   );
                 })}
@@ -325,7 +339,7 @@ export default function SettleScreen(p: SettleScreenProps) {
           ) : (
             <p className="muted">{view === 'expense' && !p.expenses.length ? '未有開支。' : '不用轉賬。'}</p>
           )}
-          {showPaid && <Hint>轉咗就撳「未轉」標記，全部人都會見到。</Hint>}
+          {showPaid && <Hint>俾錢嗰個轉咗就撳「未轉」標記（Group 一齊俾，任何一個標記都得），全部人都會見到。</Hint>}
           {p.payHref && closed && (
             <button type="button" className="link-card" onClick={() => go(p.payHref!)}>
               <span className="grow"><b>轉賬詳情</b><small>收款 email、邊筆未轉</small></span>
@@ -464,7 +478,7 @@ export default function SettleScreen(p: SettleScreenProps) {
           ))}
           {!locked && p.onAddPerson && <button type="button" className="person-chip add" onClick={() => { setError(''); setSheet('person'); }}>＋ 加人</button>}
         </div>
-        {locked && <p className="muted small">已埋數，開支已鎖定。</p>}
+        {closed && (locked ? <p className="muted small">已埋數，開支已鎖定，唔可以再加或者改。</p> : <p className="muted small">已埋數：其他人已經唔可以再加或者改開支，只有局主仍然可以改。</p>)}
       </section>
 
       <section className="stack">
@@ -474,23 +488,35 @@ export default function SettleScreen(p: SettleScreenProps) {
         </div>
         {tonightDefaults.length > 0 || p.pairs.length > 0 ? (
           <ul className="list exp-list">
-            {tonightDefaults.map(({ t, here, active }) => (
-              <li key={t.id} className="exp-row">
-                <span className="grow exp-text">
-                  <span>{t.members.map(nameOf).join(' + ')}<span className="tag instant">預設</span></span>
-                  <small className={active && here.length > 1 ? 'gain' : 'muted'}>
-                    {!active
-                      ? `未生效：等待 ${t.members.filter((m) => !t.accepted.includes(m)).map(nameOf).join('、')} 同意`
-                      : here.length > 1
-                      ? (here.length < t.members.length ? `今晚 ${here.map(nameOf).join('、')} 一齊計（${t.members.filter((m) => !here.includes(m)).map(nameOf).join('、')} 冇嚟）` : '一齊計')
-                      : `今晚只有 ${nameOf(here[0])}，分開計`}
-                  </small>
-                </span>
-                {!active && p.onAcceptTeam && (p.isAdmin || (p.me && t.members.includes(p.me) && !t.accepted.includes(p.me))) && (
-                  <button type="button" className="btn small-btn" disabled={busy} onClick={() => run(() => p.onAcceptTeam!(t.id))}>{p.isAdmin && !(p.me && t.members.includes(p.me)) ? '直接生效' : '同意'}</button>
-                )}
-              </li>
-            ))}
+            {tonightDefaults.map(({ t, here, active }) => {
+              const skipped = skipTeams.includes(t.id);
+              return (
+                <li key={t.id} className={`exp-row${skipped ? ' skipped' : ''}`}>
+                  <span className="grow exp-text">
+                    <span>{t.members.map(nameOf).join(' + ')}<span className="tag instant">預設</span></span>
+                    <small className={active && here.length > 1 && !skipped ? 'gain' : 'muted'}>
+                      {skipped
+                        ? '今晚分開計'
+                        : !active
+                        ? `未生效：等待 ${t.members.filter((m) => !t.accepted.includes(m)).map(nameOf).join('、')} 同意`
+                        : here.length > 1
+                        ? (here.length < t.members.length ? `今晚 ${here.map(nameOf).join('、')} 一齊計（${t.members.filter((m) => !here.includes(m)).map(nameOf).join('、')} 冇嚟）` : '一齊計')
+                        : `今晚只有 ${nameOf(here[0])}，分開計`}
+                    </small>
+                  </span>
+                  {!skipped && !active && p.onAcceptTeam && (p.isAdmin || (p.me && t.members.includes(p.me) && !t.accepted.includes(p.me))) && (
+                    <button type="button" className="btn small-btn" disabled={busy} onClick={() => run(() => p.onAcceptTeam!(t.id))}>{p.isAdmin && !(p.me && t.members.includes(p.me)) ? '直接生效' : '同意'}</button>
+                  )}
+                  {!locked && p.onSkipTeam && (skipped ? (
+                    <button type="button" className="textbtn" disabled={busy} onClick={() => run(() => p.onSkipTeam!(t.id, false), true)}>恢復</button>
+                  ) : here.length > 1 && (
+                    <button type="button" className="iconbtn small" aria-label="今晚唔一齊計" disabled={busy} onClick={() => run(() => p.onSkipTeam!(t.id, true), true)}>
+                      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18" /></svg>
+                    </button>
+                  ))}
+                </li>
+              );
+            })}
             {p.pairs.map((pr) => {
               const active = pairActive(pr);
               const waiting = [pr.a, pr.b].filter((id) => !isGuest(id) && !pr.accepted.includes(id));

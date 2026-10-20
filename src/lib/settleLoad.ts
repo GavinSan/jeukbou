@@ -34,7 +34,7 @@ export async function computePayout(g: Group, s: Session, members: Member[], tea
   const cfg = { ...settleConfigOf(g), waterTo: s.waterTo || s.createdBy };
   const built = buildSettle({
     players: sum.players, people, fan: sum.fan, water: sum.water, cfg, expenses,
-    pairs: pSnap.docs.map((d) => toPairDoc(d.id, d.data())), teams,
+    pairs: pSnap.docs.map((d) => toPairDoc(d.id, d.data())), teams, skipTeams: s.skipTeams ?? [],
   });
   if (!built.r) return null;
   const guest: Record<string, string> = Object.assign({}, ...expenses.map((e) => e.names ?? {}));

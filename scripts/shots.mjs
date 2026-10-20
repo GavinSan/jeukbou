@@ -361,7 +361,9 @@ for (const scheme of ['light', 'dark']) {
       await page.getByRole('button', { name: /^Sang，/ }).click();
       await page.waitForTimeout(300);
       await page.screenshot({ path: `${out}/tap-player.png` });
-      await page.locator('.sp-chip-kong').click();
+      await page.getByRole('button', { name: /有特別事項/ }).click();
+      await page.waitForTimeout(300);
+      await page.locator('.sp-card.sp-kong').click();
       await page.waitForTimeout(300);
       await page.screenshot({ path: `${out}/kong-open.png` });
       await page.locator('.sp-card.sp-kong').click();

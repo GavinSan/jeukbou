@@ -72,8 +72,9 @@ const toSession = (id: string, d: DocumentData): Session => ({
   waterTo: d.waterTo ? String(d.waterTo) : undefined, noWater: !!d.noWater,
   closed: d.closed ?? null,
   legacy: d.legacy ?? null,
-  payout: d.payout && Array.isArray(d.payout.transfers) ? { at: Number(d.payout.at ?? 0), currency: String(d.payout.currency ?? ''), transfers: d.payout.transfers.map((t: DocumentData) => ({ from: String(t.from), to: String(t.to), amount: Number(t.amount) })), names: d.payout.names ?? {} } : null,
+  payout: d.payout && Array.isArray(d.payout.transfers) ? { v: Number(d.payout.v ?? 1), at: Number(d.payout.at ?? 0), currency: String(d.payout.currency ?? ''), transfers: d.payout.transfers.map((t: DocumentData) => ({ from: String(t.from), to: String(t.to), amount: Number(t.amount) })), names: d.payout.names ?? {} } : null,
   paid: d.paid ?? {},
+  skipTeams: Array.isArray(d.skipTeams) ? d.skipTeams.map(String) : [],
   people: Array.isArray(d.people) ? d.people.filter((x: DocumentData) => x && x.id).map((x: DocumentData) => ({ id: String(x.id), name: String(x.name ?? '玩家') })) : [],
   closeReq: d.closeReq ? { by: String(d.closeReq.by ?? ''), approvals: Array.isArray(d.closeReq.approvals) ? d.closeReq.approvals.map(String) : [] } : null,
 });

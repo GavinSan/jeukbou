@@ -68,7 +68,7 @@ export function MyPayView({ me, items, legacy, names, emails, loading, onToggle,
 
           <section className="stack">
             <h2 className="section-head">未轉（{open.length}）</h2>
-            {open.length ? <PayRows items={open} pp={pp} showSession busyKey={busyKey} onToggle={onToggle} /> : <p className="muted">冇未轉嘅數，好嘢！</p>}
+            {open.length ? <PayRows items={open} pp={pp} showSession busyKey={busyKey} canToggle={(it) => it.dir === 'pay'} onToggle={onToggle} /> : <p className="muted">冇未轉嘅數，好嘢！</p>}
           </section>
 
           {legacy.length > 0 && (
@@ -90,7 +90,7 @@ export function MyPayView({ me, items, legacy, names, emails, loading, onToggle,
           {items.some((x) => x.paid) && (
             <section className="stack">
               <button type="button" className="textbtn" onClick={() => setShowPaid((v) => !v)}>{showPaid ? '收起已轉' : `睇已轉（${items.filter((x) => x.paid).length}）`}</button>
-              {showPaid && <PayRows items={items.filter((x) => x.paid)} pp={pp} showSession busyKey={busyKey} onToggle={onToggle} />}
+              {showPaid && <PayRows items={items.filter((x) => x.paid)} pp={pp} showSession busyKey={busyKey} canToggle={(it) => it.dir === 'pay'} onToggle={onToggle} />}
             </section>
           )}
           <Hint>只計已埋數嘅大局（麻雀＋水＋開支合併）。喺「設定」填 Interac email，人哋找數就知轉去邊。</Hint>

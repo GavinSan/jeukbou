@@ -26,6 +26,8 @@ export interface MySession {
   best?: number;
   hands?: number;
   pulls?: number;
+  /** 呢晚我打咗幾多圈 */
+  rounds?: number;
 }
 
 export interface GroupResults {
@@ -48,7 +50,7 @@ export interface PointInput {
 
 /**
  * 一個大局嘅分：出席 10、贏錢 10、當晚第一 10、每贏 100 番 +2（最多 +20）、
- * 每食 3 糊 +1、每自摸 +1、每拉 3 次 +1、一鋪 50 番或以上 +3。輸唔扣分。
+ * 每食 3 糊 +1、每自摸 +1、每拉 3 次 +1。輸唔扣分。
  */
 export function sessionPoints(s: PointInput): number {
   let p = 10;
@@ -58,7 +60,6 @@ export function sessionPoints(s: PointInput): number {
   p += Math.floor((s.wins ?? 0) / 3);
   p += s.selfDraws ?? 0;
   p += Math.floor((s.pulls ?? 0) / 3);
-  if ((s.best ?? 0) >= 50) p += 3;
   return p;
 }
 
@@ -70,7 +71,6 @@ export const POINT_RULES: [string, string][] = [
   ['每食 3 鋪糊', '+1'],
   ['每次自摸', '+1'],
   ['每拉人 3 次', '+1'],
-  ['一鋪 50 番或以上', '+3'],
   ['輸錢', '不扣分'],
 ];
 
@@ -148,9 +148,10 @@ export interface Stats {
   detailed: number;
   /** 打過幾多日（唔同日子） */
   days: number;
-  /** 拉人次數、有詳細紀錄嘅鋪數 */
+  /** 拉人次數、有詳細紀錄嘅鋪數、打咗幾多圈 */
   pulls: number;
   hands: number;
+  rounds: number;
   /** 每個月嘅輸贏（最近 6 個月） */
   months: { label: string; total: number; played: number }[];
 }
@@ -200,6 +201,7 @@ export function statsOf(list: MySession[]): Stats {
     bestFan: Math.max(0, ...sorted.map((s) => s.best ?? 0)),
     detailed: sorted.filter((s) => s.wins !== undefined).length,
     pulls: sorted.reduce((a, s) => a + (s.pulls ?? 0), 0),
+    rounds: Math.round(sorted.reduce((a, s) => a + (s.rounds ?? 0), 0)),
     hands: sorted.reduce((a, s) => a + (s.wins !== undefined ? s.hands ?? 0 : 0), 0),
     days: new Set(sorted.map((s) => { const d = new Date(s.at); return `${d.getFullYear()}-${d.getMonth()}-${d.getDate()}`; })).size,
     months: Array.from({ length: 6 }, (_, i) => {
@@ -247,9 +249,9 @@ export interface BadgeCat {
 const pct = (a: number, b: number) => (b > 0 ? Math.round((a / b) * 100) : 0);
 
 export const BADGE_CATS: BadgeCat[] = [
-  { key: 'played', title: '大局', mark: '戰', color: '#2E7D5B', unit: '局', value: (s) => s.played, note: (g) => `打滿 ${g} 個大局`,
+  { key: 'played', title: '大局', mark: '戰', color: '#2E7D5B', unit: '次', value: (s) => s.played, note: (g) => `打滿 ${g} 次大局`,
     tiers: [[1, '初陣'], [10, '見習'], [25, '足輕'], [50, '武士'], [100, '百戰'], [250, '侍大將'], [500, '戰將'], [1000, '天下人']] },
-  { key: 'wins', title: '贏局', mark: '勝', color: '#1F7A46', unit: '局', value: (s) => s.wins, note: (g) => `贏 ${g} 個大局`,
+  { key: 'wins', title: '贏錢', mark: '勝', color: '#1F7A46', unit: '次', value: (s) => s.wins, note: (g) => `贏錢 ${g} 次大局`,
     tiers: [[1, '初白星'], [5, '勝ち越し'], [10, '十勝'], [25, '常勝'], [50, '名人'], [100, '百勝'], [250, '覇者'], [500, '不敗神話']] },
   { key: 'handWins', title: '食糊', mark: '斬', color: '#C08A16', unit: '次', value: (s) => s.handWins, note: (g) => `食糊 ${g} 次`,
     tiers: [[1, '一番槍'], [10, '十人斬'], [25, '辻斬'], [50, '五十人斬'], [100, '百人斬'], [250, '修羅'], [500, '劍聖'], [1000, '千人斬']] },
@@ -260,26 +262,26 @@ export const BADGE_CATS: BadgeCat[] = [
   { key: 'pulls', title: '拉', mark: '拉', color: '#3A6FB0', unit: '次', value: (s) => s.pulls, note: (g) => `拉人 ${g} 次`,
     tiers: [[1, '初拉'], [10, '拉麵'], [25, '綱引'], [50, '拉霸'], [100, '百拉'], [250, '鎖鏈'], [500, '不動明王'], [1000, '千拉']] },
   { key: 'bestFan', title: '一鋪大番', mark: '番', color: '#7146B5', unit: '番', value: (s) => s.bestFan, note: (g) => `一鋪食 ${g} 番`,
-    tiers: [[10, '小手調'], [20, '好糊'], [30, '會心'], [50, '大物'], [70, '爆棚'], [100, '百番'], [150, '役滿'], [200, '天地創造']] },
-  { key: 'best', title: '單局大贏', mark: '豐', color: '#E5703A', unit: '番', value: (s) => Math.max(0, s.best), note: (g) => `一個大局贏 ${g} 番`,
+    tiers: [[10, '小糊'], [20, '好糊'], [30, '大糊'], [50, '爆棚'], [70, '滿貫'], [100, '百番'], [150, '役滿'], [200, '天地創造']] },
+  { key: 'best', title: '一晚大贏', mark: '豐', color: '#E5703A', unit: '番', value: (s) => Math.max(0, s.best), note: (g) => `一次大局贏 ${g} 番`,
     tiers: [[30, '有交易'], [50, '豐收'], [100, '大漁'], [200, '大豐收'], [300, '千兩箱'], [500, '金藏'], [800, '大判小判'], [1000, '一夜千番']] },
   { key: 'total', title: '總贏', mark: '富', color: '#B8860B', unit: '番', value: (s) => Math.max(0, s.total), note: (g) => `總共贏 ${g} 番`,
     tiers: [[100, '小判'], [250, '兩替商'], [500, '豪商'], [1000, '千番長者'], [2500, '大名'], [5000, '將軍'], [7500, '大御所'], [10000, '萬番天下']] },
   { key: 'tops', title: '龍頭', mark: '龍', color: '#C0392B', unit: '次', value: (s) => s.tops, note: (g) => `當晚第一 ${g} 次`,
     tiers: [[1, '龍頭'], [3, '三冠'], [5, '五冠'], [10, '十冠'], [25, '橫綱'], [50, '龍王'], [75, '龍神'], [100, '百冠王']] },
-  { key: 'streak', title: '連贏', mark: '連', color: '#D9607A', unit: '局', value: (s) => s.bestStreak, note: (g) => `連續 ${g} 個大局贏`,
+  { key: 'streak', title: '連贏', mark: '連', color: '#D9607A', unit: '次', value: (s) => s.bestStreak, note: (g) => `連續 ${g} 次大局贏錢`,
     tiers: [[2, '二連'], [3, '三連'], [4, '四連'], [5, '五連'], [6, '六連'], [7, '七連'], [8, '八連'], [10, '十連霸']] },
   { key: 'points', title: '雀力分', mark: '力', color: '#2F63B0', unit: '分', value: (s) => s.points, note: (g) => `雀力 ${g} 分`,
     tiers: [[100, '雀仔'], [300, '雀友'], [600, '雀將'], [1000, '雀王'], [1800, '雀霸'], [3000, '雀神'], [5000, '雀聖'], [10000, '雀仙']] },
   { key: 'days', title: '打牌日', mark: '日', color: '#24508F', unit: '日', value: (s) => s.days, note: (g) => `打過 ${g} 日`,
     tiers: [[1, '初日'], [7, '一週'], [14, '半月'], [30, '一月'], [60, '二月'], [100, '百日'], [200, '二百日'], [365, '一年']] },
-  { key: 'month', title: '一個月', mark: '月', color: '#8A4A12', unit: '局', value: (s) => s.maxMonth, note: (g) => `一個月打 ${g} 個大局`,
+  { key: 'month', title: '一個月', mark: '月', color: '#8A4A12', unit: '次', value: (s) => s.maxMonth, note: (g) => `一個月打 ${g} 次`,
     tiers: [[2, '月二'], [4, '每週'], [6, '常連'], [8, '鐵人'], [10, '雀癡'], [12, '住喺枱'], [16, '日日見'], [20, '雀莊主']] },
   { key: 'groups', title: '牌友圈', mark: '圈', color: '#556B63', unit: '個', value: (s) => s.groups, note: (g) => `喺 ${g} 個牌友圈有紀錄`,
     tiers: [[1, '入門'], [2, '二刀流'], [3, '三圈'], [4, '四方'], [5, '五湖'], [6, '六合'], [7, '七海'], [8, '八方美人']] },
   // 比率類：要夠樣本先計
-  { key: 'rate', title: '勝率', mark: '穩', color: '#0F766E', unit: '%', value: (s) => (s.played >= 20 ? pct(s.wins, s.played) : 0), note: (g) => `打滿 20 局，勝率 ${g}%`,
-    need: (s) => (s.played >= 20 ? null : `打滿 20 個大局先計（而家 ${s.played}）`), show: (n, g) => `${n}% / ${g}%`,
+  { key: 'rate', title: '勝率', mark: '穩', color: '#0F766E', unit: '%', value: (s) => (s.played >= 20 ? pct(s.wins, s.played) : 0), note: (g) => `打滿 20 次大局，贏錢 ${g}%`,
+    need: (s) => (s.played >= 20 ? null : `打滿 20 次大局先計（而家 ${s.played}）`), show: (n, g) => `${n}% / ${g}%`,
     tiers: [[40, '不倒翁'], [45, '五五波'], [50, '勝多輸少'], [55, '穩陣'], [60, '穩贏'], [65, '鐵板'], [70, '必勝'], [75, '無敵']] },
   { key: 'selfRate', title: '自摸率', mark: '手', color: '#0E7490', unit: '%', value: (s) => (s.handWins >= 20 ? pct(s.selfDraws, s.handWins) : 0), note: (g) => `食糊入面 ${g}% 係自摸`,
     need: (s) => (s.handWins >= 20 ? null : `食滿 20 鋪先計（而家 ${s.handWins}）`), show: (n, g) => `${n}% / ${g}%`,
@@ -340,7 +342,7 @@ export function mySessions(groups: GroupResults[], uid: string): MySession[] {
       const pl = s.play;
       out.push({
         gid: g.gid, gname: g.name, sid: s.id, name: s.name, at: s.at, mine, rank: 1 + vals.filter((v) => v > mine).length, players: vals.length,
-        ...(pl ? { wins: pl.wins[uid] ?? 0, selfDraws: pl.selfDraws[uid] ?? 0, dealIns: pl.dealIns[uid] ?? 0, best: pl.best[uid] ?? 0, hands: pl.hands, pulls: pl.pulls?.[uid] ?? 0 } : {}),
+        ...(pl ? { wins: pl.wins[uid] ?? 0, selfDraws: pl.selfDraws[uid] ?? 0, dealIns: pl.dealIns[uid] ?? 0, best: pl.best[uid] ?? 0, hands: pl.hands, pulls: pl.pulls?.[uid] ?? 0, rounds: pl.rounds?.[uid] ?? 0 } : {}),
       });
     }
   }

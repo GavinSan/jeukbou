@@ -135,7 +135,7 @@ export function SpecialArt({ art, heat = 0 }: { art: Art; heat?: number }) {
               <text x={34 + i * 31} y={48} textAnchor="middle" fontSize="16" fontWeight="700" fill="#D8DCD9" style={{ fontFamily: 'var(--font-kai)' }}>？</text>
             </g>
           ))}
-          <path className="strike" d="M28 18 L140 70 M140 18 L28 70" stroke={RED} strokeWidth="5" strokeLinecap="round" opacity="0.9" />
+          <path className="strike" d="M24 16 L137 72 M137 16 L24 72" stroke={RED} strokeWidth="5" strokeLinecap="round" opacity="0.9" />
         </svg>
       );
     case 'false':

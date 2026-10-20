@@ -1662,3 +1662,54 @@ a.link-card { text-decoration: none; }
 .transfers.has-paid li { grid-template-columns: minmax(0, 1fr) 18px minmax(0, 1fr) 4.2em 3.7em !important; }
 .transfers.has-paid .acct { font-size: 14px; }
 .transfers .tf-arrow svg { width: 18px; }
+
+/* 找數狀態 */
+.pay-status { display: inline-flex; align-items: center; margin-left: 8px; padding: 0 8px; height: 20px; border-radius: 999px; font-size: 11px; font-weight: 700; white-space: nowrap; background: color-mix(in srgb, var(--loss) 14%, transparent); color: var(--loss); vertical-align: 2px; }
+.pay-status.done { background: color-mix(in srgb, var(--gain) 16%, transparent); color: var(--gain); }
+.pay-status.live { background: color-mix(in srgb, #D9A21E 18%, transparent); color: #B7841A; }
+.tf-paid.static { cursor: default; border-style: dashed; opacity: .85; }
+.exp-row.skipped .exp-text > span:first-child { color: var(--muted); text-decoration: line-through; }
+
+/* 紀錄表 round 16：頂部（名＋合計）凍結；每鋪嘅文字行蓋住自己欄嘅底色，唔會似爆出去 */
+.ledger { overflow: clip !important; }
+.lg-top { position: sticky; top: 0; z-index: 3; background: var(--sunk); box-shadow: 0 1px 0 var(--line), 0 6px 10px -8px rgba(0, 0, 0, .35); }
+.lg-top .lg-names { position: static !important; background: none !important; padding-bottom: 2px; }
+.lg-sum { padding: 2px 12px 2px; }
+.lg-sum .num { font-size: 19px; }
+.lg-cap { display: flex; justify-content: space-between; padding: 0 12px 6px; font-size: 11px; color: var(--muted); }
+.lg-sum .lg-cell.me, .lg-top .lg-names .me { position: relative; }
+.lg-row { padding-top: 0 !important; }
+.lg-head { margin: 0 -12px; padding: 9px 12px 3px; width: calc(100% + 24px) !important; background: var(--surface); position: relative; z-index: 2; }
+.lg-rows li:nth-child(even) .lg-head { background: color-mix(in srgb, var(--sunk) 40%, var(--surface)); }
+.lg-what { color: var(--muted); font-size: 14px; }
+.lg-hand { display: inline; margin: 0 6px 0 0; padding: 0; background: none !important; border-radius: 0; font-size: 14px !important; font-weight: 700; color: var(--ink); }
+.lg-div { color: var(--ink) !important; background: var(--surface); font-family: var(--font-body); font-size: 13px; letter-spacing: 2px; z-index: 2; padding: 8px 12px 4px; }
+.lg-div::before, .lg-div::after { background: var(--line) !important; }
+.tag.stay { background: color-mix(in srgb, #E0A82E 22%, transparent) !important; color: #C08A16 !important; }
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) .tag.stay { color: #F2C14E !important; } }
+:root[data-theme="dark"] .tag.stay { color: #F2C14E !important; }
+.lg-mecol { z-index: 1 !important; }
+.lg-top .lg-names .me, .lg-sum .lg-cell.me { background: color-mix(in srgb, var(--gain) 12%, transparent); }
+.lg-top .lg-names .me { border-radius: 8px 8px 0 0; padding-top: 4px; }
+.lg-sum .lg-cell.me { border-radius: 0 0 8px 8px; padding-bottom: 3px; }
+
+/* Group 下面嘅成員：縮入、樹狀線，一睇就知係細項 */
+.st-group .st-member > span:first-child { padding-left: 30px !important; position: relative; }
+.st-group .st-member > span:first-child::before { content: ''; position: absolute; left: 12px; top: 0; bottom: 45%; width: 10px; border-left: 1.5px solid var(--line); border-bottom: 1.5px solid var(--line); border-bottom-left-radius: 4px; }
+.st-group .st-member { font-size: 12.5px !important; }
+.st-group .st-member .num { font-size: 12.5px !important; }
+.st-group-head { padding-bottom: 6px !important; }
+
+/* 特別事項王 */
+.aw-sp-flower { --ac: #C2416B; } .aw-sp-grass { --ac: #3E8E5A; } .aw-sp-kong { --ac: #1F6B4F; } .aw-sp-heaven { --ac: #B8860B; }
+.aw-sp-triple { --ac: #8A6D1A; } .aw-sp-dice123 { --ac: #9A5B1E; } .aw-sp-pong { --ac: #A33A2E; } .aw-sp-chase { --ac: #2F5596; } .aw-sp-forgot { --ac: #5B6461; }
+/* 皇冠唔好推高個數字 */
+.play-table .crowned { position: relative; }
+.play-table .crowned::before { position: absolute; right: calc(100% - 0.2em); top: 50%; transform: translate(-100%, -55%); margin: 0; line-height: 1; }
+.play-table .st-row > span { line-height: 1.3; }
+.tile-stat b .unit { font-size: 14px; font-weight: 600; margin-left: 2px; }
+.play-table .crowned::before { content: none !important; }
+.crown-wrap { position: relative; display: inline-block; }
+.crown { position: absolute; right: 100%; top: 50%; transform: translateY(-55%); margin-right: 2px; font-size: 11px; line-height: 1; }
+.add-btn { padding: 0 !important; }
+.home-search .add-btn { width: 46px; height: 46px; border-radius: 14px; }

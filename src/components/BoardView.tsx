@@ -86,7 +86,7 @@ export default function BoardView({ sessions, names, me, sessionHref }: {
           <button type="button" className="iconbtn small" aria-label="下一段" onClick={() => setAnchor(shift(period, anchor, 1))}>›</button>
         </div>
       )}
-      <p className="muted small center-text">{inRange.length} 局 · {days} 日 · 撳名睇個人統計</p>
+      <p className="muted small center-text">{inRange.length} 次大局 · {days} 日 · 撳名睇個人統計</p>
       {rows.length ? (
         <div className="list pad"><Leaderboard rows={rows} me={me} onPick={setPick} /></div>
       ) : <p className="muted center-text">此段時間未有紀錄。</p>}
@@ -125,22 +125,28 @@ export default function BoardView({ sessions, names, me, sessionHref }: {
   );
 }
 
-type BoardKey = 'total' | 'played' | 'avg' | 'best' | 'rate';
-const BOARD_COLS: [BoardKey, string][] = [['total', '總數'], ['played', '局'], ['avg', '平均'], ['best', '最佳'], ['rate', '勝率']];
+type BoardKey = 'total' | 'rounds' | 'avg' | 'best' | 'rate';
+const BOARD_COLS: [BoardKey, string][] = [['total', '總數'], ['rounds', '圈'], ['avg', '每圈'], ['best', '最好一次'], ['rate', '贏錢率']];
 
 /** 排行表：撳表頭排序 */
 function BoardTable({ sessions, names, me, onPick }: { sessions: SessionResult[]; names: Record<string, string>; me?: string | null; onPick: (id: string) => void }) {
   const [sort, setSort] = useState<BoardKey>('total');
   const [asc, setAsc] = useState(false);
-  const acc = new Map<string, { id: string; total: number; played: number; best: number; wins: number }>();
+  const acc = new Map<string, { id: string; total: number; played: number; best: number; wins: number; rounds: number; detailedTotal: number }>();
   for (const s of sessions) {
     for (const [id, v] of Object.entries(s.totals)) {
-      const r = acc.get(id) ?? { id, total: 0, played: 0, best: -Infinity, wins: 0 };
+      const r = acc.get(id) ?? { id, total: 0, played: 0, best: -Infinity, wins: 0, rounds: 0, detailedTotal: 0 };
       r.total += v; r.played += 1; r.best = Math.max(r.best, v); if (v > 0) r.wins += 1;
+      const rd = s.play?.rounds?.[id] ?? 0;
+      if (rd > 0) { r.rounds += rd; r.detailedTotal += v; }
       acc.set(id, r);
     }
   }
-  const rows = [...acc.values()].map((r) => ({ ...r, avg: Math.round(r.total / r.played), rate: Math.round((r.wins / r.played) * 100), best: Number.isFinite(r.best) ? r.best : 0 }));
+  // 每圈 = 有圈數紀錄嘅大局總數 ÷ 圈數（舊紀錄冇圈數，唔計）
+  const rows = [...acc.values()].map((r) => ({
+    ...r, rounds: Math.round(r.rounds), avg: r.rounds > 0 ? Math.round(r.detailedTotal / r.rounds) : 0,
+    rate: Math.round((r.wins / r.played) * 100), best: Number.isFinite(r.best) ? r.best : 0,
+  }));
   rows.sort((a, b) => (asc ? a[sort] - b[sort] : b[sort] - a[sort]) || b.total - a.total);
   const tone = (v: number) => (v > 0 ? 'gain' : v < 0 ? 'loss' : '');
   return (
@@ -157,8 +163,8 @@ function BoardTable({ sessions, names, me, onPick }: { sessions: SessionResult[]
         <button key={r.id} type="button" className={`st-row six st-tap${r.id === me ? ' me' : ''}`} onClick={() => onPick(r.id)}>
           <span className="ellipsis"><span className="rank-no">{i + 1}</span>{names[r.id] || '玩家'}</span>
           <b className={`num ${tone(r.total)}`}>{fmt(r.total)}</b>
-          <span className="num">{r.played}</span>
-          <span className={`num ${tone(r.avg)}`}>{fmt(r.avg)}</span>
+          <span className="num">{r.rounds || '–'}</span>
+          <span className={`num ${tone(r.avg)}`}>{r.rounds ? fmt(r.avg) : '–'}</span>
           <span className="num gain">{fmt(r.best)}</span>
           <span className="num">{r.rate}%</span>
         </button>
@@ -185,7 +191,7 @@ export function PlayerSheet({ id, name, sessions, all, scope, sessionHref, onClo
       </div>
       <div className="stat-grid">
         <div><small>總數</small><b className={`num ${total > 0 ? 'gain' : total < 0 ? 'loss' : ''}`}>{fmt(total)}</b></div>
-        <div><small>局數</small><b className="num">{vals.length}</b></div>
+        <div><small>次數</small><b className="num">{vals.length}</b></div>
         <div><small>勝率</small><b className="num">{vals.length ? Math.round((wins / vals.length) * 100) : 0}%</b></div>
         <div><small>平均</small><b className="num">{vals.length ? fmt(Math.round(total / vals.length)) : '0'}</b></div>
         <div><small>最好</small><b className="num gain">{fmt(best)}</b></div>
@@ -219,7 +225,7 @@ export function PlayerSheet({ id, name, sessions, all, scope, sessionHref, onClo
           return <li key={s.id} className="exp-row">{sessionHref ? <Link to={sessionHref(s.id)} className="row-link">{body}</Link> : body}</li>;
         })}
       </ul>
-      <p className="muted small">在此牌友圈累計：<b className={`num ${lifetime > 0 ? 'gain' : lifetime < 0 ? 'loss' : ''}`}>{fmt(lifetime)}</b>（{all.length} 局）</p>
+      <p className="muted small">在此牌友圈累計：<b className={`num ${lifetime > 0 ? 'gain' : lifetime < 0 ? 'loss' : ''}`}>{fmt(lifetime)}</b>（{all.length} 次）</p>
       <button type="button" className="btn plain" onClick={onClose}>關閉</button>
     </Sheet>
   );
