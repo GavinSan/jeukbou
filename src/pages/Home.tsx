@@ -112,8 +112,11 @@ export function DashboardView({ name, photo, joined, groupCount, mine, loading, 
   const t = tierOf(st.points);
   const badges = badgesOf(st);
   const got = badges.filter((b) => b.got);
+  // 每類攞最高級嗰個已拎到嘅，再加最就快拎到嘅
+  const topGot = Object.values(got.reduce((acc, b) => { if (!acc[b.cat] || b.level > acc[b.cat].level) acc[b.cat] = b; return acc; }, {} as Record<string, typeof got[number]>))
+    .sort((a, b) => b.level - a.level);
   const nextBadges = badges.filter((b) => !b.got).sort((a, b) => b.progress - a.progress);
-  const preview = [...got.slice(-3), ...nextBadges].slice(0, 4);
+  const preview = [...topGot.slice(0, 4), ...nextBadges.slice(0, 4)].slice(0, 8);
   const recent = [...mine].reverse().slice(0, 5);
 
   return (

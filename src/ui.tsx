@@ -236,6 +236,8 @@ export function message(err: unknown): string {
 export async function saveProfile(user: User) {
   if (!db) return;
   const data: Record<string, unknown> = { photoURL: user.photoURL ?? null, updatedAt: serverTimestamp() };
+  // 超級管理員要見到 email 先幫到手（例如重設密碼）
+  if (user.email) data.email = user.email;
   if (user.displayName?.trim()) data.name = user.displayName.trim();
   await setDoc(doc(db, 'users', user.uid), data, { merge: true });
 }

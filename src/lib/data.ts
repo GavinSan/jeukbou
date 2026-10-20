@@ -70,6 +70,8 @@ export interface Member {
   photoURL: string | null;
   /** 自己認領咗舊紀錄入面邊個名 */
   legacyKey?: string;
+  /** 收錢用嘅 Interac e-Transfer email */
+  payEmail?: string;
 }
 
 export interface Session {
@@ -91,6 +93,40 @@ export interface Session {
   closeReq?: { by: string; approvals: string[] } | null;
   /** 由 Google Sheet 匯入嘅舊紀錄：每人番數（key 係舊紀錄玩家），冇枱 */
   legacy?: { totals: Record<string, number>; water: number; paid: boolean } | null;
+  /** 埋數嗰陣嘅轉賬（麻雀＋水＋開支合併）；Group 嘅 key 係「a + b」 */
+  payout?: Payout | null;
+  /** 邊幾筆已經轉咗：key = from>to */
+  paid?: Record<string, { by: string; at: number }>;
+}
+
+export interface Payout {
+  at: number;
+  currency: string;
+  transfers: { from: string; to: string; amount: number }[];
+  names: Record<string, string>;
+}
+
+export const payKey = (t: { from: string; to: string }) => `${t.from}>${t.to}`;
+
+/** 埋數時記低轉賬（之後「我的找數」用） */
+export async function savePayout(g: string, s: string, payout: Payout): Promise<void> {
+  await updateDoc(doc(fs(), 'groups', g, 'sessions', s), { payout: clean(payout) });
+}
+
+/** 標記一筆轉賬已轉／未轉 */
+export async function markPaid(g: string, s: string, key: string, uid: string, on: boolean): Promise<void> {
+  await updateDoc(doc(fs(), 'groups', g, 'sessions', s), { [`paid.${key}`]: on ? { by: uid, at: Date.now() } : deleteField() });
+}
+
+/** 收錢 email：存喺自己資料同所有牌友圈嘅成員資料（同圈嘅人先睇到） */
+export async function setPayEmail(user: User, email: string, groupIds: string[]): Promise<void> {
+  const v = email.trim();
+  await setDoc(doc(fs(), 'users', user.uid), { payEmail: v || deleteField(), updatedAt: serverTimestamp() }, { merge: true });
+  await Promise.all(groupIds.map(async (g) => {
+    const ref = doc(fs(), 'groups', g, 'members', user.uid);
+    const snap = await getDoc(ref);
+    if (snap.exists()) await updateDoc(ref, { payEmail: v || deleteField() });
+  }));
 }
 
 /** 埋數設定（牌友圈層面，局主改） */
@@ -678,7 +714,7 @@ export async function cancelClose(g: string, s: string): Promise<void> {
 }
 
 /** 埋數：未完場嘅枱逐張入「完場」（拉住嘅數即找），再鎖住大局 */
-export async function closeSession(g: string, s: string, uid: string, openTables: string[]): Promise<void> {
+export async function closeSession(g: string, s: string, uid: string, openTables: string[], payout?: Payout): Promise<void> {
   for (const t of openTables) {
     for (let attempt = 0; attempt < 3; attempt++) {
       try {
@@ -689,7 +725,7 @@ export async function closeSession(g: string, s: string, uid: string, openTables
       }
     }
   }
-  await updateDoc(sessionDoc(g, s), { closed: { by: uid, at: Date.now() }, closeReq: null });
+  await updateDoc(sessionDoc(g, s), { closed: { by: uid, at: Date.now() }, closeReq: null, ...(payout ? { payout: clean(payout) } : {}) });
 }
 
 // ---------- 匯入舊紀錄 ----------

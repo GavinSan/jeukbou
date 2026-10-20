@@ -1358,3 +1358,135 @@ button.join-code:active { background: var(--line); }
 .forgot-seg button { flex-direction: column; display: flex; align-items: center; justify-content: center; min-height: 52px; line-height: 1.2; }
 .forgot-seg button small { font-size: 12px; font-weight: 500; color: var(--muted); }
 .forgot-seg button.forgot-on[aria-pressed="true"] { background: var(--loss-soft); color: var(--loss); }
+
+/* 紀錄表：自己成條欄 highlight（唔係逐格） */
+.ledger { position: relative; }
+.lg-mecol {
+  position: absolute; top: 0; bottom: 0; z-index: 0; pointer-events: none;
+  left: calc(12px + var(--mi) * (100% - 24px) / var(--cols)); width: calc((100% - 24px) / var(--cols));
+  background: color-mix(in srgb, var(--gain) 9%, transparent); border-left: 1.5px solid color-mix(in srgb, var(--gain) 35%, transparent); border-right: 1.5px solid color-mix(in srgb, var(--gain) 35%, transparent);
+}
+.ledger .lg-names, .ledger .lg-rows, .ledger .lg-total { position: relative; z-index: 1; }
+.ledger .lg-names { background: color-mix(in srgb, var(--sunk) 88%, transparent); }
+.lg-cell.me { background: none !important; }
+.lg-rows li:nth-child(even) .lg-row { background: color-mix(in srgb, var(--sunk) 40%, transparent); }
+
+/* 似掣：右邊加箭咀 */
+.chev { color: var(--muted); font-size: 22px; line-height: 1; flex: none; margin-left: 4px; }
+.closed-banner { align-items: center; }
+.tcard { position: relative; padding-right: 30px; }
+.tcard::after { content: '›'; position: absolute; right: 12px; top: 50%; transform: translateY(-50%); font-size: 26px; color: var(--muted); }
+
+/* 埋數：字體統一 */
+.transfers li { padding: 12px 14px; }
+.acct { font-size: 15px; }
+.acct.grp { font-size: 14px; }
+.tf-amt { font-size: 18px !important; }
+.tf-paid { grid-column: 1 / -1; justify-self: end; border: 1.5px solid var(--line); background: var(--surface); color: var(--muted); border-radius: 999px; padding: 4px 12px; font: inherit; font-size: 13px; font-weight: 600; cursor: pointer; }
+.tf-paid.on { background: var(--gain-soft); color: var(--gain); border-color: var(--gain); }
+.tf-total { text-align: right; margin: 0; }
+.settle-table .st-row.four { grid-template-columns: minmax(0, 1.4fr) repeat(3, minmax(0, 1fr)); }
+.settle-table .st-row { font-size: 14px; }
+.settle-table .st-row b { font-size: 15px; }
+.sum-table .st-row > :last-child { font-weight: 700; }
+.settle-table .st-row.me { background: color-mix(in srgb, var(--gain) 10%, transparent); box-shadow: inset 3px 0 0 var(--gain); }
+
+/* 開支明細表 */
+.exp-matrix-wrap { overflow-x: auto; background: var(--surface); border-radius: 16px; -webkit-overflow-scrolling: touch; }
+.exp-matrix { border-collapse: collapse; width: 100%; font-size: 14px; }
+.exp-matrix th, .exp-matrix td { padding: 9px 10px; text-align: right; white-space: nowrap; border-top: 1px solid var(--line); }
+.exp-matrix thead th { border-top: none; background: var(--sunk); font-weight: 600; color: var(--muted); font-size: 13px; vertical-align: bottom; }
+.exp-matrix thead th small { display: block; font-weight: 400; font-size: 11px; }
+.exp-matrix th[scope="row"], .exp-matrix thead th:first-child { text-align: left; position: sticky; left: 0; background: var(--surface); z-index: 1; font-weight: 600; color: var(--ink); }
+.exp-matrix thead th:first-child { background: var(--sunk); color: var(--muted); }
+.exp-matrix .tot { font-weight: 700; background: color-mix(in srgb, var(--sunk) 60%, transparent); }
+.exp-matrix tbody tr.me td, .exp-matrix tbody tr.me th { background: color-mix(in srgb, var(--gain) 10%, var(--surface)); }
+.exp-matrix tfoot td, .exp-matrix tfoot th { font-weight: 700; border-top: 1.5px solid var(--line); }
+
+/* 找數 */
+.pay-summary { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }
+.pay-card { background: var(--surface); border-radius: 16px; padding: 12px; display: flex; flex-direction: column; gap: 2px; }
+.pay-card small { font-size: 12px; color: var(--muted); }
+.pay-card b { font-size: 22px; line-height: 1.15; }
+.pay-card span { font-size: 12px; color: var(--muted); }
+.pay-card.loss b { color: var(--loss); } .pay-card.gain b { color: var(--gain); }
+.pay-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 8px; }
+.pay-row { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: 4px 10px; background: var(--surface); border-radius: 14px; padding: 10px 12px; box-shadow: 0 2px 0 var(--line); }
+.pay-row.pay { box-shadow: inset 3px 0 0 var(--loss), 0 2px 0 var(--line); }
+.pay-row.get { box-shadow: inset 3px 0 0 var(--gain), 0 2px 0 var(--line); }
+.pay-row.done { opacity: .6; }
+.pay-main { background: none; border: none; padding: 0; font: inherit; color: inherit; text-align: left; cursor: pointer; min-width: 0; }
+.pay-text { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.pay-names { display: flex; flex-wrap: wrap; gap: 2px 6px; align-items: baseline; font-size: 15px; font-weight: 600; }
+.pay-from { color: var(--loss); } .pay-to { color: var(--gain); } .pay-arrow { color: var(--muted); }
+.pay-hint { color: var(--muted); font-size: 12px; overflow-wrap: anywhere; }
+.pay-amt { font-size: 18px; }
+.pay-row .tf-paid { grid-column: 1 / -1; }
+.pay-person { display: flex; flex-direction: column; gap: 6px; }
+.pay-email { flex-direction: column; align-items: flex-start; gap: 0; min-height: 56px; width: 100%; }
+.pay-email small { color: var(--muted); font-weight: 400; font-size: 12px; }
+.person-net { list-style: none; margin: 0; padding: 0; }
+.person-net li + li .listrow { border-top: 1px solid var(--line); }
+.person-net .listrow { width: 100%; background: none; border: none; font: inherit; color: inherit; text-align: left; cursor: pointer; }
+
+/* 成就分類 */
+.bcats { display: flex; flex-direction: column; gap: 8px; }
+.bcat { background: var(--surface); border-radius: 16px; padding: 12px 14px; display: flex; flex-direction: column; gap: 8px; box-shadow: inset 4px 0 0 var(--bc); }
+.bcat-head { display: flex; align-items: center; gap: 10px; }
+.bcat-head .grow { display: flex; flex-direction: column; min-width: 0; }
+.bcat-head b { color: var(--bc); font-size: 16px; }
+.bcat-head small { font-size: 12px; }
+.bcat-head .badge-mark { width: 30px; height: 38px; font-size: 18px; }
+.bcat-head .badge-mark.on { background: var(--tile); color: var(--bc); box-shadow: 0 3px 0 var(--bc); filter: none; opacity: 1; }
+.bcat-count { font-weight: 700; color: var(--bc); }
+.bcat-bar { height: 6px; border-radius: 3px; background: var(--sunk); overflow: hidden; }
+.bcat-bar i { display: block; height: 100%; background: var(--bc); border-radius: 3px; transition: width 1s cubic-bezier(.2, .9, .3, 1); }
+.bcat-tiers { display: flex; flex-wrap: wrap; gap: 5px; }
+.btier { display: inline-flex; align-items: baseline; gap: 4px; font-size: 12px; padding: 3px 8px; border-radius: 999px; background: var(--sunk); color: var(--muted); }
+.btier small { font-size: 10px; opacity: .8; }
+.btier.got { background: var(--bc); color: #fff; font-weight: 600; }
+.btier.next { box-shadow: 0 0 0 1.5px var(--bc) inset; color: var(--bc); font-weight: 600; }
+.badge-row { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+
+/* 唔記得開：張卡反轉 */
+.sp-card.flipped { background: linear-gradient(160deg, #F6E0DC, #EBC4BC); box-shadow: 0 3px 0 #8F2A22, 0 0 0 1px rgba(176, 46, 38, .3) inset; animation: sp-flip .45s cubic-bezier(.3, 1.4, .5, 1); }
+.sp-card.flipped .sp-label { color: var(--loss); }
+.sp-card.flipped .sp-note { color: #8F2A22; font-weight: 700; }
+@keyframes sp-flip { 0% { transform: perspective(600px) rotateY(0); } 50% { transform: perspective(600px) rotateY(90deg); } 100% { transform: perspective(600px) rotateY(0); } }
+.play .fg-tile { animation: kongDrop .45s cubic-bezier(.3,1.5,.5,1) var(--d) both; }
+.burst-forgot { z-index: 6; }
+.fg-dim { position: absolute; inset: 0; background: rgba(20, 20, 20, .55); animation: hv-flash 2.2s ease-out both; }
+.fg-bit { width: 16px !important; height: 22px !important; border-radius: 3px; background: #6B716D; box-shadow: 0 2px 0 #4A4F4C; }
+.fg-stamp { background: #3A2410 !important; color: #FFD6CF !important; border-color: #B02E26 !important; font-size: 34px !important; }
+@media (prefers-reduced-motion: reduce) { .sp-card.flipped, .play .fg-tile, .fg-dim { animation: none !important; } }
+
+/* ---------- 超級管理員 Dashboard ---------- */
+.page.admin { max-width: 1180px; }
+.admin-layout { display: flex; flex-direction: column; gap: 14px; }
+.admin-nav { display: flex; gap: 6px; overflow-x: auto; position: sticky; top: 0; z-index: 3; background: var(--page); padding: 4px 0; }
+.admin-nav button { flex: 1; min-height: 40px; border-radius: 10px; border: 1px solid var(--line); background: var(--surface); color: inherit; font: inherit; font-size: 15px; white-space: nowrap; padding: 0 14px; cursor: pointer; }
+.admin-nav button[aria-pressed="true"] { background: var(--felt); color: var(--felt-ink); border-color: transparent; font-weight: 600; }
+.admin-main { min-width: 0; display: flex; flex-direction: column; gap: 14px; }
+.admin-cards { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+.admin-card { background: var(--surface); border: 0; border-radius: 14px; padding: 14px; display: flex; flex-direction: column; gap: 2px; text-align: left; color: inherit; font: inherit; }
+button.admin-card { cursor: pointer; }
+.admin-card small { color: var(--muted); font-size: 13px; }
+.admin-card b { font-size: 26px; }
+.admin-card span { color: var(--muted); font-size: 13px; }
+.admin-split { display: flex; flex-direction: column; gap: 14px; }
+.admin-row { width: 100%; text-align: left; font: inherit; color: inherit; border: 0; background: transparent; cursor: pointer; }
+.admin-row.on { background: var(--sunk); }
+.admin-link { color: inherit; text-decoration: none; }
+.admin-detail h2 { font-size: 19px; margin: 0; }
+.admin-detail h3 { font-size: 15px; margin: 4px 0 0; }
+.mono { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: 13px; }
+.crumbs { display: flex; flex-wrap: wrap; gap: 4px 8px; align-items: center; }
+.json-edit { width: 100%; min-height: 280px; resize: vertical; line-height: 1.45; white-space: pre; tab-size: 2; }
+@media (min-width: 900px) {
+  .admin-layout { flex-direction: row; align-items: flex-start; }
+  .admin-nav { flex-direction: column; width: 160px; flex: none; top: 12px; }
+  .admin-nav button { flex: none; text-align: left; }
+  .admin-cards { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+  .admin-split { display: grid; grid-template-columns: minmax(280px, 380px) minmax(0, 1fr); align-items: start; }
+  .admin-list { position: sticky; top: 12px; max-height: calc(100vh - 40px); overflow-y: auto; }
+}

@@ -9,7 +9,7 @@ import { Avatar, NameForm, Sheet, message } from '../ui.tsx';
 import { askNotify, notifySupported } from '../lib/notify.ts';
 import { signOut } from 'firebase/auth';
 import { auth } from '../firebase.ts';
-import { displayName, setAvatar, syncMemberName } from '../lib/data.ts';
+import { displayName, setAvatar, setPayEmail, syncMemberName } from '../lib/data.ts';
 import { useProfile } from '../lib/live.ts';
 import { toAvatar } from '../lib/avatar.ts';
 
@@ -101,8 +101,26 @@ export function ProfileEditor() {
           {profile.data.avatar && <button type="button" className="textbtn" disabled={busy} onClick={() => task(() => setAvatar(user, null, groups))}>移除頭像</button>}
         </div>
       )}
+      <PayEmailField key={profile.data.payEmail} initial={profile.data.payEmail} onSave={(v) => task(() => setPayEmail(user, v, groups))} busy={busy} />
       {error && <p className="error" role="alert">{error}</p>}
     </div>
+  );
+}
+
+/** 收錢 email：同圈嘅人找數時會見到 */
+function PayEmailField({ initial, onSave, busy }: { initial: string; onSave: (v: string) => void; busy: boolean }) {
+  const [v, setV] = useState(initial);
+  const changed = v.trim() !== initial;
+  const ok = !v.trim() || /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v.trim());
+  return (
+    <label className="field">
+      <span>收款 Interac e-Transfer email</span>
+      <div className="row">
+        <input className="input grow" type="email" inputMode="email" autoComplete="email" value={v} onChange={(e) => setV(e.target.value)} placeholder="例如 you@example.com" />
+        {changed && <button type="button" className="btn small-btn" disabled={busy || !ok} onClick={() => onSave(v)}>儲存</button>}
+      </div>
+      <small className="muted">{ok ? '同牌友圈嘅人找數時會見到，方便轉賬。' : 'Email 格式唔啱'}</small>
+    </label>
   );
 }
 

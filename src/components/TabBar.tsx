@@ -15,22 +15,25 @@ const ICONS: Record<string, ReactNode> = {
   settle: <><path d="M6 3h12v18l-3-2-3 2-3-2-3 2z" /><path d="M9 8h6M9 12h6" /></>,
   board: <><path d="M4 20V13h4v7M10 20V6h4v14M16 20v-9h4v9" /></>,
   rules: <><path d="M5 4h11a3 3 0 0 1 3 3v13H8a3 3 0 0 1-3-3z" /><path d="M5 17a3 3 0 0 1 3-3h11" /></>,
+  pay: <><rect x="3" y="6" width="18" height="12" rx="2.5" /><circle cx="12" cy="12" r="2.6" /><path d="M6.5 9.5v5M17.5 9.5v5" /></>,
   home: <><path d="M4 11l8-6.5 8 6.5" /><path d="M6 9.5V20h12V9.5" /><path d="M10 20v-5h4v5" /></>,
   groups: <><circle cx="9" cy="9" r="3.2" /><circle cx="16.5" cy="10.5" r="2.5" /><path d="M3.5 19a5.5 5.5 0 0 1 11 0" /><path d="M14.5 15.2A4.5 4.5 0 0 1 21 19" /></>,
   rank: <><path d="M8 4h8v5a4 4 0 0 1-8 0z" /><path d="M8 6H5a3 3 0 0 0 3 4M16 6h3a3 3 0 0 1-3 4" /><path d="M12 13v4M8.5 20h7" /></>,
   settings: <><circle cx="12" cy="12" r="3" /><path d="M12 3v2.5M12 18.5V21M3 12h2.5M18.5 12H21M5.6 5.6l1.8 1.8M16.6 16.6l1.8 1.8M5.6 18.4l1.8-1.8M16.6 7.4l1.8-1.8" /></>,
 };
 
-const HOME_PATHS = ['/', '/groups', '/rank', '/settings'];
+const HOME_PATHS = ['/', '/groups', '/pay', '/rank', '/settings'];
 export const HOME_TABS: Tab[] = [
   { key: 'home', label: '主頁', href: '/' },
   { key: 'groups', label: '牌友圈', href: '/groups' },
+  { key: 'pay', label: '找數', href: '/pay' },
   { key: 'rank', label: '段位', href: '/rank' },
   { key: 'settings', label: '設定', href: '/settings' },
 ];
 export const HOME_DEMO_TABS: Tab[] = [
   { key: 'home', label: '主頁', href: '/demo/home' },
   { key: 'groups', label: '牌友圈', href: '/demo/groups' },
+  { key: 'pay', label: '找數', href: '/demo/pay' },
   { key: 'rank', label: '段位', href: '/demo/rank' },
   { key: 'settings', label: '設定', href: '/demo/home' },
 ];

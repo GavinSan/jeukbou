@@ -2,7 +2,7 @@
 import type { CSSProperties } from 'react';
 import type { TableEvent } from '../engine/table.ts';
 
-export type Art = 'kong' | 'heaven' | 'flower' | 'grass' | 'triple' | 'dice123' | 'pong' | 'chase' | 'false';
+export type Art = 'kong' | 'heaven' | 'flower' | 'grass' | 'triple' | 'dice123' | 'pong' | 'chase' | 'false' | 'forgot';
 
 export interface SpecialItem {
   art: Art;
@@ -29,8 +29,7 @@ export const SPECIAL_ITEMS: SpecialItem[] = [
 /** 追牌：番子 5、非番子 10；即摸先會「同一隻再追」每次加 5，最多加 3 次 */
 export const CHASE_MAX_REPEAT = 3;
 
-/** 天槓：每家 10，三家共 30 */
-export const HEAVEN_AMOUNT = 10;
+
 /** 被追：番子 5、非番子 10；即摸 +5，同一隻再追每次再 +5（最多再追 3 次） */
 export function chaseAmount(kind: 'fan' | 'other', repeat: number, instant = true): number {
   const extra = instant ? 1 + Math.max(0, Math.min(CHASE_MAX_REPEAT, repeat)) : 0;
@@ -125,6 +124,20 @@ export function SpecialArt({ art, heat = 0 }: { art: Art; heat?: number }) {
           ))}
         </svg>
       );
+    case 'forgot':
+      // 唔記得開：四隻牌冚住、鎖住，打個紅交叉
+      return (
+        <svg className="sp-art side forgot" viewBox="0 0 160 90" preserveAspectRatio="xMidYMid meet" aria-hidden="true">
+          {[0, 1, 2, 3].map((i) => (
+            <g key={i} className="fg-tile" style={{ '--d': `${i * 0.07}s`, transformOrigin: `${34 + i * 31}px 64px` } as CSSProperties}>
+              <rect x={20 + i * 31} y={26} width={28} height={40} rx={4} fill="#4A4F4C" />
+              <rect x={20 + i * 31} y={22} width={28} height={40} rx={4} fill="#6B716D" />
+              <text x={34 + i * 31} y={48} textAnchor="middle" fontSize="16" fontWeight="700" fill="#D8DCD9" style={{ fontFamily: 'var(--font-kai)' }}>？</text>
+            </g>
+          ))}
+          <path className="strike" d="M28 18 L140 70 M140 18 L28 70" stroke={RED} strokeWidth="5" strokeLinecap="round" opacity="0.9" />
+        </svg>
+      );
     case 'false':
       return (
         <svg className="sp-art side falsewin" viewBox="0 0 160 90" preserveAspectRatio="xMidYMid meet" aria-hidden="true">
@@ -197,6 +210,17 @@ export function SpecialBurst({ art, text }: { art: Art; text?: string }) {
           <span key={i} className="burst-bit hv-coin" style={{ '--x': `${(i * 41) % 100}%`, '--d': `${0.8 + (i % 7) * 0.09}s`, '--r': `${(i * 67) % 360}deg`, '--s': `${0.8 + (i % 3) * 0.2}` } as CSSProperties} />
         ))}
         <span className="burst-stamp hv-stamp">{text ?? '天槓'}</span>
+      </div>
+    );
+  }
+  if (art === 'forgot') {
+    return (
+      <div className="burst burst-forgot" aria-hidden="true">
+        <span className="fg-dim" />
+        {Array.from({ length: 10 }, (_, i) => (
+          <span key={i} className="burst-bit fg-bit" style={{ '--x': `${(i * 37) % 100}%`, '--d': `${(i % 5) * 0.08}s`, '--r': `${(i * 71) % 360}deg`, '--s': `${0.9 + (i % 3) * 0.15}` } as CSSProperties} />
+        ))}
+        <span className="burst-stamp fg-stamp">{text ?? '唔記得開！'}</span>
       </div>
     );
   }

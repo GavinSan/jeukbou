@@ -138,6 +138,18 @@ export default function RulesEditor({ initial, canEdit, onSave, scopeNote }: {
         </Row>
       </div>
 
+      <h2>特別事項（每家）</h2>
+      <div className="list">
+        {([
+          ['flower', '一台花（收）'], ['grass', '一台草（收）'], ['kong', '暗槓（收）'], ['kongForgot', '暗槓唔記得開（罰）'],
+          ['heaven', '天槓（收）'], ['heavenForgot', '天槓唔記得開（罰）'], ['triple', '圍骰（收）'], ['dice123', '骰開一二三（付）'], ['pong', '叫碰唔碰（付）'],
+        ] as const).map(([k, t]) => (
+          <Row key={k} title={t}>
+            <Num value={r.specials[k]} onChange={(v) => set({ specials: { ...r.specials, [k]: v } })} label={t} disabled={d} />
+          </Row>
+        ))}
+      </div>
+
       {canEdit && <button type="button" className="btn big" disabled={busy} onClick={save}>儲存家規</button>}
       {note && <p className={note === '已儲存' ? 'ok' : 'error'} role="status">{note}</p>}
     </div>

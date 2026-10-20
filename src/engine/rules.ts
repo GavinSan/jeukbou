@@ -41,7 +41,23 @@ export interface Rules {
   rounds: number;
   /** 換位嗰陣邊啲拉要即時找數：player = 淨係換位嗰個人有份嘅；table = 成張枱 */
   swapSettle: 'player' | 'table';
+  /** 特別事項每家幾多（kongForgot / heavenForgot = 唔記得開罰幾多） */
+  specials: SpecialAmounts;
 }
+
+export interface SpecialAmounts {
+  flower: number;
+  grass: number;
+  kong: number;
+  kongForgot: number;
+  heaven: number;
+  heavenForgot: number;
+  triple: number;
+  dice123: number;
+  pong: number;
+}
+
+export const DEFAULT_SPECIALS: SpecialAmounts = { flower: 5, grass: 2, kong: 5, kongForgot: 10, heaven: 10, heavenForgot: 20, triple: 5, dice123: 5, pong: 5 };
 
 export const DEFAULT_RULES: Rules = {
   base: 5,
@@ -54,6 +70,7 @@ export const DEFAULT_RULES: Rules = {
   falseWinPenalty: 60,
   rounds: 4,
   swapSettle: 'player',
+  specials: DEFAULT_SPECIALS,
 };
 
 export function withRules(patch: {
@@ -67,6 +84,7 @@ export function withRules(patch: {
   falseWinPenalty?: number;
   rounds?: number;
   swapSettle?: Rules['swapSettle'];
+  specials?: Partial<SpecialAmounts>;
 }): Rules {
   const d = DEFAULT_RULES;
   return {
@@ -80,6 +98,7 @@ export function withRules(patch: {
     falseWinPenalty: patch.falseWinPenalty ?? d.falseWinPenalty,
     rounds: patch.rounds ?? d.rounds,
     swapSettle: patch.swapSettle ?? d.swapSettle,
+    specials: { ...d.specials, ...patch.specials },
   };
 }
 

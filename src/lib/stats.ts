@@ -121,6 +121,8 @@ export interface Stats {
   dealIns: number;
   bestFan: number;
   detailed: number;
+  /** 打過幾多日（唔同日子） */
+  days: number;
   /** 每個月嘅輸贏（最近 6 個月） */
   months: { label: string; total: number; played: number }[];
 }
@@ -169,6 +171,7 @@ export function statsOf(list: MySession[]): Stats {
     dealIns: sorted.reduce((a, s) => a + (s.dealIns ?? 0), 0),
     bestFan: Math.max(0, ...sorted.map((s) => s.best ?? 0)),
     detailed: sorted.filter((s) => s.wins !== undefined).length,
+    days: new Set(sorted.map((s) => { const d = new Date(s.at); return `${d.getFullYear()}-${d.getMonth()}-${d.getDate()}`; })).size,
     months: Array.from({ length: 6 }, (_, i) => {
       const d = new Date();
       d.setDate(1);
@@ -179,7 +182,7 @@ export function statsOf(list: MySession[]): Stats {
   };
 }
 
-// ---------- 成就 ----------
+// ---------- 成就（14 類、每類幾級，合共 100 個） ----------
 export interface Badge {
   key: string;
   name: string;
@@ -188,26 +191,68 @@ export interface Badge {
   /** 0–1 */
   progress: number;
   got: boolean;
+  /** 屬於邊類、第幾級 */
+  cat: string;
+  level: number;
+  now: number;
+  goal: number;
 }
 
+export interface BadgeCat {
+  key: string;
+  title: string;
+  mark: string;
+  color: string;
+  unit: string;
+  /** 每級：門檻、名 */
+  tiers: [number, string][];
+  value: (st: Stats) => number;
+  note: (goal: number) => string;
+}
+
+export const BADGE_CATS: BadgeCat[] = [
+  { key: 'played', title: '場數', mark: '場', color: '#2E7D5B', unit: '場', value: (s) => s.played, note: (g) => `打滿 ${g} 場`,
+    tiers: [[1, '初登場'], [5, '新丁'], [10, '常客'], [25, '熟客'], [50, '老雀'], [100, '百戰'], [150, '戰將'], [250, '二百五'], [500, '五百戰'], [1000, '千場傳說']] },
+  { key: 'wins', title: '贏場', mark: '贏', color: '#1F7A46', unit: '場', value: (s) => s.wins, note: (g) => `贏 ${g} 場`,
+    tiers: [[1, '開齋'], [5, '小勝'], [10, '十全'], [25, '常勝'], [50, '勝利組'], [100, '百勝'], [250, '常勝將軍'], [500, '不敗神話']] },
+  { key: 'handWins', title: '食糊', mark: '食', color: '#C08A16', unit: '次', value: (s) => s.handWins, note: (g) => `食糊 ${g} 次`,
+    tiers: [[1, '第一糊'], [10, '十糊'], [25, '糊仔'], [50, '食糊機'], [100, '百糊'], [250, '糊神'], [500, '五百糊'], [1000, '千糊'], [2500, '糊到天荒']] },
+  { key: 'selfDraws', title: '自摸', mark: '摸', color: '#2C8A8A', unit: '次', value: (s) => s.selfDraws, note: (g) => `自摸 ${g} 次`,
+    tiers: [[1, '摸到'], [5, '手感好'], [10, '自摸王'], [25, '妙手'], [50, '摸神'], [100, '百摸'], [250, '金手指'], [500, '摸遍天下']] },
+  { key: 'dealIns', title: '出銃', mark: '銃', color: '#B02E26', unit: '次', value: (s) => s.dealIns, note: (g) => `出銃 ${g} 次`,
+    tiers: [[1, '第一銃'], [10, '慷慨'], [25, '善長'], [50, '大善人'], [100, '慈善家'], [250, '散財童子'], [500, '銃神']] },
+  { key: 'bestFan', title: '一鋪大番', mark: '番', color: '#7146B5', unit: '番', value: (s) => s.bestFan, note: (g) => `一鋪食 ${g} 番`,
+    tiers: [[20, '小炒'], [30, '好糊'], [50, '大糊'], [70, '爆棚'], [100, '百番'], [150, '番王'], [200, '神糊'], [300, '天糊']] },
+  { key: 'best', title: '單場大贏', mark: '豐', color: '#E5703A', unit: '番', value: (s) => Math.max(0, s.best), note: (g) => `一場贏 ${g} 番`,
+    tiers: [[50, '有交易'], [100, '豐收'], [200, '大豐收'], [300, '盆滿'], [500, '缽滿'], [800, '發達'], [1000, '一晚千番']] },
+  { key: 'total', title: '總贏', mark: '富', color: '#B8860B', unit: '番', value: (s) => Math.max(0, s.total), note: (g) => `總共贏 ${g} 番`,
+    tiers: [[100, '小富'], [250, '有米'], [500, '富貴'], [1000, '千番富翁'], [2500, '大亨'], [5000, '雀壇首富'], [10000, '萬番']] },
+  { key: 'tops', title: '龍頭', mark: '龍', color: '#C0392B', unit: '次', value: (s) => s.tops, note: (g) => `當晚第一 ${g} 次`,
+    tiers: [[1, '龍頭'], [3, '三奪龍'], [5, '五冠'], [10, '十冠王'], [25, '霸主'], [50, '龍皇'], [100, '百冠']] },
+  { key: 'streak', title: '連贏', mark: '連', color: '#D9607A', unit: '場', value: (s) => s.bestStreak, note: (g) => `連續 ${g} 場贏`,
+    tiers: [[2, '雙連'], [3, '三連勝'], [4, '四連勝'], [5, '五連勝'], [7, '七連勝'], [10, '十連霸']] },
+  { key: 'points', title: '雀力分', mark: '力', color: '#2F63B0', unit: '分', value: (s) => s.points, note: (g) => `雀力 ${g} 分`,
+    tiers: [[100, '雀仔'], [300, '雀友'], [600, '雀將'], [1000, '雀王'], [1600, '雀霸'], [2500, '雀神'], [4000, '雀聖'], [6000, '雀帝']] },
+  { key: 'groups', title: '牌友圈', mark: '圈', color: '#556B63', unit: '個', value: (s) => s.groups, note: (g) => `喺 ${g} 個牌友圈有紀錄`,
+    tiers: [[1, '入圈'], [2, '周圍打'], [3, '交遊廣闊'], [5, '雀壇大使']] },
+  { key: 'month', title: '一個月', mark: '月', color: '#8A4A12', unit: '場', value: (s) => s.maxMonth, note: (g) => `一個月打 ${g} 場`,
+    tiers: [[4, '每週一聚'], [8, '鐵人'], [12, '雀癡'], [16, '日日見'], [20, '住喺枱']] },
+  { key: 'days', title: '打牌日', mark: '日', color: '#24508F', unit: '日', value: (s) => s.days, note: (g) => `打過 ${g} 日`,
+    tiers: [[1, '第一日'], [7, '一週'], [30, '一個月'], [60, '兩個月'], [100, '百日']] },
+];
+
 export function badgesOf(st: Stats): Badge[] {
-  const b = (key: string, name: string, mark: string, note: string, now: number, goal: number): Badge =>
-    ({ key, name, mark, note, progress: Math.min(1, now / goal), got: now >= goal });
-  return [
-    b('first', '初登場', '初', '打第一場', st.played, 1),
-    b('ten', '常客', '常', '打滿 10 場', st.played, 10),
-    b('fifty', '老雀', '老', '打滿 50 場', st.played, 50),
-    b('hundred', '百戰', '百', '打滿 100 場', st.played, 100),
-    b('streak3', '三連勝', '三', '連續 3 場贏', st.bestStreak, 3),
-    b('streak5', '五連勝', '五', '連續 5 場贏', st.bestStreak, 5),
-    b('top5', '龍頭', '龍', '當晚第一 5 次', st.tops, 5),
-    b('big', '大豐收', '豐', '一場贏 300 番', Math.max(0, st.best), 300),
-    b('iron', '鐵人', '鐵', '一個月打 8 場', st.maxMonth, 8),
-    b('multi', '周圍打', '圈', '喺 2 個牌友圈有紀錄', st.groups, 2),
-    b('self10', '自摸王', '摸', '自摸 10 次', st.selfDraws, 10),
-    b('win50', '食糊機', '食', '食糊 50 次', st.handWins, 50),
-    b('hundred-fan', '百番', '番', '一鋪食 100 番', st.bestFan, 100),
-  ];
+  const out: Badge[] = [];
+  for (const c of BADGE_CATS) {
+    const now = c.value(st);
+    c.tiers.forEach(([goal, name], i) => {
+      out.push({ key: `${c.key}-${goal}`, name, mark: c.mark, note: c.note(goal), progress: Math.min(1, now / goal), got: now >= goal, cat: c.key, level: i + 1, now, goal });
+    });
+  }
+  // 第 100 個：勝率高（打滿 20 場，贏六成）
+  const rate = st.played >= 20 ? st.winRate : 0;
+  out.push({ key: 'rate-60', name: '穩贏', mark: '穩', note: '打滿 20 場，勝率 60% 以上', progress: st.played >= 20 ? Math.min(1, st.winRate / 0.6) : st.played / 20 * 0.5, got: rate >= 0.6, cat: 'rate', level: 1, now: Math.round(st.winRate * 100), goal: 60 });
+  return out;
 }
 
 // ---------- 讀資料 ----------

@@ -22,7 +22,7 @@ import { Chips, ConfirmDelete, Hint, NumInput, RollingNumber, Sheet, TopBar, fmt
 import FanWheel from './FanWheel.tsx';
 import DiceRoll, { Die } from './Dice.tsx';
 import SeatDraw from './SeatDraw.tsx';
-import { CHASE_MAX_REPEAT, HEAVEN_AMOUNT, SPECIAL_ITEMS, SpecialArt, SpecialBurst, artOf, chaseAmount, suggestRepeat } from './Specials.tsx';
+import { CHASE_MAX_REPEAT, SPECIAL_ITEMS, SpecialArt, SpecialBurst, artOf, chaseAmount, suggestRepeat } from './Specials.tsx';
 import type { Art } from './Specials.tsx';
 
 const SPOTS = ['s-bottom', 's-right', 's-top', 's-left'];
@@ -191,7 +191,7 @@ export default function TableScreen(props: TableScreenProps) {
     if (art && last?.type === 'special') {
       const rep = last.meta?.repeat ?? 0;
       const pen = !!last.meta?.penalty;
-      setBurst((b) => ({ art: pen ? 'pong' : art, text: pen ? '罰！' : art === 'chase' ? (rep > 0 ? `追 ×${rep + 1}` : '追') : art === 'heaven' ? '天槓！' : undefined, key: (b?.key ?? 0) + 1 }));
+      setBurst((b) => ({ art: pen ? 'forgot' : art, text: pen ? '唔記得開！' : art === 'chase' ? (rep > 0 ? `追 ×${rep + 1}` : '追') : art === 'heaven' ? '天槓！' : undefined, key: (b?.key ?? 0) + 1 }));
     }
     if (!isNew && lastStep && lastStep.seq < before.lastSeq) sfx.undo();
     else if (last?.type === 'win') {
@@ -203,7 +203,7 @@ export default function TableScreen(props: TableScreenProps) {
       if (isNew && top >= 30) setParty((p) => ({ fan: top, key: (p?.key ?? 0) + 1 }));
     }
     else if (hp) { sfx.settle(); buzz('hit'); }
-    else if (last?.type === 'special' && last.meta?.penalty) { sfx.falseWin(); buzz('hit'); }
+    else if (last?.type === 'special' && last.meta?.penalty) { sfx.special('forgot'); buzz('hit'); }
     else if (last?.type === 'special') { sfx.special(art ?? ''); buzz(art === 'heaven' ? 'win' : 'tap'); }
     else if (last?.type === 'falseWin') {
       sfx.falseWin();
@@ -562,7 +562,8 @@ export default function TableScreen(props: TableScreenProps) {
         {c.steps.length === 0 ? (
           <p className="muted">未有紀錄。</p>
         ) : (
-          <div className="ledger" style={{ '--cols': cols.length } as CSSProperties}>
+          <div className="ledger" style={{ '--cols': cols.length, '--mi': Math.max(0, cols.indexOf(me ?? '')) } as CSSProperties}>
+            {me && cols.includes(me) && <span className="lg-mecol" aria-hidden="true" />}
             <div className="lg-names" aria-hidden="true">
               {cols.map((id) => <span key={id} className={id === me ? 'me' : ''}>{name(id)}</span>)}
             </div>
@@ -799,11 +800,25 @@ export default function TableScreen(props: TableScreenProps) {
             const isChase = spArt === 'chase';
             const canForget = spArt === 'kong' || spArt === 'heaven';
             const penalty = canForget && forgot;
-            const base = isChase ? chaseAmount(chaseKind, repeat, instant) : spArt === 'heaven' ? HEAVEN_AMOUNT : spArt === 'false' ? rules.falseWinPenalty : item?.amount ?? 0;
-            const amount = penalty ? base * 2 : base;
+            // 金額跟家規（特別事項）設定
+            const sp = rules.specials;
+            const amountOf = (art: Art | ''): number => art === 'chase' ? chaseAmount(chaseKind, repeat, instant) : art === 'false' ? rules.falseWinPenalty
+              : art === 'heaven' ? sp.heaven : art === 'kong' ? sp.kong : art === 'flower' ? sp.flower : art === 'grass' ? sp.grass
+              : art === 'triple' ? sp.triple : art === 'dice123' ? sp.dice123 : art === 'pong' ? sp.pong : item?.amount ?? 0;
+            const forgotOf = (art: Art | '') => (art === 'heaven' ? sp.heavenForgot : sp.kongForgot);
+            const base = amountOf(spArt);
+            const amount = penalty ? forgotOf(spArt) : base;
             const dir = penalty ? 'pay' : item?.dir;
             const pick = (art: Art) => {
               unlock();
+              // 暗槓／天槓：再撳一下反轉做「唔記得開」（罰），再撳就反返轉頭
+              if (art === spArt && (art === 'kong' || art === 'heaven')) {
+                const on = !forgot;
+                setForgot(on);
+                setSpPlay((n) => n + 1);
+                if (on) { sfx.special('forgot'); buzz('hit'); } else sfx.special(art === 'heaven' ? 'kong' : art);
+                return;
+              }
               setSpArt(art);
               setForgot(false);
               setSpPlay((n) => n + 1);
@@ -818,20 +833,29 @@ export default function TableScreen(props: TableScreenProps) {
                 <h2>特別事項</h2>
                 <Hint>即時找數，不影響拉，不抽水。</Hint>
                 <div className="sp-grid">
-                  {SPECIAL_ITEMS.map((it) => (
-                    <button
-                      key={it.art + (spArt === it.art ? spPlay : 0)}
-                      type="button"
-                      className={`sp-card sp-${it.art}${spArt === it.art ? ' on play' : ''}`}
-                      aria-pressed={spArt === it.art}
-                      onClick={() => pick(it.art)}
-                    >
-                      <SpecialArt art={it.art} heat={it.art === 'chase' && spArt === 'chase' && instant ? repeat : 0} />
-                      <span className="sp-label">{it.label}</span>
-                      <span className="sp-note">{it.art === 'chase' && spArt === 'chase' ? `付每家 ${amount}` : it.art === 'false' ? `付每家 ${rules.falseWinPenalty}` : it.note}</span>
-                    </button>
-                  ))}
+                  {SPECIAL_ITEMS.map((it) => {
+                    const flipped = spArt === it.art && forgot && (it.art === 'kong' || it.art === 'heaven');
+                    const a = amountOf(it.art);
+                    const note = it.art === 'chase' ? (spArt === 'chase' ? `付每家 ${amount}` : it.note)
+                      : flipped ? `罰每家 ${forgotOf(it.art)}`
+                      : `${it.dir === 'collect' ? '收' : '付'}每家 ${a}`;
+                    return (
+                      <button
+                        key={it.art + (spArt === it.art ? spPlay : 0)}
+                        type="button"
+                        className={`sp-card sp-${it.art}${spArt === it.art ? ' on play' : ''}${flipped ? ' flipped' : ''}`}
+                        aria-pressed={spArt === it.art}
+                        aria-label={flipped ? `${it.label}唔記得開，罰每家 ${forgotOf(it.art)}` : undefined}
+                        onClick={() => pick(it.art)}
+                      >
+                        <SpecialArt art={flipped ? 'forgot' : it.art} heat={it.art === 'chase' && spArt === 'chase' && instant ? repeat : 0} />
+                        <span className="sp-label">{flipped ? `${it.label}唔記得開` : it.label}</span>
+                        <span className="sp-note">{note}</span>
+                      </button>
+                    );
+                  })}
                 </div>
+                {canForget && <p className="small muted center-text">{forgot ? '再撳一下張卡 = 返去開咗（收）' : `再撳一下張卡 = 唔記得開（罰每家 ${forgotOf(spArt)}）`}</p>}
                 {isChase && (
                   <div className="stack tight">
                     <div className="row">
@@ -865,12 +889,6 @@ export default function TableScreen(props: TableScreenProps) {
                       </button>
                     </div>
                     {instant && <p className={`chase-note heat-${repeat}`}>{repeat === 0 ? '即摸' : `即摸，再追 ${repeat} 次`}：{chaseAmount(chaseKind, 0, false)} + {5 * (repeat + 1)} = 每家 {amount}{repeat === CHASE_MAX_REPEAT ? '（封頂）' : ''}</p>}
-                  </div>
-                )}
-                {canForget && (
-                  <div className="seg wide forgot-seg" role="radiogroup" aria-label="開咗定唔記得開">
-                    <button type="button" role="radio" aria-checked={!forgot} aria-pressed={!forgot} onClick={() => { setForgot(false); sfx.tap(); }}>開咗<small>收每家 {base}</small></button>
-                    <button type="button" role="radio" aria-checked={forgot} aria-pressed={forgot} className="forgot-on" onClick={() => { setForgot(true); sfx.falseWin(); }}>唔記得開<small>罰每家 {base * 2}</small></button>
                   </div>
                 )}
                 {spArt && (

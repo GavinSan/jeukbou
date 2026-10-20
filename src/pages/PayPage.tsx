@@ -1,0 +1,68 @@
+// 一個大局嘅轉賬詳情：每筆邊個俾邊個、收款 email、已轉未轉
+import { useState } from 'react';
+import type { User } from 'firebase/auth';
+import { markPaid } from '../lib/data.ts';
+import { useGroup, useMembers, useSession } from '../lib/live.ts';
+import { itemsOf } from '../lib/pay.ts';
+import { Link } from '../lib/router.tsx';
+import { Hint, Loading, TopBar, message } from '../ui.tsx';
+import { PayRows } from '../components/PayList.tsx';
+import { money } from '../components/SettleScreen.tsx';
+
+export default function PayPage({ user, groupId, sessionId }: { user: User; groupId: string; sessionId: string }) {
+  const group = useGroup(groupId);
+  const session = useSession(groupId, sessionId);
+  const members = useMembers(groupId);
+  const [busy, setBusy] = useState('');
+  const [error, setError] = useState('');
+  const back = `/g/${groupId}/s/${sessionId}`;
+  if (!group.data || !session.data) return <main className="page"><TopBar back={back} />{session.error ? <p className="error">{session.error}</p> : <Loading />}</main>;
+  const g = group.data;
+  const s = session.data;
+  const items = itemsOf(g, s, user.uid);
+  const names: Record<string, string> = { ...(s.payout?.names ?? {}) };
+  const emails: Record<string, string> = {};
+  for (const m of members.data) { names[m.uid] = m.name; if (m.payEmail) emails[m.uid] = m.payEmail; }
+  const pp = { me: user.uid, names, emails };
+  const mine = items.filter((x) => x.dir !== 'other');
+  const myPay = mine.filter((x) => x.dir === 'pay' && !x.paid).reduce((a, x) => a + x.amount, 0);
+  const myGet = mine.filter((x) => x.dir === 'get' && !x.paid).reduce((a, x) => a + x.amount, 0);
+  const done = items.filter((x) => x.paid).length;
+
+  async function toggle(key: string, on: boolean) {
+    setBusy(key); setError('');
+    try { await markPaid(groupId, sessionId, key, user.uid, on); } catch (err) { setError(message(err)); } finally { setBusy(''); }
+  }
+
+  return (
+    <main className="page">
+      <TopBar back={`/g/${groupId}/s/${sessionId}/settle`} title={<div className="stack tight"><h1>轉賬</h1><span className="muted small">{s.name}</span></div>} />
+      {!s.payout ? (
+        <section className="panel">
+          <p className="muted">{s.closed ? '計緊轉賬，請先打開一次埋數頁。' : '未埋數。埋數之後，轉賬會喺呢度出現。'}</p>
+          <Link to={`/g/${groupId}/s/${sessionId}/settle`} className="btn">去埋數頁</Link>
+        </section>
+      ) : (
+        <>
+          <section className="pay-summary">
+            <div className="pay-card loss"><small>你要俾</small><b className="num">{money(myPay)}</b></div>
+            <div className="pay-card gain"><small>你要收</small><b className="num">{money(myGet)}</b></div>
+            <div className="pay-card"><small>已轉</small><b className="num">{done}/{items.length}</b></div>
+          </section>
+          {mine.length > 0 && (
+            <section className="stack">
+              <h2 className="section-head">同你有關</h2>
+              <PayRows items={mine} pp={pp} busyKey={busy} onToggle={(it, on) => toggle(it.key, on)} />
+            </section>
+          )}
+          <section className="stack">
+            <h2 className="section-head">全部轉賬</h2>
+            <PayRows items={items} pp={pp} busyKey={busy} onToggle={(it, on) => toggle(it.key, on)} />
+            <Hint>撳人名睇佢嘅 Interac email。轉咗就撳「標記已轉」，全部人都會見到。金額係麻雀＋水＋開支合併。</Hint>
+          </section>
+        </>
+      )}
+      {error && <p className="error">{error}</p>}
+    </main>
+  );
+}

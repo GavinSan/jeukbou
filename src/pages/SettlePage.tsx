@@ -1,7 +1,7 @@
 import { useMemo } from 'react';
 import type { User } from 'firebase/auth';
 import SettleScreen from '../components/SettleScreen.tsx';
-import { acceptPair, acceptTeam, addExpense, updateExpense, approveClose, cancelClose, closeSession, deleteExpense, deletePair, isGuest, proposePair, requestClose, saveSettleConfig, setSessionWaterTo, settleConfigOf } from '../lib/data.ts';
+import { markPaid, savePayout, acceptPair, acceptTeam, addExpense, updateExpense, approveClose, cancelClose, closeSession, deleteExpense, deletePair, isGuest, proposePair, requestClose, saveSettleConfig, setSessionWaterTo, settleConfigOf } from '../lib/data.ts';
 import { useSuperAdmin } from '../lib/admin.ts';
 import { useExpenses, useGroup, useManyEvents, useMembers, usePairs, useSession, useTables, useTeams } from '../lib/live.ts';
 import { computeTable, rulesOf, rulesTimeline } from '../lib/score.ts';
@@ -64,7 +64,7 @@ export default function SettlePage({ user, groupId, sessionId }: { user: User; g
         request: sess.closeReq ?? null,
         needed,
         isHost,
-        onClose: () => closeSession(groupId, sessionId, user.uid, openTables),
+        onClose: (payout) => closeSession(groupId, sessionId, user.uid, openTables, payout),
         onRequest: async () => {
           await requestClose(groupId, sessionId, user.uid);
           if (needed.every((id) => id === user.uid)) await closeSession(groupId, sessionId, user.uid, openTables);
@@ -81,6 +81,11 @@ export default function SettlePage({ user, groupId, sessionId }: { user: User; g
       expenses={expenses.data}
       pairs={pairs.data}
       teams={teams.data}
+      payout={sess.payout ?? null}
+      paid={sess.paid ?? {}}
+      onMarkPaid={(key, on) => markPaid(groupId, sessionId, key, user.uid, on)}
+      onSavePayout={(po) => savePayout(groupId, sessionId, po)}
+      payHref={`/g/${groupId}/s/${sessionId}/pay`}
       onAcceptTeam={(id) => acceptTeam(groupId, id, user.uid)}
       teamsHref={`/g/${groupId}/rules#settle`}
       me={user.uid}

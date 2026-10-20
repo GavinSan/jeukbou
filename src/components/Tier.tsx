@@ -2,6 +2,7 @@
 import { useEffect, useRef, useState } from 'react';
 import type { CSSProperties } from 'react';
 import type { Badge, Tier } from '../lib/stats.ts';
+import { BADGE_CATS } from '../lib/stats.ts';
 
 /** 段位：一隻象牙色牌，刻住段位字，邊框顏色分段 */
 export function TierTile({ tier, size = 'md' }: { tier: Tier; size?: 'sm' | 'md' | 'lg' }) {
@@ -16,12 +17,8 @@ export function TierChip({ tier }: { tier: Tier }) {
   return <span className={`tier-chip ${tier.cls}`}>{tier.name}</span>;
 }
 
-const BADGE_COLORS = ['#C08A16', '#2E7D5B', '#B02E26', '#7146B5', '#2F63B0', '#E5703A', '#2C8A8A', '#D9607A'];
-
 export function BadgeTile({ b }: { b: Badge }) {
-  let h = 0;
-  for (const ch of b.key) h = (h * 31 + ch.charCodeAt(0)) % 997;
-  const color = BADGE_COLORS[h % BADGE_COLORS.length];
+  const color = BADGE_CATS.find((c) => c.key === b.cat)?.color ?? '#C08A16';
   return (
     <div className={`badge${b.got ? ' got' : ''}`} title={b.note} style={{ '--bc': color } as CSSProperties}>
       <span className="badge-mark" aria-hidden="true">{b.mark}</span>
@@ -75,4 +72,37 @@ export function Progress({ value }: { value: number }) {
   const [v, setV] = useState(reduce() ? value : 0);
   useEffect(() => { const t = setTimeout(() => setV(value), 80); return () => clearTimeout(t); }, [value]);
   return <span className="tier-progress" aria-hidden="true"><i style={{ width: `${Math.round(v * 100)}%` }} /></span>;
+}
+
+/** 段位頁：成就按類顯示，每類一行，逐級亮 */
+export function BadgeCats({ badges }: { badges: Badge[] }) {
+  return (
+    <div className="bcats">
+      {BADGE_CATS.map((c) => {
+        const list = badges.filter((b) => b.cat === c.key);
+        const got = list.filter((b) => b.got).length;
+        const next = list.find((b) => !b.got);
+        return (
+          <div key={c.key} className="bcat" style={{ '--bc': c.color } as CSSProperties}>
+            <div className="bcat-head">
+              <span className={`badge-mark${got ? ' on' : ''}`} aria-hidden="true">{c.mark}</span>
+              <span className="grow">
+                <b>{c.title}</b>
+                <small className="muted">{next ? `下一個「${next.name}」：${next.now}/${next.goal} ${c.unit}` : '全部完成！'}</small>
+              </span>
+              <span className="bcat-count num">{got}/{list.length}</span>
+            </div>
+            <span className="bcat-bar" aria-hidden="true"><i style={{ width: `${Math.round((next ? next.progress : 1) * 100)}%` }} /></span>
+            <div className="bcat-tiers">
+              {list.map((b) => (
+                <span key={b.key} className={`btier${b.got ? ' got' : ''}${b === next ? ' next' : ''}`} title={b.note}>
+                  {b.name}<small>{b.goal}</small>
+                </span>
+              ))}
+            </div>
+          </div>
+        );
+      })}
+    </div>
+  );
 }

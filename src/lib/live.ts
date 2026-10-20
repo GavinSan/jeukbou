@@ -65,13 +65,15 @@ function toLog(d: DocumentData | undefined): FanTableLog | null {
 const toJoinRequest = (id: string, d: DocumentData): JoinRequest => ({
   uid: id, name: String(d.name ?? '玩家'), photoURL: d.photoURL ?? null, inviteCode: String(d.inviteCode ?? ''), at: millis(d.at),
 });
-const toMember = (id: string, d: DocumentData): Member => ({ uid: id, name: String(d.name ?? '玩家'), photoURL: d.photoURL ?? null, legacyKey: d.legacyKey ? String(d.legacyKey) : undefined });
+const toMember = (id: string, d: DocumentData): Member => ({ uid: id, name: String(d.name ?? '玩家'), photoURL: d.photoURL ?? null, legacyKey: d.legacyKey ? String(d.legacyKey) : undefined, payEmail: d.payEmail ? String(d.payEmail) : undefined });
 const toSession = (id: string, d: DocumentData): Session => ({
   id, name: String(d.name ?? ''), createdBy: String(d.createdBy ?? ''), createdAt: d.createdAt ?? null, rules: d.rules ?? undefined,
   rulesLog: Array.isArray(d.rulesLog) ? d.rulesLog.map((x: DocumentData) => ({ at: Number(x.at ?? 0), rules: x.rules ?? {} })) : undefined,
   waterTo: d.waterTo ? String(d.waterTo) : undefined, noWater: !!d.noWater,
   closed: d.closed ?? null,
   legacy: d.legacy ?? null,
+  payout: d.payout && Array.isArray(d.payout.transfers) ? { at: Number(d.payout.at ?? 0), currency: String(d.payout.currency ?? ''), transfers: d.payout.transfers.map((t: DocumentData) => ({ from: String(t.from), to: String(t.to), amount: Number(t.amount) })), names: d.payout.names ?? {} } : null,
+  paid: d.paid ?? {},
   closeReq: d.closeReq ? { by: String(d.closeReq.by ?? ''), approvals: Array.isArray(d.closeReq.approvals) ? d.closeReq.approvals.map(String) : [] } : null,
 });
 const toExpense = (id: string, d: DocumentData): ExpenseDoc => ({
@@ -108,9 +110,11 @@ export interface Profile {
   pending: Record<string, string>;
   /** 自己上載嘅頭像（data URL） */
   avatar: string | null;
+  payEmail: string;
 }
 
 const toProfile = (_id: string, d: DocumentData): Profile => ({
+  payEmail: d.payEmail ? String(d.payEmail) : '',
   groups: Array.isArray(d.groups) ? d.groups.map(String) : [],
   pending: d.pending && typeof d.pending === 'object' ? Object.fromEntries(Object.entries(d.pending).map(([k, v]) => [k, String(v)])) : {},
   avatar: typeof d.avatar === 'string' ? d.avatar : null,
@@ -118,7 +122,7 @@ const toProfile = (_id: string, d: DocumentData): Profile => ({
 
 export function useProfile(uid: string | null): Live<Profile> {
   const r = useLiveDoc(uid ? ['users', uid] : null, toProfile);
-  return { data: r.data ?? { groups: [], pending: {}, avatar: null }, loading: r.loading, error: r.error };
+  return { data: r.data ?? { groups: [], pending: {}, avatar: null, payEmail: '' }, loading: r.loading, error: r.error };
 }
 
 export function useUserGroups(uid: string | null): Live<string[]> {

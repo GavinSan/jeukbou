@@ -55,7 +55,7 @@ export default function SessionPage({ user, groupId, sessionId }: { user: User; 
       settleHref={`/g/${groupId}/s/${sessionId}/settle`}
       water={session.data.closed ? undefined : { on: !session.data.noWater, onToggle: (on) => setSessionNoWater(groupId, sessionId, !on) }}
       closedNote={session.data.closed
-        ? <Link to={`/g/${groupId}/s/${sessionId}/settle`} className="banner calm"><span className="stamp small-stamp">已埋數</span><span className="grow">睇轉賬</span></Link>
+        ? <Link to={`/g/${groupId}/s/${sessionId}/pay`} className="banner calm closed-banner"><span className="stamp small-stamp">已埋數</span><span className="grow">轉賬詳情：邊個俾邊個、已轉未轉</span><span className="chev" aria-hidden="true">›</span></Link>
         : session.data.closeReq
           ? <Link to={`/g/${groupId}/s/${sessionId}/settle`} className="banner"><span className="grow">有人申請埋數，撳入去同意</span></Link>
           : null}

@@ -25,6 +25,9 @@ import type { JoinMode, JoinRequest } from './lib/data.ts';
 import { AddSheet, GroupRowView, SearchAdd } from './pages/Groups.tsx';
 import { DashboardView, ResumeRow } from './pages/Home.tsx';
 import { RankView } from './pages/RankPage.tsx';
+import { MyPayView } from './pages/MyPayPage.tsx';
+import { AdminView } from './pages/AdminPage.tsx';
+import type { PayItem } from './lib/pay.ts';
 import { Invite, JoinRequestsView, MemberList } from './pages/GroupPage.tsx';
 import type { MemberStat } from './pages/GroupPage.tsx';
 import { PlayerSheet } from './components/BoardView.tsx';
@@ -213,6 +216,45 @@ export default function Demo() {
         <NoticeBar />
       </>
     );
+  }
+
+  if (path === '/demo/pay') {
+    const mk = (sid: string, sname: string, from: string, to: string, amount: number, paid = false): PayItem => ({
+      gid: 'a', gname: '不打不相識', sid, sname, at: Date.now() - Number(sid.slice(1)) * 86400000, from, to, amount, key: `${from}>${to}`, paid,
+      dir: from.split(' + ').includes('gavin') ? 'pay' : to.split(' + ').includes('gavin') ? 'get' : 'other', currency: 'CAD',
+    });
+    const items = [
+      mk('s1', '10月19日 屋企局', 'gavin + athena', 'tony', 28.83),
+      mk('s1', '10月19日 屋企局', 'janice', 'gavin', 7),
+      mk('s3', '10月16日 屋企局', 'gavin', 'kingsang', 16.66),
+      mk('s5', '10月14日 屋企局', 'ivan', 'gavin', 12.5),
+      mk('s9', '10月10日 屋企局', 'gavin', 'tony', 9.33, true),
+    ];
+    return (
+      <MyPayView
+        me="gavin"
+        items={items}
+        legacy={[{ gid: 'a', gname: '不打不相識', sid: 'l1', sname: '9月19日 舊紀錄', at: Date.now() - 30 * 86400000, fan: -67, cash: -11.17 }]}
+        names={{ gavin: 'Gavin', athena: 'Athena', tony: 'Tony Tsui', janice: 'Janice Yeung', kingsang: 'King Sang Li', ivan: 'Ivan' }}
+        emails={{ tony: 'tony.tsui@example.com', kingsang: 'ksl@example.com' }}
+        loading={false}
+        onToggle={() => undefined}
+      />
+    );
+  }
+
+  if (path === '/demo/admin') {
+    const day = 86400000;
+    const now = Date.now();
+    const people = [['gavin', 'Gavin', 'gavin@example.com'], ['athena', 'Athena', 'athena@example.com'], ['tony', 'Tony Tsui', 'tony@example.com'], ['janice', 'Janice Yeung', ''], ['kingsang', 'King Sang Li', 'ksl@example.com'], ['ivan', 'Ivan', 'ivan@example.com']];
+    const groups = [
+      { id: 'a', name: '不打不相識', ownerId: 'gavin', joinMode: 'approve', joinCode: 'k7pq2m', members: people.map(([uid, name]) => ({ uid, name })),
+        sessions: [0, 3, 5, 9, 30].map((d, i) => ({ id: `s${i}`, name: `${new Date(now - d * day).getMonth() + 1}月${new Date(now - d * day).getDate()}日 屋企局`, at: now - d * day, closed: i > 0, legacy: i === 4 })) },
+      { id: 'b', name: '星期五雀局', ownerId: 'tony', joinMode: 'auto', joinCode: 'zz81qa', members: people.slice(1, 5).map(([uid, name]) => ({ uid, name })),
+        sessions: [2, 12].map((d, i) => ({ id: `t${i}`, name: `星期五 ${i + 1}`, at: now - d * day, closed: true, legacy: false })) },
+    ];
+    const users = people.map(([uid, name, email]) => ({ uid, name, email, payEmail: email, groups: uid === 'gavin' ? ['a'] : uid === 'ivan' ? ['a'] : ['a', 'b'], updatedAt: now - day }));
+    return <AdminView me="gavin" groups={groups} users={users} error="" onRefresh={() => undefined} />;
   }
 
   if (path === '/demo/rank') {

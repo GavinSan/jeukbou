@@ -21,6 +21,8 @@ const PlayersPage = lazyPage(() => import('./pages/PlayersPage.tsx'));
 const GroupsPage = lazyPage(() => import('./pages/Groups.tsx'));
 const RankPage = lazyPage(() => import('./pages/RankPage.tsx'));
 const SettingsPage = lazyPage(() => import('./pages/SettingsPage.tsx'));
+const MyPayPage = lazyPage(() => import('./pages/MyPayPage.tsx'));
+const PayPage = lazyPage(() => import('./pages/PayPage.tsx'));
 import TabBar, { HOME_DEMO_TABS, appTabs } from './components/TabBar.tsx';
 import { navContext } from './lib/nav.ts';
 import { GroupWatchers, NoticeBar } from './components/Watch.tsx';
@@ -35,10 +37,12 @@ function Routes({ user, refresh }: { user: User; refresh: () => void }) {
   if (path === '/groups') return <GroupsPage user={user} />;
   if (path === '/rank') return <RankPage user={user} />;
   if (path === '/settings') return <SettingsPage user={user} />;
+  if (path === '/pay') return <MyPayPage user={user} />;
   if ((m = match('/join/:g/:code/s/:s', path))) return <Join user={user} groupId={m.g} code={m.code} sessionId={m.s} />;
   if ((m = match('/join/:g/:code', path))) return <Join user={user} groupId={m.g} code={m.code} />;
   if ((m = match('/g/:g/new', path))) return <NewSession user={user} groupId={m.g} />;
   if ((m = match('/g/:g/s/:s/t/:t', path))) return <TablePage user={user} groupId={m.g} sessionId={m.s} tableId={m.t} />;
+  if ((m = match('/g/:g/s/:s/pay', path))) return <PayPage user={user} groupId={m.g} sessionId={m.s} />;
   if ((m = match('/g/:g/s/:s/settle', path))) return <SettlePage user={user} groupId={m.g} sessionId={m.s} />;
   if ((m = match('/g/:g/s/:s/rules', path))) return <RulesPage user={user} groupId={m.g} sessionId={m.s} />;
   if ((m = match('/g/:g/s/:s', path))) return <SessionPage user={user} groupId={m.g} sessionId={m.s} />;
@@ -84,8 +88,8 @@ export default function App() {
     return (
       <>
         <Suspense fallback={<main className="page narrow"><Loading /></main>}><Demo /></Suspense>
-        {path === '/demo/home' || path === '/demo/rank' || path === '/demo/groups'
-          ? <TabBar tabs={HOME_DEMO_TABS} active={path === '/demo/rank' ? 'rank' : path === '/demo/groups' ? 'groups' : 'home'} />
+        {path === '/demo/admin' ? null : path === '/demo/home' || path === '/demo/rank' || path === '/demo/groups' || path === '/demo/pay'
+          ? <TabBar tabs={HOME_DEMO_TABS} active={path === '/demo/rank' ? 'rank' : path === '/demo/groups' ? 'groups' : path === '/demo/pay' ? 'pay' : 'home'} />
           : <TabBar tabs={demoTabs} active={active} />}
       </>
     );

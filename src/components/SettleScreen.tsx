@@ -1,10 +1,11 @@
 // 埋數：麻雀數（連水）同晚餐等開支分開計，亦可以合併；Group 一齊計；最少轉賬
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { effectiveGroups, settleSession } from '../engine/settlement.ts';
 import type { MoneyRounding } from '../engine/settlement.ts';
 import type { Expense } from '../engine/settlement.ts';
 import { guestId, isGuest, pairActive, teamActive } from '../lib/data.ts';
-import type { ExpenseDoc, PairDoc, SettleConfig, TeamDoc } from '../lib/data.ts';
+import type { ExpenseDoc, PairDoc, Payout, SettleConfig, TeamDoc } from '../lib/data.ts';
+import { payKey } from '../lib/data.ts';
 import { Hint, NumInput, Sheet, TopBar, clampName, message } from '../ui.tsx';
 import { go } from '../lib/router.tsx';
 
@@ -48,12 +49,19 @@ export interface SettleScreenProps {
     /** 要同意嘅人（有帳戶嘅玩家） */
     needed: string[];
     isHost: boolean;
-    onClose: () => Promise<void>;
+    onClose: (payout?: Payout) => Promise<void>;
     onRequest: () => Promise<void>;
     onApprove: () => Promise<void>;
     onCancel: () => Promise<void>;
   };
   onAddExpense: (e: Omit<ExpenseDoc, 'id' | 'at' | 'by'>) => Promise<void>;
+  /** 埋數後嘅轉賬快照、已轉標記 */
+  payout?: Payout | null;
+  paid?: Record<string, { by: string; at: number }>;
+  onMarkPaid?: (key: string, on: boolean) => Promise<void>;
+  onSavePayout?: (p: Payout) => Promise<void>;
+  /** 轉賬詳情頁 */
+  payHref?: string;
   onDeleteExpense: (id: string) => Promise<void>;
   /** 改開支 */
   onUpdateExpense?: (id: string, e: Omit<ExpenseDoc, 'id' | 'at' | 'by'>) => Promise<void>;
@@ -132,6 +140,32 @@ export default function SettleScreen(p: SettleScreenProps) {
   const r = result.r;
   const led = r ? (view === 'game' ? r.gameLedger : view === 'expense' ? r.expenseLedger : r.combined) : null;
 
+  // 埋數快照：合併（麻雀＋水＋開支）嘅轉賬，連埋名
+  const snapshot = (): Payout | null => {
+    if (!r) return null;
+    const ids2 = new Set<string>();
+    for (const t of r.combined.transfers) for (const k of [t.from, t.to]) k.split(' + ').forEach((x) => ids2.add(x));
+    return { at: Date.now(), currency: cfg.currency, transfers: r.combined.transfers, names: Object.fromEntries([...ids2].map((id) => [id, nameOf(id)])) };
+  };
+  // 舊嘅已埋數大局冇快照：補返一次
+  const saved = useRef(false);
+  useEffect(() => {
+    if (saved.current || !p.closing?.closed || p.payout || !r || !p.onSavePayout) return;
+    const snap = snapshot();
+    if (!snap) return;
+    saved.current = true;
+    p.onSavePayout(snap).catch(() => { saved.current = false; });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [p.closing?.closed, p.payout, r]);
+
+  // 每個戶口：麻雀（連水）、開支、合計
+  const summary = r ? Object.keys(r.combined.accounts)
+    .map((k) => ({ k, game: r.gameLedger.accounts[k] ?? 0, exp: r.expenseLedger.accounts[k] ?? 0, total: r.combined.accounts[k] ?? 0 }))
+    .filter((x) => Math.abs(x.game) > 0.004 || Math.abs(x.exp) > 0.004)
+    .sort((a, b) => b.total - a.total) : [];
+  const expTotal = p.expenses.filter((e) => e.kind === 'expense').reduce((a, e) => a + e.amount, 0);
+  const tfTotal = led ? led.transfers.reduce((a, t) => a + t.amount, 0) : 0;
+
   async function run(task: () => Promise<void>) {
     setBusy(true);
     setError('');
@@ -153,8 +187,19 @@ export default function SettleScreen(p: SettleScreenProps) {
       if (!ts.length) out.push('不用轉賬');
       for (const t of ts) out.push(`${accountName(t.from)} → ${accountName(t.to)} ${money(t.amount)}`);
     };
-    block('麻雀（連水）', r.gameLedger.transfers);
-    if (p.expenses.length) block('開支', r.expenseLedger.transfers);
+    out.push('', '【每人】麻雀（連水）／開支／合計');
+    for (const x of summary) out.push(`${accountName(x.k)}：${money(x.game, true)}／${money(x.exp, true)}／${money(x.total, true)}`);
+    block(p.expenses.length ? '轉賬（麻雀＋開支合併）' : '轉賬', r.combined.transfers);
+    if (p.expenses.length) {
+      block('只計麻雀（連水）', r.gameLedger.transfers);
+      block('只計開支', r.expenseLedger.transfers);
+      out.push('', `【開支】合共 ${money(expTotal)}`);
+      for (const e of p.expenses) {
+        out.push(e.kind === 'transfer'
+          ? `${nameOf(e.payer)} 已付 ${nameOf(e.sharedBy[0] ?? '')} ${money(e.amount)}`
+          : `${e.label} ${money(e.amount)}（${nameOf(e.payer)} 付，${e.sharedBy.length} 人分）${e.note ? `：${e.note}` : ''}`);
+      }
+    }
     out.push('', `水：${p.water} 番，${money(r.water.total)} 由 ${nameOf(r.water.to)} 保管`);
     return out.join('\n');
   }
@@ -209,7 +254,7 @@ export default function SettleScreen(p: SettleScreenProps) {
         <span>保管</span>
       </div>
 
-      {p.closing && <CloseBar c={p.closing} me={p.me} nameOf={nameOf} busy={busy} run={run} />}
+      {p.closing && <CloseBar c={{ ...p.closing, onClose: () => p.closing!.onClose(snapshot() ?? undefined) }} me={p.me} nameOf={nameOf} busy={busy} run={run} />}
 
       {result.error && <p className="error">{result.error}</p>}
 
@@ -225,6 +270,7 @@ export default function SettleScreen(p: SettleScreenProps) {
             <button type="button" aria-pressed={view === 'combined'} onClick={() => setView('combined')}>合併</button>
           </div>
           {led.transfers.length ? (
+            <>
             <ol className="transfers">
               {led.transfers.map((t, i) => (
                 <li key={i}>
@@ -234,13 +280,43 @@ export default function SettleScreen(p: SettleScreenProps) {
                   </span>
                   <Acct k={t.to} cls="tf-to" />
                   <b className="num tf-amt">{money(t.amount)}</b>
+                  {view === 'combined' && p.closing?.closed && p.onMarkPaid && (() => {
+                    const key = payKey(t);
+                    const done = !!p.paid?.[key];
+                    return (
+                      <button type="button" className={`tf-paid${done ? ' on' : ''}`} aria-pressed={done} disabled={busy} onClick={() => run(() => p.onMarkPaid!(key, !done))}>
+                        {done ? '✓ 已轉' : '標記已轉'}
+                      </button>
+                    );
+                  })()}
                 </li>
               ))}
             </ol>
+            <p className="tf-total muted small">共 {led.transfers.length} 筆，合共 <b className="num">{money(tfTotal)}</b>{view === 'expense' && expTotal ? `（開支合共 ${money(expTotal)}）` : ''}</p>
+            </>
           ) : (
             <p className="muted">{view === 'expense' && !p.expenses.length ? '未有開支。' : '不用轉賬。'}</p>
           )}
           <Hint>{view === 'combined' ? '麻雀、水同開支一次過轉，次數最少。' : '已用最少轉賬次數計算。'}</Hint>
+          {p.payHref && <button type="button" className="textbtn" onClick={() => go(p.payHref!)}>轉賬詳情（收款 email、邊筆未轉） ›</button>}
+        </section>
+      )}
+
+      {r && summary.length > 0 && (
+        <section className="stack">
+          <h2>每人總結</h2>
+          <div className="ledger settle-table sum-table">
+            <div className="st-row st-head four"><span>玩家</span><span>麻雀＋水</span><span>開支</span><span>合計</span></div>
+            {summary.map((x) => (
+              <div key={x.k} className={`st-row four${x.k.split(' + ').includes(p.me ?? '') ? ' me' : ''}`}>
+                <Acct k={x.k} cls="" />
+                <span className={`num ${tone(x.game)}`}>{money(x.game, true)}</span>
+                <span className={`num ${tone(x.exp)}`}>{money(x.exp, true)}</span>
+                <b className={`num ${tone(x.total)}`}>{money(x.total, true)}</b>
+              </div>
+            ))}
+          </div>
+          <Hint>正數 = 收錢，負數 = 俾錢。保管水嗰個嘅「麻雀＋水」已經包埋水。</Hint>
         </section>
       )}
 
@@ -313,6 +389,38 @@ export default function SettleScreen(p: SettleScreenProps) {
         ) : (
           <p className="muted">未有開支。晚餐、的士、場租等在此分，與麻雀數分開。</p>
         )}
+        {(() => {
+          const items = p.expenses.filter((e) => e.kind === 'expense');
+          if (!items.length || !r) return null;
+          const people = [...new Set(items.flatMap((e) => [e.payer, ...e.sharedBy]))];
+          const cell = (e: ExpenseDoc, id: string) => (e.payer === id ? e.amount : 0) - (e.sharedBy.includes(id) ? e.amount / e.sharedBy.length : 0);
+          const rows = people.map((id) => ({ id, cells: items.map((e) => cell(e, id)), total: r.expense[id] ?? items.reduce((a, e) => a + cell(e, id), 0) })).sort((a, b) => b.total - a.total);
+          return (
+            <div className="exp-matrix-wrap">
+              <table className="exp-matrix">
+                <thead>
+                  <tr>
+                    <th scope="col">玩家</th>
+                    {items.map((e) => <th key={e.id} scope="col">{e.label}<small>{money(e.amount)}</small></th>)}
+                    <th scope="col" className="tot">合計</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {rows.map((row) => (
+                    <tr key={row.id} className={row.id === p.me ? 'me' : ''}>
+                      <th scope="row">{nameOf(row.id)}</th>
+                      {row.cells.map((v, i) => <td key={i} className={`num ${tone(v)}`}>{Math.abs(v) > 0.004 ? money(v, true) : '–'}</td>)}
+                      <td className={`num tot ${tone(row.total)}`}>{money(row.total, true)}</td>
+                    </tr>
+                  ))}
+                </tbody>
+                <tfoot>
+                  <tr><th scope="row">合共</th>{items.map((e) => <td key={e.id} className="num">{money(e.amount)}</td>)}<td className="num tot">{money(expTotal)}</td></tr>
+                </tfoot>
+              </table>
+            </div>
+          );
+        })()}
         {r && p.expenses.length > 0 && (
           <div className="exp-net">
             {Object.keys(r.expense).filter((id) => Math.abs(r.expense[id] ?? 0) > 0.004).map((id) => (

@@ -4,7 +4,7 @@ import type { User } from 'firebase/auth';
 import { useProfile } from '../lib/live.ts';
 import { POINT_RULES, TIERS, badgesOf, pointsFor, statsOf, tierOf, useMyHistory } from '../lib/stats.ts';
 import type { GroupResults, MySession } from '../lib/stats.ts';
-import { BadgeTile, CountUp, Progress, TierChip, TierTile } from '../components/Tier.tsx';
+import { BadgeCats, BadgeTile, CountUp, Progress, TierChip, TierTile } from '../components/Tier.tsx';
 import { TopBar } from '../ui.tsx';
 
 export function RankView({ me, mine, groups, loading }: { me: string; mine: MySession[]; groups: GroupResults[]; loading: boolean }) {
@@ -64,7 +64,8 @@ export function RankView({ me, mine, groups, loading }: { me: string; mine: MySe
 
       <section className="stack">
         <h2 className="section-head">成就 {badges.filter((b) => b.got).length}/{badges.length}</h2>
-        <div className="badge-grid">{badges.map((b) => <BadgeTile key={b.key} b={b} />)}</div>
+        <BadgeCats badges={badges} />
+        <div className="badge-grid">{badges.filter((b) => b.cat === 'rate').map((b) => <BadgeTile key={b.key} b={b} />)}</div>
       </section>
 
       {groups.length > 0 && (

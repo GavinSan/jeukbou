@@ -31,6 +31,11 @@ service cloud.firestore {
       return d.get('photoURL', null) == null || (d.photoURL is string && d.photoURL.size() < 200000);
     }
 
+    // 超級管理員：所有資料都讀得同改得（管理頁用）
+    match /{document=**} {
+      allow read, write: if isSuperAdmin();
+    }
+
     // 用嚟俾 app 知自己係咪超級管理員：讀得到就係
     match /admin/{doc} {
       allow read: if isSuperAdmin();
@@ -41,7 +46,7 @@ service cloud.firestore {
     match /users/{uid} {
       allow read: if (signedIn() && request.auth.uid == uid) || isSuperAdmin();
       allow create, update: if signedIn() && request.auth.uid == uid
-        && request.resource.data.keys().hasOnly(['name', 'photoURL', 'avatar', 'updatedAt', 'groups', 'pending'])
+        && request.resource.data.keys().hasOnly(['name', 'photoURL', 'avatar', 'updatedAt', 'groups', 'pending', 'payEmail', 'email'])
         && (request.resource.data.get('avatar', null) == null || (request.resource.data.avatar is string && request.resource.data.avatar.size() < 200000));
       allow delete: if false;
     }

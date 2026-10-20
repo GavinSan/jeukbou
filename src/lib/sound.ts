@@ -169,6 +169,12 @@ export const sfx = {
         [2400, 2900, 3300, 2700].forEach((f, i) => ping(c, t + 1.4 + i * 0.09, jitter(f, 0.04), 0.12));
         break;
       }
+      case 'forgot': // 唔記得開：「咚」一聲重重，跟住「哎～」跌落嚟
+        tone(c, t, 90, 0.5, { type: 'sine', gain: 0.55, to: 45 });
+        clack(c, t, 0.7, 900);
+        [523.25, 466.16, 392, 311.13].forEach((f, i) => tone(c, t + 0.18 + i * 0.13, f, 0.18, { type: 'triangle', gain: 0.12, to: f * 0.94 }));
+        tone(c, t + 0.75, 233, 0.5, { type: 'sawtooth', gain: 0.05, to: 180 });
+        break;
       case 'triple': // 骰仔碌完，升調小號「噹噹噹～」
         for (let i = 0; i < 7; i++) clack(c, t + i * 0.06 + Math.random() * 0.03, 0.3, 1800 + Math.random() * 1500);
         [523.25, 659.25, 783.99, 1046.5].forEach((f, i) => tone(c, t + 0.5 + i * 0.1, f, i === 3 ? 0.5 : 0.14, { type: 'square', gain: 0.06 }));
