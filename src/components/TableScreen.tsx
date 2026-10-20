@@ -49,6 +49,8 @@ export interface Candidate {
   name: string;
   /** 喺同一個大局另一張枱打緊（換人 = 兩張枱對調） */
   table?: { id: string; name: string };
+  /** 今晚大局入面有份（打過枱或者今日人物） */
+  tonight?: boolean;
 }
 
 export interface TableScreenProps {
@@ -990,30 +992,34 @@ export default function TableScreen(props: TableScreenProps) {
               </div>
               <div className="field">
                 <span>誰加入？</span>
-                <div className="choices">
-                  {free.filter((p) => !p.table).map((p) => (
+                {(() => {
+                  const here = free.filter((p) => p.tonight || p.table);
+                  const rest = free.filter((p) => !p.tonight && !p.table);
+                  const chip = (p: Candidate) => (
                     <button key={p.id} type="button" className="choice" aria-pressed={swapIn === p.id} onClick={() => setSwapIn(p.id)}>
-                      <span className="ellipsis">{p.name}</span><small>{p.id.startsWith('guest-') ? '訪客' : '需對方接受'}</small>
+                      <span className="ellipsis">{p.name}</span>
+                      <small>{p.table ? `${p.table.name}打緊・會對調` : p.id.startsWith('guest-') ? '訪客' : '今晚有份'}{!p.id.startsWith('guest-') ? '・需接受' : ''}</small>
                     </button>
-                  ))}
-                  <button type="button" className="choice" aria-pressed={swapIn === '__guest'} onClick={() => setSwapIn('__guest')}>新訪客<small>無帳戶</small></button>
-                </div>
-                {free.some((p) => p.table) && (
-                  <>
-                    <span className="small muted">其他枱（會兩邊對調）</span>
-                    <div className="choices">
-                      {free.filter((p) => p.table).map((p) => (
-                        <button key={p.id} type="button" className="choice" aria-pressed={swapIn === p.id} onClick={() => setSwapIn(p.id)}>
-                          <span className="ellipsis">{p.name}</span><small>{p.table!.name}打緊{p.id.startsWith('guest-') ? '' : '・需接受'}</small>
-                        </button>
-                      ))}
-                    </div>
-                  </>
-                )}
+                  );
+                  return (
+                    <>
+                      <span className="small muted">今晚大局入面</span>
+                      <div className="choices">
+                        {here.map(chip)}
+                        <button type="button" className="choice" aria-pressed={swapIn === '__guest'} onClick={() => setSwapIn('__guest')}>＋ 新訪客<small>無帳戶</small></button>
+                      </div>
+                      {rest.length > 0 && (
+                        <details className="more-people">
+                          <summary className="small muted">其他牌友圈成員（{rest.length}）</summary>
+                          <div className="choices">{rest.map(chip)}</div>
+                        </details>
+                      )}
+                    </>
+                  );
+                })()}
                 {swapIn === '__guest' && (
                   <input id="swap-guest" className="input" value={guestName} onChange={(e) => setGuestName(clampName(e.target.value))} placeholder="訪客名" aria-label="訪客名" />
                 )}
-                {free.length === 0 && <p className="muted small">冇其他人。可以用大局邀請連結叫新人。</p>}
               </div>
               <button
                 type="button"

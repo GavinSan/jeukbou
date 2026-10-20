@@ -1818,3 +1818,9 @@ a.badge-link:active { transform: scale(.97); }
 :root[data-skin="minimal"] .hero { background: #111; box-shadow: none; }
 :root[data-skin="minimal"] .award { box-shadow: none; }
 :root[data-skin="minimal"] .tabbar { border-radius: 18px; box-shadow: 0 4px 16px rgba(0, 0, 0, .08); }
+
+/* 換人：其他成員收埋 */
+.more-people summary { cursor: pointer; padding: 6px 0; list-style: none; }
+.more-people summary::-webkit-details-marker { display: none; }
+.more-people summary::after { content: ' ›'; }
+.more-people[open] summary::after { content: ' ⌄'; }

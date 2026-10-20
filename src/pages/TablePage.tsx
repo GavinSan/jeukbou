@@ -55,17 +55,26 @@ export default function TablePage({ user, groupId, sessionId, tableId }: { user:
   const tableEvents = events[tableId] ?? [];
   const seatedAnywhere = new Set<string>();
   for (const x of Object.values(computed)) if (x && !x.state.ended) x.state.seats.forEach((s) => seatedAnywhere.add(s));
-  // 換人：空閒成員、打完枱嘅訪客、同埋其他枱打緊嘅人（會對調）
-  const candidates: { id: string; name: string; table?: { id: string; name: string } }[] = members.data.filter((m) => !seatedAnywhere.has(m.uid)).map((m) => ({ id: m.uid, name: m.name }));
+  // 換人：今晚大局入面嘅人（其他枱打緊、打完枱、今日有份）排先，再加其他成員同訪客
+  const tonight = new Set<string>();
+  for (const t of tables.data) { const x = computed[t.id]; if (x) Object.keys(x.state.settled).forEach((id) => tonight.add(id)); }
+  for (const pl of session.data?.people ?? []) tonight.add(pl.id);
+  const candidates: { id: string; name: string; table?: { id: string; name: string }; tonight?: boolean }[] = [];
   for (const t of tables.data) {
     if (t.id === tableId) continue;
     const x = computed[t.id];
     if (!x) continue;
     for (const s of x.state.seats) {
       if (candidates.some((k) => k.id === s)) continue;
-      if (!x.state.ended) candidates.push({ id: s, name: t.names[s] ?? '玩家', table: { id: t.id, name: t.name } });
-      else if (isGuest(s) && !seatedAnywhere.has(s)) candidates.push({ id: s, name: t.names[s] ?? '訪客' });
+      if (!x.state.ended) candidates.push({ id: s, name: t.names[s] ?? '玩家', table: { id: t.id, name: t.name }, tonight: true });
+      else if (!seatedAnywhere.has(s)) candidates.push({ id: s, name: t.names[s] ?? (isGuest(s) ? '訪客' : '玩家'), tonight: true });
     }
+  }
+  for (const pl of session.data?.people ?? []) {
+    if (!seatedAnywhere.has(pl.id) && !candidates.some((k) => k.id === pl.id)) candidates.push({ id: pl.id, name: pl.name, tonight: true });
+  }
+  for (const m of members.data) {
+    if (!seatedAnywhere.has(m.uid) && !candidates.some((k) => k.id === m.uid)) candidates.push({ id: m.uid, name: m.name, tonight: tonight.has(m.uid) });
   }
 
   // 只有坐喺呢張枱嘅人（同場主、局主）先可以入數；其他人只可以睇
