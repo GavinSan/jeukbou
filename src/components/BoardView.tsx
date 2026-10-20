@@ -5,6 +5,8 @@ import { boardRows } from '../lib/history.ts';
 import type { SessionResult } from '../lib/history.ts';
 import { Link } from '../lib/router.tsx';
 import { Sheet, fmt } from '../ui.tsx';
+import { addPlay, emptyPlay } from '../lib/score.ts';
+import Awards, { PlayTable } from './Awards.tsx';
 
 type Period = 'day' | 'week' | 'month' | 'year' | 'all';
 const PERIODS: [Period, string][] = [['day', '日'], ['week', '週'], ['month', '月'], ['year', '年'], ['all', '全部']];
@@ -59,6 +61,7 @@ export default function BoardView({ sessions, names, me, sessionHref }: {
     return sessions.filter((s) => s.at >= a && s.at < b);
   }, [sessions, period, anchor]);
   const rows = useMemo(() => boardRows(inRange, names), [inRange, names]);
+  const play = useMemo(() => inRange.reduce((acc, x) => (x.play ? addPlay(acc, x.play) : acc), emptyPlay()), [inRange]);
   const days = new Set(inRange.map((s) => md(s.at))).size;
 
   return (
@@ -79,6 +82,14 @@ export default function BoardView({ sessions, names, me, sessionHref }: {
       {rows.length ? (
         <div className="list pad"><Leaderboard rows={rows} me={me} onPick={setPick} /></div>
       ) : <p className="muted center-text">此段時間未有紀錄。</p>}
+      {play.hands > 0 && (
+        <section className="stack">
+          <h2 className="section-head">數據</h2>
+          <Awards play={play} name={(id) => names[id] || '玩家'} />
+          <PlayTable play={play} ids={rows.map((r) => r.id)} name={(id) => names[id] || '玩家'} />
+          {inRange.some((x) => !x.play) && <p className="muted small">匯入嘅舊紀錄只有總數，冇食糊、自摸呢啲數據。</p>}
+        </section>
+      )}
       {pick && (
         <PlayerSheet
           id={pick}
@@ -118,6 +129,18 @@ export function PlayerSheet({ id, name, sessions, all, scope, sessionHref, onClo
         <div><small>最好</small><b className="num gain">{fmt(best)}</b></div>
         <div><small>最差</small><b className="num loss">{fmt(worst)}</b></div>
       </div>
+      {(() => {
+        const pl = sessions.reduce((acc, x) => (x.play ? addPlay(acc, x.play) : acc), emptyPlay());
+        if (!pl.hands) return null;
+        return (
+          <div className="stat-grid">
+            <div><small>食糊</small><b className="num">{pl.wins[id] ?? 0}</b></div>
+            <div><small>自摸</small><b className="num gain">{pl.selfDraws[id] ?? 0}</b></div>
+            <div><small>出銃</small><b className="num loss">{pl.dealIns[id] ?? 0}</b></div>
+            <div><small>最大一鋪</small><b className="num">{pl.best[id] ?? 0}</b></div>
+          </div>
+        );
+      })()}
       {vals.length > 1 && (
         <svg className="mini-bars" viewBox={`0 0 ${vals.length * 14} 80`} preserveAspectRatio="none" aria-label="每場上落">
           <line x1="0" x2={vals.length * 14} y1="40" y2="40" className="viz-zero" />

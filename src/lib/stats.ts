@@ -19,6 +19,12 @@ export interface MySession {
   /** 當晚排第幾（1 = 龍頭） */
   rank: number;
   players: number;
+  /** 呢晚我食糊、自摸、出銃幾多次、最大一鋪（舊紀錄冇） */
+  wins?: number;
+  selfDraws?: number;
+  dealIns?: number;
+  best?: number;
+  hands?: number;
 }
 
 export interface GroupResults {
@@ -109,6 +115,14 @@ export interface Stats {
   /** 最近一個月場數 */
   month: number;
   maxMonth: number;
+  /** 有詳細紀錄嘅場（唔計舊紀錄）入面：食糊、自摸、出銃、最大一鋪 */
+  wins: number;
+  selfDraws: number;
+  dealIns: number;
+  bestFan: number;
+  detailed: number;
+  /** 每個月嘅輸贏（最近 6 個月） */
+  months: { label: string; total: number; played: number }[];
 }
 
 export function statsOf(list: MySession[]): Stats {
@@ -150,6 +164,18 @@ export function statsOf(list: MySession[]): Stats {
     curve,
     month: sorted.filter((s) => now - s.at < 30 * 86400000).length,
     maxMonth: Math.max(0, ...perMonth.values()),
+    wins: sorted.reduce((a, s) => a + (s.wins ?? 0), 0),
+    selfDraws: sorted.reduce((a, s) => a + (s.selfDraws ?? 0), 0),
+    dealIns: sorted.reduce((a, s) => a + (s.dealIns ?? 0), 0),
+    bestFan: Math.max(0, ...sorted.map((s) => s.best ?? 0)),
+    detailed: sorted.filter((s) => s.wins !== undefined).length,
+    months: Array.from({ length: 6 }, (_, i) => {
+      const d = new Date();
+      d.setDate(1);
+      d.setMonth(d.getMonth() - (5 - i));
+      const inM = sorted.filter((s) => { const x = new Date(s.at); return x.getFullYear() === d.getFullYear() && x.getMonth() === d.getMonth(); });
+      return { label: `${d.getMonth() + 1}月`, total: inM.reduce((a, s) => a + s.mine, 0), played: inM.length };
+    }),
   };
 }
 
@@ -178,6 +204,9 @@ export function badgesOf(st: Stats): Badge[] {
     b('big', '大豐收', '豐', '一場贏 300 番', Math.max(0, st.best), 300),
     b('iron', '鐵人', '鐵', '一個月打 8 場', st.maxMonth, 8),
     b('multi', '周圍打', '圈', '喺 2 個牌友圈有紀錄', st.groups, 2),
+    b('self10', '自摸王', '摸', '自摸 10 次', st.selfDraws, 10),
+    b('win50', '食糊機', '食', '食糊 50 次', st.wins, 50),
+    b('hundred-fan', '百番', '番', '一鋪食 100 番', st.bestFan, 100),
   ];
 }
 
@@ -194,11 +223,11 @@ async function loadGroup(gid: string): Promise<GroupResults | null> {
   const sessions: Session[] = sSnap.docs.map((d) => toSessionDoc(d.id, d.data()))
     .sort((a, b) => (a.createdAt?.toMillis() ?? 0) - (b.createdAt?.toMillis() ?? 0));
   const legacy = legacyMap(g, members);
-  const results = await Promise.all(sessions.map((s) => sessionTotals(g, s, legacy).catch(() => ({ totals: {} as Record<string, number>, names: {} as Record<string, string> }))));
+  const results = await Promise.all(sessions.map((s) => sessionTotals(g, s, legacy).catch(() => ({ totals: {} as Record<string, number>, names: {} as Record<string, string>, play: undefined }))));
   const names: Record<string, string> = {};
   const out: SessionResult[] = results.map((r, i) => {
     for (const [id, n] of Object.entries(r.names)) names[id] = names[id] || n;
-    return { id: sessions[i].id, name: sessions[i].name, at: sessions[i].createdAt?.toMillis() ?? Date.now(), totals: r.totals };
+    return { id: sessions[i].id, name: sessions[i].name, at: sessions[i].createdAt?.toMillis() ?? Date.now(), totals: r.totals, play: r.play };
   });
   for (const m of members) names[m.uid] = m.name;
   return { gid, name: g.name, sessions: out.filter((s) => Object.keys(s.totals).length > 0), names };
@@ -211,7 +240,11 @@ export function mySessions(groups: GroupResults[], uid: string): MySession[] {
       if (!(uid in s.totals)) continue;
       const vals = Object.values(s.totals);
       const mine = s.totals[uid];
-      out.push({ gid: g.gid, gname: g.name, sid: s.id, name: s.name, at: s.at, mine, rank: 1 + vals.filter((v) => v > mine).length, players: vals.length });
+      const pl = s.play;
+      out.push({
+        gid: g.gid, gname: g.name, sid: s.id, name: s.name, at: s.at, mine, rank: 1 + vals.filter((v) => v > mine).length, players: vals.length,
+        ...(pl ? { wins: pl.wins[uid] ?? 0, selfDraws: pl.selfDraws[uid] ?? 0, dealIns: pl.dealIns[uid] ?? 0, best: pl.best[uid] ?? 0, hands: pl.hands } : {}),
+      });
     }
   }
   return out.sort((a, b) => a.at - b.at);

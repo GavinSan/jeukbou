@@ -1,5 +1,6 @@
 // 段位牌、成就牌、數字跳動、圓環：首頁同段位頁用
 import { useEffect, useRef, useState } from 'react';
+import type { CSSProperties } from 'react';
 import type { Badge, Tier } from '../lib/stats.ts';
 
 /** 段位：一隻象牙色牌，刻住段位字，邊框顏色分段 */
@@ -15,9 +16,14 @@ export function TierChip({ tier }: { tier: Tier }) {
   return <span className={`tier-chip ${tier.cls}`}>{tier.name}</span>;
 }
 
+const BADGE_COLORS = ['#C08A16', '#2E7D5B', '#B02E26', '#7146B5', '#2F63B0', '#E5703A', '#2C8A8A', '#D9607A'];
+
 export function BadgeTile({ b }: { b: Badge }) {
+  let h = 0;
+  for (const ch of b.key) h = (h * 31 + ch.charCodeAt(0)) % 997;
+  const color = BADGE_COLORS[h % BADGE_COLORS.length];
   return (
-    <div className={`badge${b.got ? ' got' : ''}`} title={b.note}>
+    <div className={`badge${b.got ? ' got' : ''}`} title={b.note} style={{ '--bc': color } as CSSProperties}>
       <span className="badge-mark" aria-hidden="true">{b.mark}</span>
       <b>{b.name}</b>
       <small>{b.note}</small>

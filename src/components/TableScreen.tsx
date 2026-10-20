@@ -102,6 +102,8 @@ export default function TableScreen(props: TableScreenProps) {
   const [chaseKind, setChaseKind] = useState<'fan' | 'other'>('fan');
   const [repeat, setRepeat] = useState(0);
   const [instant, setInstant] = useState(false);
+  /** 暗槓／天槓唔記得開：反轉做罰，加倍 */
+  const [forgot, setForgot] = useState(false);
   const [burst, setBurst] = useState<{ art: Art; text?: string; key: number } | null>(null);
   const [swapOut, setSwapOut] = useState('');
   const [swapIn, setSwapIn] = useState('');
@@ -188,7 +190,8 @@ export default function TableScreen(props: TableScreenProps) {
     const art = last ? artOf(last) : null;
     if (art && last?.type === 'special') {
       const rep = last.meta?.repeat ?? 0;
-      setBurst((b) => ({ art, text: art === 'chase' ? (rep > 0 ? `追 ×${rep + 1}` : '追') : art === 'heaven' ? '天槓！' : undefined, key: (b?.key ?? 0) + 1 }));
+      const pen = !!last.meta?.penalty;
+      setBurst((b) => ({ art: pen ? 'pong' : art, text: pen ? '罰！' : art === 'chase' ? (rep > 0 ? `追 ×${rep + 1}` : '追') : art === 'heaven' ? '天槓！' : undefined, key: (b?.key ?? 0) + 1 }));
     }
     if (!isNew && lastStep && lastStep.seq < before.lastSeq) sfx.undo();
     else if (last?.type === 'win') {
@@ -200,6 +203,7 @@ export default function TableScreen(props: TableScreenProps) {
       if (isNew && top >= 30) setParty((p) => ({ fan: top, key: (p?.key ?? 0) + 1 }));
     }
     else if (hp) { sfx.settle(); buzz('hit'); }
+    else if (last?.type === 'special' && last.meta?.penalty) { sfx.falseWin(); buzz('hit'); }
     else if (last?.type === 'special') { sfx.special(art ?? ''); buzz(art === 'heaven' ? 'win' : 'tap'); }
     else if (last?.type === 'falseWin') {
       sfx.falseWin();
@@ -405,15 +409,23 @@ export default function TableScreen(props: TableScreenProps) {
     }
   }, [editing, c, rules, table.seats]);
 
-  function openSpecial() {
+  /** 打開特別事項；由撳人嗰度嚟就預先揀好人（同款） */
+  function openSpecial(forWho = '', art: Art | '' = '') {
     unlock();
     if (viewOnly) { flash('你唔喺呢張枱，只可以睇'); return; }
     if (locked) { flash('請先決定是否找數'); return; }
+    if (roundsDone) { flash('已打完圈數，請先揀繼續定完場'); return; }
     setError('');
-    setSpArt('');
-    setWho('');
-    setRepeat(0);
-    setInstant(false);
+    setEntry(null);
+    setSpArt(art);
+    setSpPlay((n) => n + 1);
+    setWho(forWho);
+    setForgot(false);
+    if (art === 'chase') { const r = suggestRepeat(lastStep?.event, chaseKind); setRepeat(r); setInstant(r > 0); }
+    else { setRepeat(0); setInstant(false); }
+    if (art === 'false') sfx.falseWin();
+    else if (art === 'heaven') sfx.special('kong');
+    else if (art) sfx.special(art);
     setMore('special');
   }
 
@@ -533,7 +545,7 @@ export default function TableScreen(props: TableScreenProps) {
       )}
       {!ended && !viewOnly && !roundsDone && (
         <div className="acts">
-          <button type="button" className="act" disabled={locked} onClick={openSpecial}><span>特別事項</span><small>花草槓骰追詐</small></button>
+          <button type="button" className="act" disabled={locked} onClick={() => openSpecial()}><span>特別事項</span><small>花草槓骰追詐</small></button>
           <button type="button" className="act" disabled={locked} onClick={() => { unlock(); setError(''); setMore('draw'); }}><span>流局</span><small>無人食糊</small></button>
           <button type="button" className="act end" onClick={() => { unlock(); setError(''); setMore('end'); }}><span>完場</span><small>結算全部</small></button>
         </div>
@@ -632,7 +644,7 @@ export default function TableScreen(props: TableScreenProps) {
                   <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18" /></svg>
                 </button>
               </div>
-              <p className="dock-ask">按枱上<b>出銃</b>的人，或者：</p>
+              <p className="dock-ask">食糊：按枱上<b>出銃</b>的人，或者：</p>
               <div className="dock-chips">
                 {entry.winners.length === 1 && (
                   <button type="button" className="pill big-pill" onClick={() => { setEntry({ ...entry, loser: null, step: 'fan', current: entry.winners[0] }); sfx.tap(); }}>自摸<small>三家付</small></button>
@@ -644,6 +656,16 @@ export default function TableScreen(props: TableScreenProps) {
                   </button>
                 ))}
               </div>
+              {entry.winners.length === 1 && (
+                <div className="dock-sp">
+                  <span className="small muted">或者 {name(entry.winners[0])} 有特別事項：</span>
+                  <div className="dock-sp-row">
+                    {SPECIAL_ITEMS.map((it) => (
+                      <button key={it.art} type="button" className={`sp-chip sp-chip-${it.art}`} onClick={() => openSpecial(entry.winners[0], it.art)}>{it.label}</button>
+                    ))}
+                  </div>
+                </div>
+              )}
             </>
           ) : (
             <>
@@ -775,10 +797,15 @@ export default function TableScreen(props: TableScreenProps) {
           {more === 'special' && (() => {
             const item = SPECIAL_ITEMS.find((x) => x.art === spArt);
             const isChase = spArt === 'chase';
-            const amount = isChase ? chaseAmount(chaseKind, repeat, instant) : spArt === 'heaven' ? HEAVEN_AMOUNT : spArt === 'false' ? rules.falseWinPenalty : item?.amount ?? 0;
+            const canForget = spArt === 'kong' || spArt === 'heaven';
+            const penalty = canForget && forgot;
+            const base = isChase ? chaseAmount(chaseKind, repeat, instant) : spArt === 'heaven' ? HEAVEN_AMOUNT : spArt === 'false' ? rules.falseWinPenalty : item?.amount ?? 0;
+            const amount = penalty ? base * 2 : base;
+            const dir = penalty ? 'pay' : item?.dir;
             const pick = (art: Art) => {
               unlock();
               setSpArt(art);
+              setForgot(false);
               setSpPlay((n) => n + 1);
               if (art === 'chase') { const r = suggestRepeat(lastStep?.event, chaseKind); setRepeat(r); setInstant(r > 0); sfx.tap(); }
               // 每款撳落去都有自己把聲（天槓留返入數先播全套）
@@ -840,12 +867,18 @@ export default function TableScreen(props: TableScreenProps) {
                     {instant && <p className={`chase-note heat-${repeat}`}>{repeat === 0 ? '即摸' : `即摸，再追 ${repeat} 次`}：{chaseAmount(chaseKind, 0, false)} + {5 * (repeat + 1)} = 每家 {amount}{repeat === CHASE_MAX_REPEAT ? '（封頂）' : ''}</p>}
                   </div>
                 )}
+                {canForget && (
+                  <div className="seg wide forgot-seg" role="radiogroup" aria-label="開咗定唔記得開">
+                    <button type="button" role="radio" aria-checked={!forgot} aria-pressed={!forgot} onClick={() => { setForgot(false); sfx.tap(); }}>開咗<small>收每家 {base}</small></button>
+                    <button type="button" role="radio" aria-checked={forgot} aria-pressed={forgot} className="forgot-on" onClick={() => { setForgot(true); sfx.falseWin(); }}>唔記得開<small>罰每家 {base * 2}</small></button>
+                  </div>
+                )}
                 {spArt && (
                   <div className="field">
-                    <span>{item?.dir === 'collect' ? '誰收？' : isChase ? '誰被追？' : spArt === 'false' ? '誰詐糊？' : '誰付？'}</span>
+                    <span>{penalty ? '誰唔記得開？' : item?.dir === 'collect' ? '誰收？' : isChase ? '誰被追？' : spArt === 'false' ? '誰詐糊？' : '誰付？'}</span>
                     <div className="choices">
                       {seats.map((s) => (
-                        <button key={s} type="button" className={`choice${item?.dir === 'pay' ? ' loser' : ''}`} aria-pressed={who === s} onClick={() => setWho(s)}>
+                        <button key={s} type="button" className={`choice${dir === 'pay' ? ' loser' : ''}`} aria-pressed={who === s} onClick={() => setWho(s)}>
                           <span className="ellipsis">{name(s)}</span>
                         </button>
                       ))}
@@ -860,14 +893,14 @@ export default function TableScreen(props: TableScreenProps) {
                     if (!item) return;
                     if (item.art === 'false') { push({ type: 'falseWin', player: who }, '已入數'); return; }
                     const rep = instant ? repeat : 0;
-                    const label = isChase ? `被追（${chaseKind === 'fan' ? '番子' : '非番子'}${instant ? '，即摸' : ''}）${rep > 0 ? `同一隻第 ${rep + 1} 次` : ''}` : item.label;
+                    const label = isChase ? `被追（${chaseKind === 'fan' ? '番子' : '非番子'}${instant ? '，即摸' : ''}）${rep > 0 ? `同一隻第 ${rep + 1} 次` : ''}` : penalty ? `${item.label}唔記得開（罰）` : item.label;
                     push({
-                      type: 'special', player: who, label, amount, direction: item.dir,
-                      meta: isChase ? { art: 'chase', chase: chaseKind, repeat: rep, instant } : { art: item.art },
+                      type: 'special', player: who, label, amount, direction: penalty ? 'pay' : item.dir,
+                      meta: isChase ? { art: 'chase', chase: chaseKind, repeat: rep, instant } : penalty ? { art: item.art, penalty: true } : { art: item.art },
                     }, '已入數');
                   }}
                 >
-                  {item ? `入數，${item.dir === 'collect' ? '收' : '付'}每家 ${amount}` : '請選擇'}
+                  {item ? `入數，${dir === 'collect' ? '收' : '付'}每家 ${amount}` : '請選擇'}
                 </button>
               </>
             );

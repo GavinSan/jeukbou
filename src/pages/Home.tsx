@@ -6,7 +6,7 @@ import { useProfile, useSession } from '../lib/live.ts';
 import { Link } from '../lib/router.tsx';
 import { Avatar, TopBar, fmt } from '../ui.tsx';
 import { navContext } from '../lib/nav.ts';
-import { badgesOf, sessionPoints, statsOf, tierOf, useMyHistory } from '../lib/stats.ts';
+import { TIERS, badgesOf, sessionPoints, statsOf, tierOf, useMyHistory } from '../lib/stats.ts';
 import type { MySession } from '../lib/stats.ts';
 import { BadgeTile, CountUp, Progress, Ring, TierTile } from '../components/Tier.tsx';
 import { TrendChart } from '../components/Charts.tsx';
@@ -16,6 +16,75 @@ const Chevron = () => (
 );
 
 const md = (t: number) => { const d = new Date(t); return `${d.getMonth() + 1}月${d.getDate()}日`; };
+
+/** 段位梯：八格顏色，去到邊格就亮到邊格 */
+function TierStrip({ points }: { points: number }) {
+  return (
+    <div className="tier-strip" aria-hidden="true">
+      {TIERS.map((t, i) => {
+        const next = TIERS[i + 1];
+        const fill = points >= (next?.min ?? Infinity) ? 1 : points >= t.min ? (next ? (points - t.min) / (next.min - t.min) : 1) : 0;
+        return (
+          <span key={t.name} className={`ts-seg ${t.cls}`} title={`${t.name} ${t.min} 分`}>
+            <i style={{ width: `${Math.round(fill * 100)}%`, animationDelay: `${i * 0.08}s` }} />
+          </span>
+        );
+      })}
+    </div>
+  );
+}
+
+/** 最近 12 個星期：每日一格，贏綠輸紅，越深越多 */
+function Heatmap({ mine }: { mine: MySession[] }) {
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  const start = new Date(today);
+  start.setDate(start.getDate() - ((today.getDay() + 6) % 7) - 7 * 11);
+  const byDay = new Map<number, number>();
+  for (const s of mine) {
+    const d = new Date(s.at);
+    d.setHours(0, 0, 0, 0);
+    byDay.set(d.getTime(), (byDay.get(d.getTime()) ?? 0) + s.mine);
+  }
+  const max = Math.max(1, ...[...byDay.values()].map(Math.abs));
+  const days = Array.from({ length: 84 }, (_, i) => { const d = new Date(start); d.setDate(start.getDate() + i); return d; });
+  const played = days.filter((d) => byDay.has(d.getTime())).length;
+  return (
+    <div className="heat-wrap">
+      <div className="heat" role="img" aria-label={`最近 12 個星期打咗 ${played} 日`}>
+        {days.map((d) => {
+          const v = byDay.get(d.getTime());
+          const level = v === undefined ? 0 : Math.min(4, 1 + Math.floor((Math.abs(v) / max) * 3.99));
+          const cls = v === undefined ? '' : v >= 0 ? `w${level}` : `l${level}`;
+          return <span key={d.getTime()} className={`hc ${cls}${d > today ? ' future' : ''}`} title={v === undefined ? md(d.getTime()) : `${md(d.getTime())}：${fmt(v)}`} />;
+        })}
+      </div>
+      <div className="heat-legend muted small"><span>12 星期前</span><span>打咗 {played} 日</span><span>今日</span></div>
+    </div>
+  );
+}
+
+/** 最近六個月：每月輸贏 */
+function MonthBars({ months }: { months: { label: string; total: number; played: number }[] }) {
+  const max = Math.max(1, ...months.map((m) => Math.abs(m.total)));
+  return (
+    <div className="mbars">
+      {months.map((m, i) => {
+        const h = (Math.abs(m.total) / max) * 46;
+        return (
+          <div key={m.label} className="mbar">
+            <span className={`mbar-val num ${m.total > 0 ? 'gain' : m.total < 0 ? 'loss' : 'muted'}`}>{m.played ? fmt(m.total) : ''}</span>
+            <span className="mbar-track">
+              <i className={m.total >= 0 ? 'up' : 'down'} style={{ height: `${Math.max(m.played ? 3 : 0, h)}px`, animationDelay: `${i * 0.06}s` }} />
+            </span>
+            <small>{m.label}</small>
+            <small className="muted">{m.played ? `${m.played} 場` : '–'}</small>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
 const signed = (n: number) => fmt(Math.round(n));
 
 /** 上次去開嘅大局（未埋數先顯示） */
@@ -67,6 +136,7 @@ export function DashboardView({ name, photo, joined, groupCount, mine, loading, 
           </div>
           <Progress value={t.progress} />
           <small>{t.next ? `再 ${t.toNext} 分升「${t.next.name}」` : '已到最高段位'}</small>
+          <TierStrip points={st.points} />
         </div>
       </section>
 
@@ -102,6 +172,29 @@ export function DashboardView({ name, photo, joined, groupCount, mine, loading, 
               <b className="num gain"><CountUp value={st.best} format={signed} /></b>
               <span className="muted small">龍頭 {st.tops} 次 · 最長連贏 {st.bestStreak}</span>
             </div>
+          </section>
+
+          {st.detailed > 0 && (
+            <section className="stack">
+              <h2 className="section-head">我嘅數據</h2>
+              <div className="my-stats">
+                <div className="ms ms-gold"><span className="ms-mark">食</span><b className="num"><CountUp value={st.wins} /></b><small>食糊</small></div>
+                <div className="ms ms-green"><span className="ms-mark">摸</span><b className="num"><CountUp value={st.selfDraws} /></b><small>自摸</small></div>
+                <div className="ms ms-red"><span className="ms-mark">銃</span><b className="num"><CountUp value={st.dealIns} /></b><small>出銃</small></div>
+                <div className="ms ms-purple"><span className="ms-mark">大</span><b className="num"><CountUp value={st.bestFan} /></b><small>最大一鋪</small></div>
+              </div>
+              <p className="muted small">每場平均食糊 {(st.wins / st.detailed).toFixed(1)} 次、出銃 {(st.dealIns / st.detailed).toFixed(1)} 次（{st.detailed} 場有詳細紀錄）</p>
+            </section>
+          )}
+
+          <section className="stack">
+            <h2 className="section-head">打牌日曆</h2>
+            <div className="list pad"><Heatmap mine={mine} /></div>
+          </section>
+
+          <section className="stack">
+            <h2 className="section-head">每月輸贏</h2>
+            <div className="list pad"><MonthBars months={st.months} /></div>
           </section>
 
           {st.curve.length > 2 && (

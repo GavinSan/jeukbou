@@ -346,6 +346,24 @@ for (const scheme of ['light', 'dark']) {
       await page.screenshot({ path: `${out}/gag-ink.png` });
       await page.waitForTimeout(2400);
     });
+    await step('forgot', async () => {
+      await page.goto(`${base}/demo/t/1`, { waitUntil: 'networkidle' });
+      await page.waitForTimeout(1200);
+      await page.getByRole('button', { name: /^Sang，/ }).click();
+      await page.waitForTimeout(300);
+      await page.screenshot({ path: `${out}/tap-player.png` });
+      await page.locator('.sp-chip-kong').click();
+      await page.waitForTimeout(300);
+      await page.getByRole('radio', { name: /^唔記得開/ }).click();
+      await page.waitForTimeout(200);
+      await page.screenshot({ path: `${out}/kong-forgot.png` });
+      await page.getByRole('button', { name: /^入數，付每家 10/ }).click();
+      await page.waitForTimeout(600);
+      await page.goto(`${base}/demo`, { waitUntil: 'networkidle' });
+      await page.waitForTimeout(800);
+      await page.locator('h2', { hasText: '全場數據' }).scrollIntoViewIfNeeded();
+      await page.screenshot({ path: `${out}/session-stats.png` });
+    });
     await step('dealer', async () => {
       await page.goto(`${base}/demo/t/2`, { waitUntil: 'networkidle' });
       await page.waitForTimeout(1200);

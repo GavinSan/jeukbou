@@ -4,7 +4,7 @@ import { useEffect, useMemo, useState } from 'react';
 import type { TableEvent } from './engine/table.ts';
 import { withRules } from './engine/rules.ts';
 import type { Dice, StoredEvent, TableDoc, LogEvent } from './lib/data.ts';
-import { computeTable } from './lib/score.ts';
+import { computeTable, emptyPlay } from './lib/score.ts';
 import type { Computed } from './lib/score.ts';
 import { match, usePath } from './lib/router.tsx';
 import SessionScreen from './components/SessionScreen.tsx';
@@ -118,7 +118,20 @@ const DEMO_GROUPS: GroupResults[] = (() => {
       const last = players[players.length - 1];
       totals[last] -= sum;
       const d = new Date(at);
-      sessions.push({ id: `${gid}${i}`, name: `${d.getMonth() + 1}月${d.getDate()}日 屋企局`, at, totals });
+      // 示範數據：每人食糊、自摸、出銃、最大一鋪；每圈 35–55 分鐘
+      const play = emptyPlay();
+      play.hands = 24 + Math.floor(rnd() * 10);
+      for (const p of players) {
+        play.wins[p] = Math.floor(rnd() * 7);
+        play.selfDraws[p] = Math.floor(rnd() * 3);
+        play.dealIns[p] = Math.floor(rnd() * 6);
+        play.best[p] = 10 + Math.floor(rnd() * 70);
+      }
+      play.biggest = { player: players[Math.floor(rnd() * players.length)], fan: 60 + Math.floor(rnd() * 80) };
+      play.maxStreak = { player: players[Math.floor(rnd() * players.length)], n: 1 + Math.floor(rnd() * 4) };
+      play.roundMs = [0, 1, 2, 3].map(() => (35 + rnd() * 20) * 60000);
+      play.playMs = play.roundMs.reduce((a, b) => a + b, 0);
+      sessions.push({ id: `${gid}${i}`, name: `${d.getMonth() + 1}月${d.getDate()}日 屋企局`, at, totals, play });
     }
     return { gid, name, sessions, names: DEMO_NAMES };
   };

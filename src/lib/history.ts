@@ -4,17 +4,19 @@ import { collection, getDocs, orderBy, query } from 'firebase/firestore';
 import { LEGACY, fs } from './data.ts';
 import type { Group, Session } from './data.ts';
 import { toEvent, toTable } from './live.ts';
-import { computeTable, rulesOf, rulesTimeline } from './score.ts';
+import { addPlay, computeTable, emptyPlay, rulesOf, rulesTimeline } from './score.ts';
+import type { PlayStats } from './score.ts';
 import type { BoardRow } from '../components/Charts.tsx';
 
 // 已埋數嘅大局唔會再變：計過一次就記住（呢部機），下次即刻有
-const CACHE_KEY = 'jeukbou-totals-v1';
-let memo: Record<string, { totals: Record<string, number>; names: Record<string, string> }> | null = null;
+const CACHE_KEY = 'jeukbou-totals-v2';
+type Totals = { totals: Record<string, number>; names: Record<string, string>; play?: PlayStats };
+let memo: Record<string, Totals> | null = null;
 function cacheGet(k: string) {
   if (!memo) { try { memo = JSON.parse(localStorage.getItem(CACHE_KEY) ?? '{}'); } catch { memo = {}; } }
   return memo?.[k];
 }
-function cachePut(k: string, v: { totals: Record<string, number>; names: Record<string, string> }) {
+function cachePut(k: string, v: Totals) {
   if (!memo) memo = {};
   memo[k] = v;
   try { localStorage.setItem(CACHE_KEY, JSON.stringify(memo)); } catch { /* 存唔到就算 */ }
@@ -25,7 +27,7 @@ function hash(text: string): string {
   return h.toString(36);
 }
 
-export async function sessionTotals(g: Group, s: Session, legacy: Record<string, string>): Promise<{ totals: Record<string, number>; names: Record<string, string> }> {
+export async function sessionTotals(g: Group, s: Session, legacy: Record<string, string>): Promise<Totals> {
   // 匯入嘅舊紀錄：直接用總數；配對咗嘅就當係嗰個成員
   if (s.legacy) {
     const totals: Record<string, number> = {};
@@ -46,17 +48,19 @@ export async function sessionTotals(g: Group, s: Session, legacy: Record<string,
   const rules = rulesTimeline(g, s);
   const totals: Record<string, number> = {};
   const names: Record<string, string> = {};
+  let play = emptyPlay();
   await Promise.all(
     tables.map(async (t) => {
       const evSnap = await getDocs(query(collection(fs(), 'groups', g.id, 'sessions', s.id, 'tables', t.id, 'events'), orderBy('seq')));
       const c = computeTable(t, evSnap.docs.map((d) => toEvent(d.id, d.data())), rules);
       if (!c) return;
       Object.assign(names, t.names);
+      play = addPlay(play, c.stats);
       for (const id of Object.keys(c.state.settled)) totals[id] = (totals[id] ?? 0) + (c.state.settled[id] ?? 0) + (c.pending[id] ?? 0);
     }),
   );
-  if (ck) cachePut(ck, { totals, names });
-  return { totals, names };
+  if (ck) cachePut(ck, { totals, names, play });
+  return { totals, names, play };
 }
 
 /** 一個大局嘅結果（龍虎榜用） */
@@ -65,6 +69,8 @@ export interface SessionResult {
   name: string;
   at: number;
   totals: Record<string, number>;
+  /** 食糊、自摸、出銃、時間等（舊紀錄冇） */
+  play?: PlayStats;
 }
 
 export interface History {
@@ -82,11 +88,11 @@ export function useHistory(group: Group | null, sessions: Session[], memberNames
     let alive = true;
     (async () => {
       const ordered = [...sessions].sort((a, b) => (a.createdAt?.toMillis() ?? 0) - (b.createdAt?.toMillis() ?? 0));
-      const results = await Promise.all(ordered.map((s) => sessionTotals(group, s, legacy).catch(() => ({ totals: {} as Record<string, number>, names: {} as Record<string, string> }))));
+      const results = await Promise.all(ordered.map((s) => sessionTotals(group, s, legacy).catch((): Totals => ({ totals: {}, names: {} }))));
       const names: Record<string, string> = {};
       const out: SessionResult[] = results.map((r, i) => {
         for (const [id, n] of Object.entries(r.names)) names[id] = names[id] || n;
-        return { id: ordered[i].id, name: ordered[i].name, at: ordered[i].createdAt?.toMillis() ?? Date.now(), totals: r.totals };
+        return { id: ordered[i].id, name: ordered[i].name, at: ordered[i].createdAt?.toMillis() ?? Date.now(), totals: r.totals, play: r.play };
       });
       for (const [id, n] of Object.entries(memberNames)) names[id] = n;
       if (alive) setState({ sessions: out, names, loading: false });

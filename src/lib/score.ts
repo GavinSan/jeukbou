@@ -24,6 +24,21 @@ export interface TableStats {
   selfDraws: number;
   wins: Record<string, number>;
   dealIns: Record<string, number>;
+  /** 每人自摸幾多次 */
+  selfDrawBy: Record<string, number>;
+  /** 每人最大一鋪 */
+  bestBy: Record<string, number>;
+  falseWins: Record<string, number>;
+  /** 特別事項次數 */
+  specials: number;
+  /** 最長連莊 */
+  maxStreak: { player: string; n: number } | null;
+  /** 拉得最耐嘅一條 */
+  maxChain: { puller: string; pulled: string; count: number } | null;
+  /** 每個打完嘅圈用咗幾耐（毫秒） */
+  roundMs: number[];
+  /** 第一鋪到最後一鋪 */
+  playMs: number;
 }
 
 export interface Computed {
@@ -105,20 +120,93 @@ export function netOf(d: Step['delta'], fallback = true): Record<string, number>
 }
 
 function statsOf(steps: Step[]): TableStats {
-  const s: TableStats = { hands: 0, biggest: null, selfDraws: 0, wins: {}, dealIns: {} };
-  for (const { event } of steps) {
+  const s: TableStats = {
+    hands: 0, biggest: null, selfDraws: 0, wins: {}, dealIns: {}, selfDrawBy: {}, bestBy: {}, falseWins: {}, specials: 0,
+    maxStreak: null, maxChain: null, roundMs: [], playMs: 0,
+  };
+  let first: number | null = null;
+  let last: number | null = null;
+  let roundStart: number | null = null;
+  let turns = 0;
+  for (const { event, result, at } of steps) {
+    if (at !== null) {
+      if (first === null) { first = at; roundStart = at; }
+      last = at;
+    }
+    const st = result.state;
+    // 圈數：莊轉咗四次 = 一圈
+    if (st.dealerTurns !== turns) {
+      if (Math.floor(st.dealerTurns / 4) > Math.floor(turns / 4) && at !== null && roundStart !== null) {
+        s.roundMs.push(at - roundStart);
+        roundStart = at;
+      }
+      turns = st.dealerTurns;
+    }
+    if (st.streak > (s.maxStreak?.n ?? 0)) s.maxStreak = { player: st.seats[st.dealerSeat], n: st.streak };
+    for (const ch of st.chains) if (ch.count > (s.maxChain?.count ?? 0)) s.maxChain = { puller: ch.puller, pulled: ch.pulled, count: ch.count };
+    if (event.type === 'special') s.specials += 1;
+    if (event.type === 'falseWin') s.falseWins[event.player] = (s.falseWins[event.player] ?? 0) + 1;
     if (event.type === 'draw') s.hands += 1;
     if (event.type !== 'win') continue;
     s.hands += 1;
-    if (event.loser === null) s.selfDraws += 1;
-    else s.dealIns[event.loser] = (s.dealIns[event.loser] ?? 0) + 1;
+    if (event.loser === null) {
+      s.selfDraws += 1;
+      const w = event.winners[0]?.player;
+      if (w) s.selfDrawBy[w] = (s.selfDrawBy[w] ?? 0) + 1;
+    } else s.dealIns[event.loser] = (s.dealIns[event.loser] ?? 0) + 1;
     for (const w of event.winners) {
       s.wins[w.player] = (s.wins[w.player] ?? 0) + 1;
+      s.bestBy[w.player] = Math.max(s.bestBy[w.player] ?? 0, w.fan);
       if (!s.biggest || w.fan > s.biggest.fan) s.biggest = { player: w.player, fan: w.fan };
     }
   }
+  if (first !== null && last !== null) s.playMs = last - first;
   return s;
 }
+
+/** 幾張枱（或者幾晚）嘅數據加埋 */
+export interface PlayStats {
+  hands: number;
+  wins: Record<string, number>;
+  selfDraws: Record<string, number>;
+  dealIns: Record<string, number>;
+  falseWins: Record<string, number>;
+  best: Record<string, number>;
+  biggest: { player: string; fan: number } | null;
+  maxStreak: { player: string; n: number } | null;
+  maxChain: { puller: string; pulled: string; count: number } | null;
+  roundMs: number[];
+  playMs: number;
+}
+
+export function emptyPlay(): PlayStats {
+  return { hands: 0, wins: {}, selfDraws: {}, dealIns: {}, falseWins: {}, best: {}, biggest: null, maxStreak: null, maxChain: null, roundMs: [], playMs: 0 };
+}
+
+export function addPlay(a: PlayStats, b: Pick<PlayStats, keyof PlayStats> | TableStats): PlayStats {
+  const add = (x: Record<string, number>, y: Record<string, number>) => { for (const [k, v] of Object.entries(y)) x[k] = (x[k] ?? 0) + v; };
+  const out: PlayStats = { ...a, wins: { ...a.wins }, selfDraws: { ...a.selfDraws }, dealIns: { ...a.dealIns }, falseWins: { ...a.falseWins }, best: { ...a.best }, roundMs: [...a.roundMs] };
+  for (const [k, v] of Object.entries('bestBy' in b ? b.bestBy : b.best)) out.best[k] = Math.max(out.best[k] ?? 0, v);
+  out.hands += b.hands;
+  add(out.wins, b.wins);
+  add(out.selfDraws, 'selfDrawBy' in b ? b.selfDrawBy : b.selfDraws);
+  add(out.dealIns, b.dealIns);
+  add(out.falseWins, b.falseWins);
+  if (b.biggest && (!out.biggest || b.biggest.fan > out.biggest.fan)) out.biggest = b.biggest;
+  if (b.maxStreak && (!out.maxStreak || b.maxStreak.n > out.maxStreak.n)) out.maxStreak = b.maxStreak;
+  if (b.maxChain && (!out.maxChain || b.maxChain.count > out.maxChain.count)) out.maxChain = b.maxChain;
+  out.roundMs.push(...b.roundMs);
+  out.playMs += b.playMs;
+  return out;
+}
+
+/** 邊個最多：返回 [id, 次數]（冇就 null） */
+export function topOf(rec: Record<string, number>): [string, number] | null {
+  const e = Object.entries(rec).filter(([, v]) => v > 0).sort((a, b) => b[1] - a[1]);
+  return e.length ? e[0] : null;
+}
+
+export const minutes = (ms: number) => Math.round(ms / 60000);
 
 /** 人哋睇得明嘅一句：「Gavin 食 Ivan 19 番」 */
 export function describe(event: TableEvent, name: (id: string) => string): string {

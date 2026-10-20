@@ -55,7 +55,7 @@ export type TableEvent =
   | {
       type: 'special'; player: PlayerId; label: string; amount: number; direction: 'collect' | 'pay';
       /** 介面用：邊款特別事項、追牌係番子定非番子、同一隻追咗幾多次 */
-      meta?: { art?: string; chase?: 'fan' | 'other'; repeat?: number; instant?: boolean };
+      meta?: { art?: string; chase?: 'fan' | 'other'; repeat?: number; instant?: boolean; penalty?: boolean };
     }
   | { type: 'falseWin'; player: PlayerId }
   | { type: 'draw' }

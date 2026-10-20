@@ -4,7 +4,8 @@ import type { ReactNode } from 'react';
 import type { TableDoc } from '../lib/data.ts';
 import { Link } from '../lib/router.tsx';
 import type { Computed } from '../lib/score.ts';
-import { ago, describe, netOf, trendOf } from '../lib/score.ts';
+import { addPlay, ago, describe, emptyPlay, netOf, trendOf } from '../lib/score.ts';
+import Awards, { PlayTable } from './Awards.tsx';
 import { Sparkline } from './Charts.tsx';
 import { Avatar, Chips, ConfirmDelete, CopyLink, Hint, RollingNumber, fmt, Sheet, TopBar, message, tone, useNow, clampName } from '../ui.tsx';
 import type { Candidate } from './TableScreen.tsx';
@@ -77,6 +78,9 @@ export default function SessionScreen({ title, back, tables, computed, tableHref
   }, [tables, computed]);
 
   const water = Object.values(computed).reduce((a, c) => a + (c?.state.water ?? 0), 0);
+  // 全場數據：幾張枱加埋
+  const play = useMemo(() => tables.reduce((acc, t) => (computed[t.id] ? addPlay(acc, computed[t.id]!.stats) : acc), emptyPlay()), [tables, computed]);
+  const allNames = useMemo(() => Object.assign({}, ...tables.map((t) => t.names)) as Record<string, string>, [tables]);
   const people = new Set(tables.flatMap((t) => Object.keys(computed[t.id]?.state.settled ?? {}).length ? Object.keys(computed[t.id]!.state.settled) : t.seats)).size;
 
   function toggle(p: Candidate) {
@@ -209,6 +213,15 @@ export default function SessionScreen({ title, back, tables, computed, tableHref
           </div>
         </section>
       )}
+
+      {play.hands > 0 && (
+        <section className="stack">
+          <h2 className="section-head">全場數據</h2>
+          <Awards play={play} name={(id) => allNames[id] ?? '玩家'} />
+          <PlayTable play={play} ids={ranking.map((r) => r.id)} name={(id) => allNames[id] ?? '玩家'} />
+        </section>
+      )}
+
 
       {feed.length > 0 && (
         <section className="stack">
