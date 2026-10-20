@@ -1658,3 +1658,7 @@ a.link-card { text-decoration: none; }
 .add-btn { flex: none; align-self: center; }
 .add-btn svg { width: 22px !important; height: 22px !important; flex: none; }
 .transfers .acct { overflow-wrap: break-word; word-break: normal; }
+.transfers li { gap: 6px !important; padding-left: 12px !important; padding-right: 10px !important; grid-template-columns: minmax(0, 1fr) 18px minmax(0, 1fr) 4.4em !important; }
+.transfers.has-paid li { grid-template-columns: minmax(0, 1fr) 18px minmax(0, 1fr) 4.2em 3.7em !important; }
+.transfers.has-paid .acct { font-size: 14px; }
+.transfers .tf-arrow svg { width: 18px; }
