@@ -998,7 +998,7 @@ export default function TableScreen(props: TableScreenProps) {
                   const chip = (p: Candidate) => (
                     <button key={p.id} type="button" className="choice" aria-pressed={swapIn === p.id} onClick={() => setSwapIn(p.id)}>
                       <span className="ellipsis">{p.name}</span>
-                      <small>{p.table ? `${p.table.name}打緊・會對調` : p.id.startsWith('guest-') ? '訪客' : '今晚有份'}{!p.id.startsWith('guest-') ? '・需接受' : ''}</small>
+                      <small>{[p.table ? `${p.table.name}打緊・會對調` : p.id.startsWith('guest-') ? '訪客' : p.tonight ? '今晚有份' : '', p.id.startsWith('guest-') ? '' : '需接受'].filter(Boolean).join('・')}</small>
                     </button>
                   );
                   return (
