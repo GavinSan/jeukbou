@@ -394,7 +394,13 @@ export default function SettleScreen(p: SettleScreenProps) {
           if (!items.length || !r) return null;
           const people = [...new Set(items.flatMap((e) => [e.payer, ...e.sharedBy]))];
           const cell = (e: ExpenseDoc, id: string) => (e.payer === id ? e.amount : 0) - (e.sharedBy.includes(id) ? e.amount / e.sharedBy.length : 0);
-          const rows = people.map((id) => ({ id, cells: items.map((e) => cell(e, id)), total: r.expense[id] ?? items.reduce((a, e) => a + cell(e, id), 0) })).sort((a, b) => b.total - a.total);
+          const rows = people.map((id) => {
+            const cells = items.map((e) => cell(e, id));
+            const total = cells.reduce((a, v) => a + v, 0);
+            return { id, cells, total, rounded: r.expense[id] ?? total };
+          }).sort((a, b) => b.total - a.total);
+          // 取整（例如去到 $1）之後同精確數唔同，就多一欄「取整後」，等每行自己加得埋
+          const showRounded = rows.some((x) => Math.abs(x.rounded - x.total) > 0.004);
           return (
             <div className="exp-matrix-wrap">
               <table className="exp-matrix">
@@ -403,6 +409,7 @@ export default function SettleScreen(p: SettleScreenProps) {
                     <th scope="col">玩家</th>
                     {items.map((e) => <th key={e.id} scope="col">{e.label}<small>{money(e.amount)}</small></th>)}
                     <th scope="col" className="tot">合計</th>
+                    {showRounded && <th scope="col" className="tot">取整後</th>}
                   </tr>
                 </thead>
                 <tbody>
@@ -411,17 +418,18 @@ export default function SettleScreen(p: SettleScreenProps) {
                       <th scope="row">{nameOf(row.id)}</th>
                       {row.cells.map((v, i) => <td key={i} className={`num ${tone(v)}`}>{Math.abs(v) > 0.004 ? money(v, true) : '–'}</td>)}
                       <td className={`num tot ${tone(row.total)}`}>{money(row.total, true)}</td>
+                      {showRounded && <td className={`num tot ${tone(row.rounded)}`}>{money(row.rounded, true)}</td>}
                     </tr>
                   ))}
                 </tbody>
                 <tfoot>
-                  <tr><th scope="row">合共</th>{items.map((e) => <td key={e.id} className="num">{money(e.amount)}</td>)}<td className="num tot">{money(expTotal)}</td></tr>
+                  <tr><th scope="row">合共</th>{items.map((e) => <td key={e.id} className="num">{money(e.amount)}</td>)}<td className="num tot">{money(expTotal)}</td>{showRounded && <td className="num tot" />}</tr>
                 </tfoot>
               </table>
             </div>
           );
         })()}
-        {r && p.expenses.length > 0 && (
+        {r && p.expenses.length > 0 && !p.expenses.some((e) => e.kind === 'expense') && (
           <div className="exp-net">
             {Object.keys(r.expense).filter((id) => Math.abs(r.expense[id] ?? 0) > 0.004).map((id) => (
               <span key={id}>{nameOf(id)} <b className={`num ${tone(r.expense[id])}`}>{money(r.expense[id], true)}</b></span>
