@@ -1655,3 +1655,6 @@ a.link-card { text-decoration: none; }
 .settle-table .st-row.six { grid-template-columns: minmax(0, 1.5fr) minmax(0, 1fr) minmax(0, .6fr) minmax(0, .9fr) minmax(0, .9fr) minmax(0, .8fr); }
 .board-table .st-row { font-size: 13px; }
 .board-table .rank-no, .settle-table .rank-no { display: inline-block; width: 1.4em; color: var(--muted); font-family: var(--font-num); font-size: 12px; }
+.add-btn { flex: none; align-self: center; }
+.add-btn svg { width: 22px !important; height: 22px !important; flex: none; }
+.transfers .acct { overflow-wrap: break-word; word-break: normal; }
