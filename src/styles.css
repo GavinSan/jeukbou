@@ -1274,3 +1274,21 @@ button.join-code:active { background: var(--line); }
 .tile .t-name > .dealer-mark { flex: none; }
 /* 紀錄表人名：長名分兩行，唔好切走 */
 .lg-names span { white-space: normal; overflow-wrap: anywhere; line-height: 1.15; font-size: 14px; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; align-self: end; }
+
+/* 戶口名：Group 逐個名一行，左邊一條線表示一齊計 */
+.acct { font-size: 16px; font-weight: 600; line-height: 1.25; min-width: 0; overflow-wrap: anywhere; }
+.acct.grp { display: flex; flex-direction: column; gap: 1px; padding-left: 9px; border-left: 3px solid currentColor; font-size: 15px; }
+.transfers li { grid-template-columns: minmax(0, 1fr) 28px minmax(0, 1fr) auto !important; align-items: center; }
+.tf-amt { font-size: 20px !important; white-space: nowrap; }
+.st-group-head .acct.grp { color: var(--ink); }
+.exp-row .exp-edit { flex: 1; min-width: 0; display: flex; align-items: center; gap: 12px; background: none; border: none; padding: 0; font: inherit; color: inherit; text-align: left; cursor: pointer; }
+.exp-edit:active { opacity: .7; }
+
+/* 大局：枱卡人名唔好切，籌碼放喺名下面 */
+.prow { align-items: center; }
+.prow-name { display: flex; flex-direction: column; min-width: 0; gap: 2px; }
+.prow-text { overflow-wrap: anywhere; line-height: 1.2; }
+.prow-dealer { display: inline-block; margin-left: 5px; font-size: 11px; padding: 0 5px; border-radius: 5px; background: var(--loss); color: #FFF6EE; vertical-align: 2px; }
+.prow-name .chips { transform: scale(.85); transform-origin: left center; }
+@media (max-width: 480px) { .tcard-rows { grid-template-columns: minmax(0, 1fr); } }
+.felt-water { font-size: 11px; opacity: .75; }

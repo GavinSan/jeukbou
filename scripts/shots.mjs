@@ -185,6 +185,13 @@ for (const scheme of ['light', 'dark']) {
       await page.screenshot({ path: `${out}/expense-guest.png` });
       await page.getByRole('button', { name: /^新增 \$36/ }).click();
       await page.waitForTimeout(300);
+      await page.getByRole('button', { name: '修改 晚餐' }).click();
+      await page.waitForTimeout(300);
+      await page.screenshot({ path: `${out}/expense-edit.png` });
+      await page.getByRole('dialog').getByLabel('金額').fill('200');
+      await page.getByRole('button', { name: /^儲存 \$200/ }).click();
+      await page.waitForTimeout(300);
+      await page.screenshot({ path: `${out}/settle-after.png`, fullPage: true });
     });
     await step('party', async () => {
       await page.goto(`${base}/demo/t/1`, { waitUntil: 'networkidle' });

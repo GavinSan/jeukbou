@@ -148,8 +148,10 @@ export default function SessionScreen({ title, back, tables, computed, tableHref
                   return (
                     <div key={id} className="prow">
                       <Avatar name={name(id)} size="sm" />
-                      <span className="ellipsis grow">{name(id)}{dealer ? '（莊）' : ''}</span>
-                      {owe[id] ? <Chips amount={owe[id]} /> : null}
+                      <span className="grow prow-name">
+                        <span className="prow-text">{name(id)}{dealer && <span className="prow-dealer">莊</span>}</span>
+                        {owe[id] ? <Chips amount={owe[id]} /> : null}
+                      </span>
                       <RollingNumber value={settled} className={`num ${tone(settled)}`} />
                     </div>
                   );
@@ -160,6 +162,7 @@ export default function SessionScreen({ title, back, tables, computed, tableHref
                   <span className="fact"><b>{c.stats.hands}</b> 鋪</span>
                   {c.stats.biggest && <span className="fact">最大 <b>{c.stats.biggest.fan}</b> 番（{name(c.stats.biggest.player)}）</span>}
                   {c.stats.selfDraws > 0 && <span className="fact">自摸 <b>{c.stats.selfDraws}</b></span>}
+                  <span className="fact">水 <b>{c.state.water}</b></span>
                   {c.state.chains.map((ch) => (
                     <span key={ch.puller + ch.pulled} className="fact la">{name(ch.puller)} 拉 {name(ch.pulled)} {ch.count}</span>
                   ))}

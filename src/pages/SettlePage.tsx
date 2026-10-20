@@ -1,7 +1,7 @@
 import { useMemo } from 'react';
 import type { User } from 'firebase/auth';
 import SettleScreen from '../components/SettleScreen.tsx';
-import { acceptPair, acceptTeam, addExpense, approveClose, cancelClose, closeSession, deleteExpense, deletePair, isGuest, proposePair, requestClose, saveSettleConfig, setSessionWaterTo, settleConfigOf } from '../lib/data.ts';
+import { acceptPair, acceptTeam, addExpense, updateExpense, approveClose, cancelClose, closeSession, deleteExpense, deletePair, isGuest, proposePair, requestClose, saveSettleConfig, setSessionWaterTo, settleConfigOf } from '../lib/data.ts';
 import { useSuperAdmin } from '../lib/admin.ts';
 import { useExpenses, useGroup, useManyEvents, useMembers, usePairs, useSession, useTables, useTeams } from '../lib/live.ts';
 import { computeTable, rulesOf, rulesTimeline } from '../lib/score.ts';
@@ -88,6 +88,7 @@ export default function SettlePage({ user, groupId, sessionId }: { user: User; g
       settingsHref={`/g/${groupId}/s/${sessionId}/rules#settle`}
       onAddExpense={(e) => addExpense(groupId, sessionId, { ...e, by: user.uid })}
       onDeleteExpense={(id) => deleteExpense(groupId, sessionId, id)}
+      onUpdateExpense={(id, e) => updateExpense(groupId, sessionId, id, e)}
       onProposePair={(a, b) => proposePair(groupId, sessionId, { a, b, by: user.uid, accepted: [a, b].filter((x) => x === user.uid) })}
       onAcceptPair={(id) => acceptPair(groupId, sessionId, id, user.uid)}
       onDeletePair={(id) => deletePair(groupId, sessionId, id)}

@@ -55,6 +55,8 @@ export interface SettleScreenProps {
   };
   onAddExpense: (e: Omit<ExpenseDoc, 'id' | 'at' | 'by'>) => Promise<void>;
   onDeleteExpense: (id: string) => Promise<void>;
+  /** 改開支 */
+  onUpdateExpense?: (id: string, e: Omit<ExpenseDoc, 'id' | 'at' | 'by'>) => Promise<void>;
   onProposePair: (a: string, b: string) => Promise<void>;
   onAcceptPair: (id: string) => Promise<void>;
   /** 同意預設 Group */
@@ -84,7 +86,7 @@ export function money(n: number, signed = false): string {
 const tone = (n: number) => (n > 0.004 ? 'gain' : n < -0.004 ? 'loss' : 'even');
 const fanTxt = (n: number) => (n > 0 ? `+${n}` : n < 0 ? `−${-n}` : '0');
 
-type SheetKind = null | 'config' | 'expense' | 'pair';
+type SheetKind = null | 'config' | 'expense' | 'pair' | { edit: ExpenseDoc };
 type View = 'game' | 'expense' | 'combined';
 
 export default function SettleScreen(p: SettleScreenProps) {
@@ -93,6 +95,12 @@ export default function SettleScreen(p: SettleScreenProps) {
   const guestNames: Record<string, string> = Object.assign({}, ...p.expenses.map((e) => e.names ?? {}));
   const nameOf = (id: string) => p.players.find((x) => x.id === id)?.name ?? p.accounts.find((x) => x.id === id)?.name ?? guestNames[id] ?? '玩家';
   const accountName = (key: string) => key.split(' + ').map(nameOf).join(' + ');
+  /** 戶口名：Group 就逐個名一行，唔使切 … */
+  const Acct = ({ k, cls }: { k: string; cls: string }) => {
+    const ids = k.split(' + ');
+    if (ids.length === 1) return <span className={`acct ${cls}`}>{nameOf(k)}</span>;
+    return <span className={`acct grp ${cls}`} title={accountName(k)}>{ids.map((id) => <span key={id}>{nameOf(id)}</span>)}</span>;
+  };
 
   const [sheet, setSheet] = useState<SheetKind>(null);
   const [view, setView] = useState<View>('game');
@@ -220,11 +228,11 @@ export default function SettleScreen(p: SettleScreenProps) {
             <ol className="transfers">
               {led.transfers.map((t, i) => (
                 <li key={i}>
-                  <span className="tf-from ellipsis">{accountName(t.from)}</span>
+                  <Acct k={t.from} cls="tf-from" />
                   <span className="tf-arrow" aria-label="付給">
                     <svg width="28" height="12" viewBox="0 0 28 12" aria-hidden="true"><path d="M1 6h24M20 1l5 5-5 5" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" /></svg>
                   </span>
-                  <span className="tf-to ellipsis">{accountName(t.to)}</span>
+                  <Acct k={t.to} cls="tf-to" />
                   <b className="num tf-amt">{money(t.amount)}</b>
                 </li>
               ))}
@@ -244,7 +252,7 @@ export default function SettleScreen(p: SettleScreenProps) {
             {gameBlocks.map((b) => b.members ? (
               <div key={b.key} className="st-group">
                 <div className="st-row three st-group-head">
-                  <span className="ellipsis">{b.name}</span>
+                  <span><Acct k={b.key} cls="" /></span>
                   <span className={`num ${tone(b.fan)}`}>{fanTxt(b.fan)}</span>
                   <b className={`num ${tone(b.cash)}`}>{money(b.cash, true)}</b>
                 </div>
@@ -285,6 +293,7 @@ export default function SettleScreen(p: SettleScreenProps) {
           <ul className="list exp-list">
             {p.expenses.map((e) => (
               <li key={e.id} className="exp-row">
+                <button type="button" className="exp-edit" aria-label={`修改 ${e.label}`} onClick={() => { setError(''); setSheet({ edit: e }); }}>
                 <span className="exp-tag">{e.kind === 'transfer' ? '轉' : e.label.slice(0, 1)}</span>
                 <span className="grow exp-text">
                   <span>{e.kind === 'transfer' ? `${nameOf(e.payer)} 已付 ${nameOf(e.sharedBy[0] ?? '')}` : e.label}</span>
@@ -294,6 +303,7 @@ export default function SettleScreen(p: SettleScreenProps) {
                   </small>
                 </span>
                 <b className="num">{money(e.amount)}</b>
+                </button>
                 <button type="button" className="iconbtn small" aria-label={`刪除 ${e.label}`} disabled={busy} onClick={() => run(() => p.onDeleteExpense(e.id))}>
                   <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18" /></svg>
                 </button>
@@ -364,6 +374,19 @@ export default function SettleScreen(p: SettleScreenProps) {
 
       {sheet === 'config' && <ConfigSheet cfg={cfg} canEdit={p.canEdit} accounts={p.accounts} busy={busy} error={error} onClose={() => setSheet(null)} onSave={(c) => run(() => p.onSaveConfig(c))} />}
       {sheet === 'expense' && <ExpenseSheet players={p.players} others={p.accounts.filter((a) => !ids.includes(a.id))} me={p.me} busy={busy} error={error} onClose={() => setSheet(null)} onSave={(e) => run(() => p.onAddExpense(e))} />}
+      {sheet && typeof sheet === 'object' && (
+        <ExpenseSheet
+          initial={sheet.edit}
+          players={p.players}
+          others={p.accounts.filter((a) => !ids.includes(a.id))}
+          me={p.me}
+          busy={busy}
+          error={error}
+          onClose={() => setSheet(null)}
+          onSave={(e) => run(() => (p.onUpdateExpense ? p.onUpdateExpense(sheet.edit.id, e) : Promise.resolve()))}
+          onDelete={() => run(() => p.onDeleteExpense(sheet.edit.id))}
+        />
+      )}
       {sheet === 'pair' && (
         <PairSheet
           players={p.players.filter((pl) => !p.pairs.some((pr) => pr.a === pl.id || pr.b === pl.id) && !activePairs.some((g) => g.includes(pl.id)))}
@@ -430,12 +453,22 @@ export function SettleConfigForm({ cfg, canEdit, accounts, busy, error, onSave }
   );
 }
 
-function ExpenseSheet({ players: tonight, others, me, busy, error, onClose, onSave }: {
+function ExpenseSheet({ players: tonight, others, me, busy, error, onClose, onSave, initial, onDelete }: {
   players: Player[]; others: Player[]; me: string | null; busy: boolean; error: string; onClose: () => void;
   onSave: (e: Omit<ExpenseDoc, 'id' | 'at' | 'by'>) => void;
+  /** 修改：用返原本嘅開支 */
+  initial?: ExpenseDoc;
+  onDelete?: () => void;
 }) {
   // 有時有人食飯但冇打牌：可以加其他成員或者訪客
-  const [extra, setExtra] = useState<(Player & { guest?: boolean })[]>([]);
+  const [extra, setExtra] = useState<(Player & { guest?: boolean })[]>(() => {
+    if (!initial) return [];
+    const used = [initial.payer, ...initial.sharedBy].filter((id, i, a) => a.indexOf(id) === i && !tonight.some((x) => x.id === id));
+    return used.map((id) => {
+      const o = others.find((x) => x.id === id);
+      return o ? o : { id, name: initial.names?.[id] ?? '訪客', guest: true };
+    });
+  });
   const [adding, setAdding] = useState(false);
   const [guest, setGuest] = useState('');
   const players: Player[] = [...tonight, ...extra];
@@ -444,21 +477,22 @@ function ExpenseSheet({ players: tonight, others, me, busy, error, onClose, onSa
     setExtra((l) => [...l, pl]);
     setShared((s) => [...s, pl.id]);
   };
-  const [kind, setKind] = useState<'expense' | 'transfer'>('expense');
-  const [label, setLabel] = useState('晚餐');
-  const [custom, setCustom] = useState('');
-  const [amount, setAmount] = useState('');
-  const [note, setNote] = useState('');
-  const [payer, setPayer] = useState(me && tonight.some((x) => x.id === me) ? me : '');
-  const [shared, setShared] = useState<string[]>(tonight.map((x) => x.id));
-  const [to, setTo] = useState('');
+  const [kind, setKind] = useState<'expense' | 'transfer'>(initial?.kind ?? 'expense');
+  const [label, setLabel] = useState(initial && initial.kind === 'expense' ? (LABELS.includes(initial.label) ? initial.label : '其他') : '晚餐');
+  const [custom, setCustom] = useState(initial && initial.kind === 'expense' && !LABELS.includes(initial.label) ? initial.label : '');
+  const [amount, setAmount] = useState(initial ? String(initial.amount) : '');
+  const [note, setNote] = useState(initial?.note ?? '');
+  const [payer, setPayer] = useState(initial?.payer ?? (me && tonight.some((x) => x.id === me) ? me : ''));
+  const [shared, setShared] = useState<string[]>(initial && initial.kind === 'expense' ? initial.sharedBy : tonight.map((x) => x.id));
+  const [to, setTo] = useState(initial && initial.kind === 'transfer' ? initial.sharedBy[0] ?? '' : '');
   const n = Number(amount);
   const finalLabel = label === '其他' ? custom.trim() || '其他' : label;
   const each = shared.length ? n / shared.length : 0;
   const ok = n > 0 && payer && (kind === 'transfer' ? to && to !== payer : shared.length > 0);
 
   return (
-    <Sheet onClose={onClose} label="新增開支">
+    <Sheet onClose={onClose} label={initial ? '修改開支' : '新增開支'}>
+      {initial && <h2>修改開支</h2>}
       <div className="seg wide" role="group" aria-label="類別">
         <button type="button" aria-pressed={kind === 'expense'} onClick={() => setKind('expense')}>開支</button>
         <button type="button" aria-pressed={kind === 'transfer'} onClick={() => setKind('transfer')}>已轉賬</button>
@@ -569,8 +603,9 @@ function ExpenseSheet({ players: tonight, others, me, busy, error, onClose, onSa
             : { kind, label: finalLabel, payer, amount: n, sharedBy: shared, ...extraNames });
         }}
       >
-        {ok ? `新增 ${money(n)}` : '新增'}
+        {initial ? (ok ? `儲存 ${money(n)}` : '儲存') : ok ? `新增 ${money(n)}` : '新增'}
       </button>
+      {initial && onDelete && <button type="button" className="textbtn loss center-text" disabled={busy} onClick={onDelete}>刪除此開支</button>}
     </Sheet>
   );
 }

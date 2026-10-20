@@ -8,6 +8,7 @@ export default function FanWheel({ value, onChange, label, item: ITEM = 48, visi
   value: number; onChange: (v: number) => void; label: string; item?: number; visible?: number; compact?: boolean;
 }) {
   const live = useRef(value);
+  const fromScroll = useRef<number | null>(null);
   const [shown, setShown] = useState(value);
   const ref = useRef<HTMLDivElement>(null);
   const settling = useRef<number | null>(null);
@@ -19,6 +20,8 @@ export default function FanWheel({ value, onChange, label, item: ITEM = 48, visi
   useEffect(() => {
     const el = ref.current;
     if (!el) return;
+    // 呢個數係用戶自己碌出嚟（onScroll 已經更新咗）：唔好再自動碌，會同慣性打交，跳去中間
+    if (fromScroll.current === value) { fromScroll.current = null; return; }
     live.current = value;
     setShown(value);
     const target = value * ITEM;
@@ -46,12 +49,13 @@ export default function FanWheel({ value, onChange, label, item: ITEM = 48, visi
     }
     if (programmatic.current) return;
     if (settling.current) window.clearTimeout(settling.current);
+    // 等佢停咗（慣性碌完）先交數
     settling.current = window.setTimeout(() => {
       const el = ref.current;
       if (!el) return;
       const v = Math.max(0, Math.min(MAX, Math.round(el.scrollTop / ITEM)));
-      if (v !== value) onChange(v);
-    }, 90);
+      if (v !== value) { fromScroll.current = v; onChange(v); }
+    }, 160);
   }
 
   function commitDraft() {

@@ -514,6 +514,14 @@ export async function addExpense(g: string, s: string, e: Omit<ExpenseDoc, 'id' 
   await setDoc(ref, { ...e, at: serverTimestamp() });
 }
 
+/** 改開支：成份換晒（冇嘅欄清走） */
+export async function updateExpense(g: string, s: string, id: string, e: Omit<ExpenseDoc, 'id' | 'at' | 'by'>): Promise<void> {
+  await updateDoc(doc(fs(), 'groups', g, 'sessions', s, 'expenses', id), {
+    kind: e.kind, label: e.label, payer: e.payer, amount: e.amount, sharedBy: e.sharedBy,
+    names: e.names ?? deleteField(), note: e.note ?? deleteField(),
+  });
+}
+
 export async function deleteExpense(g: string, s: string, id: string): Promise<void> {
   await deleteDoc(doc(fs(), 'groups', g, 'sessions', s, 'expenses', id));
 }

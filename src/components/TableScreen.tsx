@@ -501,6 +501,7 @@ export default function TableScreen(props: TableScreenProps) {
         <div className="felt-center">
           <span className="wind-tile">{ended ? '完' : c.info.roundWind}</span>
           <span className="small">{ended ? '已完場' : `第 ${c.info.hand} 鋪`}</span>
+          <span className="felt-water">水 {c.state.water}</span>
         </div>
       </section>
 

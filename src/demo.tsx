@@ -308,6 +308,7 @@ export default function Demo() {
         settingsHref="/demo/rules#settle"
         onAddExpense={async (e) => setExpenses((l) => [...l, { ...e, id: `e${l.length + 1}-${Date.now()}`, by: 'gavin', at: Date.now() }])}
         onDeleteExpense={async (id) => setExpenses((l) => l.filter((x) => x.id !== id))}
+        onUpdateExpense={async (id, e) => setExpenses((l) => l.map((x) => (x.id === id ? { ...x, ...e, names: e.names, note: e.note } : x)))}
         onProposePair={async (a, b) => setPairs((l) => [...l, { id: `p${Date.now()}`, a, b, by: 'gavin', accepted: [a, b].filter((x) => x === 'gavin') }])}
         onAcceptPair={async (id) => setPairs((l) => l.map((x) => (x.id === id ? { ...x, accepted: [...x.accepted, 'gavin'] } : x)))}
         onDeletePair={async (id) => setPairs((l) => l.filter((x) => x.id !== id))}
