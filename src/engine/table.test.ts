@@ -227,15 +227,28 @@ test('完場：所有拉找晒，之後唔可以再記', () => {
   assert.throws(() => applyEvent(r.state, eat('Gavin', 1, 'Ivan'), PURE), /完場/);
 });
 
-test('打夠 4 圈自動完場', () => {
+test('打夠 4 圈唔會自動完場：停低問；打快東之後拉照拉，打完快東再問', () => {
   const rules = withRules({ water: { enabled: false } });
   let s = createTable(SEATS);
-  for (let i = 0; i < 16; i++) {
+  const passOnce = () => {
     const dealer = roundInfo(s).dealer;
     const winner = SEATS[(SEATS.indexOf(dealer) + 1) % 4];
     const loser = SEATS[(SEATS.indexOf(dealer) + 2) % 4];
     s = applyEvent(s, eat(winner, 5, loser), rules).state;
-  }
+  };
+  for (let i = 0; i < 16; i++) passOnce();
+  assert.ok(!s.ended);
+  assert.ok(s.roundsDone);
+  assert.ok(s.chains.length > 0, '拉住嘅數唔會自動找');
+  assert.equal(roundInfo(s).nextQuick, '快東');
+  assert.throws(() => applyEvent(s, eat('Gavin', 5, 'Ivan'), rules), /打完圈數/);
+  s = applyEvent(s, { type: 'extend' }, rules).state;
+  assert.ok(!s.roundsDone);
+  assert.ok(roundInfo(s).quick);
+  for (let i = 0; i < 4; i++) passOnce();
+  assert.ok(s.roundsDone);
+  assert.equal(roundInfo(s).nextQuick, '快南');
+  s = applyEvent(s, { type: 'end' }, rules).state;
   assert.ok(s.ended);
   assert.equal(s.chains.length, 0);
 });
@@ -316,4 +329,19 @@ test('莊每鋪可以揀：當 1 番、不計', () => {
   assert.ok(!none.steps[1].lines[0].note.includes('莊'));
   // 不計莊都照樣連莊
   assert.equal(none.state.streak, 2);
+});
+
+test('打完圈數：再打四圈；中途換位，坐東位做莊，拉照拉', () => {
+  const rules = withRules({ rounds: 1, water: { enabled: false } });
+  let s = createTable(SEATS);
+  // 打完一圈（四個莊各流局一次唔連莊：用食糊令莊落）
+  for (const w of ['Athena', 'Ivan', 'Viola', 'Gavin']) s = applyEvent(s, eat(w, 5, w === 'Gavin' ? 'Athena' : 'Gavin'), rules).state;
+  assert.ok(s.roundsDone);
+  s = applyEvent(s, { type: 'extend', rounds: 4 }, rules).state;
+  assert.equal(s.extraRounds, 4);
+  const before = structuredClone(s.chains);
+  s = applyEvent(s, { type: 'reseat', seats: ['Viola', 'Ivan', 'Gavin', 'Athena'] }, rules).state;
+  assert.equal(s.seats[s.dealerSeat], 'Viola');
+  assert.deepEqual(s.chains, before);
+  assert.throws(() => applyEvent(s, { type: 'reseat', seats: ['Viola', 'Ivan', 'Gavin', 'Kit'] }, rules));
 });

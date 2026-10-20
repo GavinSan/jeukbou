@@ -2,7 +2,7 @@
 import type { CSSProperties } from 'react';
 import type { TableEvent } from '../engine/table.ts';
 
-export type Art = 'kong' | 'heaven' | 'flower' | 'grass' | 'triple' | 'dice123' | 'pong' | 'chase';
+export type Art = 'kong' | 'heaven' | 'flower' | 'grass' | 'triple' | 'dice123' | 'pong' | 'chase' | 'false';
 
 export interface SpecialItem {
   art: Art;
@@ -17,18 +17,20 @@ export const SPECIAL_ITEMS: SpecialItem[] = [
   { art: 'grass', label: '一台草', amount: 2, dir: 'collect', note: '收每家 2' },
   { art: 'kong', label: '暗槓', amount: 5, dir: 'collect', note: '收每家 5' },
   // 天槓：每家俾 $10；番數按埋數設定換算（6 番 = $1 就係 60 番）
-  { art: 'heaven', label: '天槓', amount: 60, dir: 'collect', note: '收每家 $10' },
+  { art: 'heaven', label: '天槓', amount: 10, dir: 'collect', note: '收每家 10' },
   { art: 'triple', label: '圍骰', amount: 5, dir: 'collect', note: '收每家 5' },
   { art: 'dice123', label: '骰開一二三', amount: 5, dir: 'pay', note: '付每家 5' },
   { art: 'pong', label: '叫碰唔碰', amount: 5, dir: 'pay', note: '付每家 5' },
   { art: 'chase', label: '被追', amount: 5, dir: 'pay', note: '番子 5、非番子 10' },
+  // 詐糊：金額跟家規（falseWinPenalty）
+  { art: 'false', label: '詐糊', amount: 0, dir: 'pay', note: '付每家' },
 ];
 
 /** 追牌：番子 5、非番子 10；即摸先會「同一隻再追」每次加 5，最多加 3 次 */
 export const CHASE_MAX_REPEAT = 3;
 
-/** 天槓：每家 $10 → 番 */
-export const heavenAmount = (perUnit?: number) => Math.round(10 * (perUnit && perUnit > 0 ? perUnit : 6));
+/** 天槓：每家 10，三家共 30 */
+export const HEAVEN_AMOUNT = 10;
 /** 被追：番子 5、非番子 10；即摸 +5，同一隻再追每次再 +5（最多再追 3 次） */
 export function chaseAmount(kind: 'fan' | 'other', repeat: number, instant = true): number {
   const extra = instant ? 1 + Math.max(0, Math.min(CHASE_MAX_REPEAT, repeat)) : 0;
@@ -121,6 +123,25 @@ export function SpecialArt({ art, heat = 0 }: { art: Art; heat?: number }) {
               <text x={34 + i * 31} y={51} textAnchor="middle" fontSize="16" fontWeight="700" fill="#7A2A10" style={{ fontFamily: 'var(--font-kai)' }}>{'天槓天槓'[i]}</text>
             </g>
           ))}
+        </svg>
+      );
+    case 'false':
+      return (
+        <svg className="sp-art side falsewin" viewBox="0 0 160 90" preserveAspectRatio="xMidYMid meet" aria-hidden="true">
+          <g className="fw-cat">
+            <path d="M92 30 L98 12 L108 26 Z M124 30 L118 12 L110 26 Z" fill="#F2B45F" stroke="#7A4A1C" strokeWidth="2" strokeLinejoin="round" />
+            <ellipse cx="108" cy="38" rx="20" ry="14" fill="#F2B45F" stroke="#7A4A1C" strokeWidth="2" />
+            <circle cx="101" cy="36" r="3.4" fill="#FFF" stroke="#3A2410" strokeWidth="1.2" /><circle cx="115" cy="36" r="3.4" fill="#FFF" stroke="#3A2410" strokeWidth="1.2" />
+            <circle cx="101" cy="36" r="1.2" fill="#1C1F1D" /><circle cx="115" cy="36" r="1.2" fill="#1C1F1D" />
+            <path d="M88 42 L74 40 M88 45 L74 47 M128 42 L142 40 M128 45 L142 47" stroke="#3A2410" strokeWidth="1.4" strokeLinecap="round" />
+            <path className="fw-fire" d="M73 43 q-5 -6 0 -11 q1 5 4 4 q0 6 -4 7 z M143 43 q5 -6 0 -11 q-1 5 -4 4 q0 6 4 7 z" fill="#FF8A3D" />
+          </g>
+          <g transform="translate(36 30)">
+            <rect x="0" y="4" width="34" height="48" rx="5" fill="#C9C2AE" />
+            <rect x="0" y="0" width="34" height="48" rx="5" fill="#FBF8EE" stroke="#C9C2AE" strokeWidth="1.5" />
+            <text x="17" y="33" textAnchor="middle" fontSize="22" fontWeight="700" fill={INK} style={{ fontFamily: 'var(--font-kai)' }}>糊</text>
+            <path className="strike" d="M4 6 L30 42 M30 6 L4 42" stroke={RED} strokeWidth="3.4" strokeLinecap="round" />
+          </g>
         </svg>
       );
     case 'triple':

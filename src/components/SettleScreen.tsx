@@ -3,9 +3,9 @@ import { useMemo, useState } from 'react';
 import { effectiveGroups, settleSession } from '../engine/settlement.ts';
 import type { MoneyRounding } from '../engine/settlement.ts';
 import type { Expense } from '../engine/settlement.ts';
-import { isGuest, pairActive, teamActive } from '../lib/data.ts';
+import { guestId, isGuest, pairActive, teamActive } from '../lib/data.ts';
 import type { ExpenseDoc, PairDoc, SettleConfig, TeamDoc } from '../lib/data.ts';
-import { Hint, NumInput, Sheet, TopBar, message } from '../ui.tsx';
+import { Hint, NumInput, Sheet, TopBar, clampName, message } from '../ui.tsx';
 import { go } from '../lib/router.tsx';
 
 export interface Player {
@@ -57,6 +57,8 @@ export interface SettleScreenProps {
   onDeleteExpense: (id: string) => Promise<void>;
   onProposePair: (a: string, b: string) => Promise<void>;
   onAcceptPair: (id: string) => Promise<void>;
+  /** 同意預設 Group */
+  onAcceptTeam?: (id: string) => Promise<void>;
   onDeletePair: (id: string) => Promise<void>;
 }
 
@@ -88,7 +90,8 @@ type View = 'game' | 'expense' | 'combined';
 export default function SettleScreen(p: SettleScreenProps) {
   const cfg = p.config;
   const ids = p.players.map((x) => x.id);
-  const nameOf = (id: string) => p.players.find((x) => x.id === id)?.name ?? p.accounts.find((x) => x.id === id)?.name ?? '玩家';
+  const guestNames: Record<string, string> = Object.assign({}, ...p.expenses.map((e) => e.names ?? {}));
+  const nameOf = (id: string) => p.players.find((x) => x.id === id)?.name ?? p.accounts.find((x) => x.id === id)?.name ?? guestNames[id] ?? '玩家';
   const accountName = (key: string) => key.split(' + ').map(nameOf).join(' + ');
 
   const [sheet, setSheet] = useState<SheetKind>(null);
@@ -101,7 +104,7 @@ export default function SettleScreen(p: SettleScreenProps) {
   // 今晚有份嘅人（連保管水嗰個）；冇嚟嘅人自動唔計，得返一個人就分開計
   const present = [...ids, cfg.waterTo];
   const activePairs = effectiveGroups(defaults, p.pairs.filter(pairActive).map((x) => [x.a, x.b]), present);
-  const tonightDefaults = (p.teams ?? []).filter(teamActive).map((t) => ({ t, here: t.members.filter((m) => ids.includes(m)) })).filter((x) => x.here.length > 0);
+  const tonightDefaults = (p.teams ?? []).map((t) => ({ t, here: t.members.filter((m) => ids.includes(m)), active: teamActive(t) })).filter((x) => x.here.length > 0);
   const expenses: Expense[] = p.expenses.map((e) => ({ label: e.label, payer: e.payer, amount: e.amount, sharedBy: e.sharedBy }));
 
   const result = useMemo(() => {
@@ -301,8 +304,8 @@ export default function SettleScreen(p: SettleScreenProps) {
         )}
         {r && p.expenses.length > 0 && (
           <div className="exp-net">
-            {p.players.filter((pl) => Math.abs(r.expense[pl.id] ?? 0) > 0.004).map((pl) => (
-              <span key={pl.id}>{pl.name} <b className={`num ${tone(r.expense[pl.id])}`}>{money(r.expense[pl.id], true)}</b></span>
+            {Object.keys(r.expense).filter((id) => Math.abs(r.expense[id] ?? 0) > 0.004).map((id) => (
+              <span key={id}>{nameOf(id)} <b className={`num ${tone(r.expense[id])}`}>{money(r.expense[id], true)}</b></span>
             ))}
           </div>
         )}
@@ -315,16 +318,21 @@ export default function SettleScreen(p: SettleScreenProps) {
         </div>
         {tonightDefaults.length > 0 || p.pairs.length > 0 ? (
           <ul className="list exp-list">
-            {tonightDefaults.map(({ t, here }) => (
+            {tonightDefaults.map(({ t, here, active }) => (
               <li key={t.id} className="exp-row">
                 <span className="grow exp-text">
                   <span>{t.members.map(nameOf).join(' + ')}<span className="tag instant">預設</span></span>
-                  <small className={here.length > 1 ? 'gain' : 'muted'}>
-                    {here.length > 1
+                  <small className={active && here.length > 1 ? 'gain' : 'muted'}>
+                    {!active
+                      ? `未生效：等待 ${t.members.filter((m) => !t.accepted.includes(m)).map(nameOf).join('、')} 同意`
+                      : here.length > 1
                       ? (here.length < t.members.length ? `今晚 ${here.map(nameOf).join('、')} 一齊計（${t.members.filter((m) => !here.includes(m)).map(nameOf).join('、')} 冇嚟）` : '一齊計')
                       : `今晚只有 ${nameOf(here[0])}，分開計`}
                   </small>
                 </span>
+                {!active && p.me && t.members.includes(p.me) && !t.accepted.includes(p.me) && p.onAcceptTeam && (
+                  <button type="button" className="btn small-btn" disabled={busy} onClick={() => run(() => p.onAcceptTeam!(t.id))}>同意</button>
+                )}
               </li>
             ))}
             {p.pairs.map((pr) => {
@@ -354,7 +362,7 @@ export default function SettleScreen(p: SettleScreenProps) {
       {error && !sheet && <p className="error" role="alert">{error}</p>}
 
       {sheet === 'config' && <ConfigSheet cfg={cfg} canEdit={p.canEdit} accounts={p.accounts} busy={busy} error={error} onClose={() => setSheet(null)} onSave={(c) => run(() => p.onSaveConfig(c))} />}
-      {sheet === 'expense' && <ExpenseSheet players={p.players} me={p.me} busy={busy} error={error} onClose={() => setSheet(null)} onSave={(e) => run(() => p.onAddExpense(e))} />}
+      {sheet === 'expense' && <ExpenseSheet players={p.players} others={p.accounts.filter((a) => !ids.includes(a.id))} me={p.me} busy={busy} error={error} onClose={() => setSheet(null)} onSave={(e) => run(() => p.onAddExpense(e))} />}
       {sheet === 'pair' && (
         <PairSheet
           players={p.players.filter((pl) => !p.pairs.some((pr) => pr.a === pl.id || pr.b === pl.id) && !activePairs.some((g) => g.includes(pl.id)))}
@@ -421,16 +429,26 @@ export function SettleConfigForm({ cfg, canEdit, accounts, busy, error, onSave }
   );
 }
 
-function ExpenseSheet({ players, me, busy, error, onClose, onSave }: {
-  players: Player[]; me: string | null; busy: boolean; error: string; onClose: () => void;
+function ExpenseSheet({ players: tonight, others, me, busy, error, onClose, onSave }: {
+  players: Player[]; others: Player[]; me: string | null; busy: boolean; error: string; onClose: () => void;
   onSave: (e: Omit<ExpenseDoc, 'id' | 'at' | 'by'>) => void;
 }) {
+  // 有時有人食飯但冇打牌：可以加其他成員或者訪客
+  const [extra, setExtra] = useState<(Player & { guest?: boolean })[]>([]);
+  const [adding, setAdding] = useState(false);
+  const [guest, setGuest] = useState('');
+  const players: Player[] = [...tonight, ...extra];
+  const addPerson = (pl: Player & { guest?: boolean }) => {
+    if (players.some((x) => x.id === pl.id)) return;
+    setExtra((l) => [...l, pl]);
+    setShared((s) => [...s, pl.id]);
+  };
   const [kind, setKind] = useState<'expense' | 'transfer'>('expense');
   const [label, setLabel] = useState('晚餐');
   const [custom, setCustom] = useState('');
   const [amount, setAmount] = useState('');
-  const [payer, setPayer] = useState(me && players.some((x) => x.id === me) ? me : '');
-  const [shared, setShared] = useState<string[]>(players.map((x) => x.id));
+  const [payer, setPayer] = useState(me && tonight.some((x) => x.id === me) ? me : '');
+  const [shared, setShared] = useState<string[]>(tonight.map((x) => x.id));
   const [to, setTo] = useState('');
   const n = Number(amount);
   const finalLabel = label === '其他' ? custom.trim() || '其他' : label;
@@ -504,14 +522,45 @@ function ExpenseSheet({ players, me, busy, error, onClose, onSave }: {
         </div>
       )}
 
+      <div className="stack tight">
+        {!adding ? (
+          <button type="button" className="textbtn" onClick={() => setAdding(true)}>＋ 加其他人（冇打牌）</button>
+        ) : (
+          <>
+            <span className="small muted">冇打牌但有份：揀成員或者打訪客名</span>
+            {others.filter((o) => !players.some((x) => x.id === o.id)).length > 0 && (
+              <div className="chips-row">
+                {others.filter((o) => !players.some((x) => x.id === o.id)).map((o) => (
+                  <button key={o.id} type="button" className="pill" onClick={() => addPerson(o)}>＋ {o.name}</button>
+                ))}
+              </div>
+            )}
+            <div className="row">
+              <input className="input grow" value={guest} onChange={(e) => setGuest(clampName(e.target.value))} placeholder="訪客名，例如 阿明" aria-label="訪客名" />
+              <button
+                type="button"
+                className="btn plain"
+                disabled={!guest.trim()}
+                onClick={() => { addPerson({ id: guestId(), name: guest.trim(), guest: true }); setGuest(''); }}
+              >加</button>
+            </div>
+          </>
+        )}
+      </div>
+
       {error && <p className="error">{error}</p>}
       <button
         type="button"
         className="btn big"
         disabled={busy || !ok}
-        onClick={() => onSave(kind === 'transfer'
-          ? { kind, label: '已轉賬', payer, amount: n, sharedBy: [to] }
-          : { kind, label: finalLabel, payer, amount: n, sharedBy: shared })}
+        onClick={() => {
+          const used = new Set([payer, ...(kind === 'transfer' ? [to] : shared)]);
+          const names = Object.fromEntries(extra.filter((x) => x.guest && used.has(x.id)).map((x) => [x.id, x.name]));
+          const extraNames = Object.keys(names).length ? { names } : {};
+          onSave(kind === 'transfer'
+            ? { kind, label: '已轉賬', payer, amount: n, sharedBy: [to], ...extraNames }
+            : { kind, label: finalLabel, payer, amount: n, sharedBy: shared, ...extraNames });
+        }}
       >
         {ok ? `新增 ${money(n)}` : '新增'}
       </button>

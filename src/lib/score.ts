@@ -143,6 +143,10 @@ export function describe(event: TableEvent, name: (id: string) => string): strin
       return `${name(event.out)} 換 ${name(event.in)}`;
     case 'end':
       return '完場';
+    case 'extend':
+      return (event.rounds ?? 1) >= 4 ? '再打四圈' : '打多一個快圈';
+    case 'reseat':
+      return `換位：${event.seats.map(name).join('、')}（東南西北）`;
   }
 }
 

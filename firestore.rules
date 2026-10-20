@@ -83,7 +83,7 @@ service cloud.firestore {
         allow create: if isMember(g) && request.resource.data.by == request.auth.uid
           && request.resource.data.members is list
           && request.resource.data.members.size() >= 2 && request.resource.data.members.size() <= 8
-          && request.resource.data.accepted.hasOnly([request.auth.uid]);
+          && (request.resource.data.accepted.hasOnly([request.auth.uid]) || isOwner(g));
         allow update: if isMember(g) && request.auth.uid in resource.data.members
           && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['accepted'])
           && request.resource.data.accepted.hasOnly(resource.data.members);
@@ -137,8 +137,13 @@ service cloud.firestore {
           // 所以兩個人同時入數只會有一個成功。撤回 = 加一條「撤回」事件。
           match /events/{e} {
             allow read: if isMember(g);
+            // 只有坐過呢張枱嘅人、場主、局主先入到數；「完場」（埋數時）全部成員都可以
             allow create: if isMember(g) && request.resource.data.by == request.auth.uid
-              && request.resource.data.seq is int;
+              && request.resource.data.seq is int
+              && (request.resource.data.event.type == 'end'
+                || request.auth.uid in get(/databases/$(database)/documents/groups/$(g)/sessions/$(s)/tables/$(t)).data.names
+                || get(/databases/$(database)/documents/groups/$(g)/sessions/$(s)).data.createdBy == request.auth.uid
+                || isOwner(g));
             allow update: if false;
             // 只有刪除成個大局／枱時，局主先可以清走
             allow delete: if isOwner(g);

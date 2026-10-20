@@ -70,7 +70,7 @@ export default function RulesPage({ user, groupId, sessionId }: { user: User; gr
               people={members.data.map((m) => ({ id: m.uid, name: m.name }))}
               me={user.uid}
               canDeleteAny={canEdit}
-              onCreate={(ms) => createTeam(groupId, user.uid, ms)}
+              onCreate={(ms) => createTeam(groupId, user.uid, ms, canEdit)}
               onAccept={(id) => acceptTeam(groupId, id, user.uid)}
               onDelete={(id) => deleteTeam(groupId, id)}
             />

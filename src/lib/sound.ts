@@ -169,14 +169,19 @@ export const sfx = {
         [2400, 2900, 3300, 2700].forEach((f, i) => ping(c, t + 1.4 + i * 0.09, jitter(f, 0.04), 0.12));
         break;
       }
-      case 'triple':
-      case 'dice123':
+      case 'triple': // 骰仔碌完，升調小號「噹噹噹～」
         for (let i = 0; i < 7; i++) clack(c, t + i * 0.06 + Math.random() * 0.03, 0.3, 1800 + Math.random() * 1500);
-        tone(c, t + 0.5, art === 'triple' ? 880 : 300, 0.4, { type: 'triangle', gain: 0.15, to: art === 'triple' ? 1320 : 200 });
+        [523.25, 659.25, 783.99, 1046.5].forEach((f, i) => tone(c, t + 0.5 + i * 0.1, f, i === 3 ? 0.5 : 0.14, { type: 'square', gain: 0.06 }));
         break;
-      case 'pong': // 錯誤「咘」
-        tone(c, t, 220, 0.18, { type: 'square', gain: 0.08 });
-        tone(c, t + 0.2, 165, 0.3, { type: 'square', gain: 0.08 });
+      case 'dice123': // 骰仔碌完，「哇哇哇～」跌落嚟
+        for (let i = 0; i < 7; i++) clack(c, t + i * 0.06 + Math.random() * 0.03, 0.3, 1800 + Math.random() * 1500);
+        [392, 370, 349.23].forEach((f, i) => tone(c, t + 0.5 + i * 0.22, f, 0.2, { type: 'sawtooth', gain: 0.06, to: f * 0.97 }));
+        tone(c, t + 1.16, 329.63, 0.6, { type: 'sawtooth', gain: 0.06, to: 300 });
+        break;
+      case 'pong': // 叫碰唔碰：「咦？」兩聲反問
+        tone(c, t, 330, 0.16, { type: 'triangle', gain: 0.14, to: 440 });
+        tone(c, t + 0.2, 300, 0.32, { type: 'triangle', gain: 0.14, to: 520 });
+        clack(c, t + 0.55, 0.4, 2000);
         break;
       case 'chase':
         hiss(c, t, 0.35, { type: 'bandpass', freq: 600, to: 3000, q: 2, gain: 0.25 });

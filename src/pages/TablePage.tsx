@@ -1,11 +1,11 @@
-import { useMemo } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import type { User } from 'firebase/auth';
 import TableScreen from '../components/TableScreen.tsx';
 import Incoming from '../components/Incoming.tsx';
 import { appendEvent, applySwap, cancelSwap, declineSettle, requestSwap, reseat, rollDice, fanTableOf, settleConfigOf, deleteTable } from '../lib/data.ts';
 import { useSuperAdmin } from '../lib/admin.ts';
 import { go } from '../lib/router.tsx';
-import { useGroup, useManyEvents, useMembers, useRequests, useSession, useTables } from '../lib/live.ts';
+import { useEvents, useGroup, useManyEvents, useMembers, useRequests, useSession, useTables } from '../lib/live.ts';
 import { computeTable, rulesOf, rulesTimeline } from '../lib/score.ts';
 import type { Computed } from '../lib/score.ts';
 import { Loading, TopBar } from '../ui.tsx';
@@ -17,7 +17,12 @@ export default function TablePage({ user, groupId, sessionId, tableId }: { user:
   const members = useMembers(groupId);
   const requests = useRequests(groupId, sessionId);
   const admin = useSuperAdmin(user.uid);
-  const events = useManyEvents(groupId, sessionId, tables.data.map((t) => t.id));
+  // 自己張枱嘅紀錄單獨聽（快啲出）；其他枱喺背景聽，用嚟知道邊個未坐低
+  const own = useEvents(groupId, sessionId, tableId);
+  const others = useManyEvents(groupId, sessionId, tables.data.map((t) => t.id).filter((t) => t !== tableId));
+  const events = useMemo(() => (own.loading ? others : { ...others, [tableId]: own.data }), [own.loading, own.data, others, tableId]);
+  const [slow, setSlow] = useState(false);
+  useEffect(() => { const t = setTimeout(() => setSlow(true), 7000); return () => clearTimeout(t); }, []);
   const rules = useMemo(() => rulesOf(group.data, session.data), [session.data, group.data]);
   const timeline = useMemo(() => rulesTimeline(group.data, session.data), [group.data, session.data]);
 
@@ -32,16 +37,34 @@ export default function TablePage({ user, groupId, sessionId, tableId }: { user:
   const c = table ? computed[tableId] : null;
 
   if (tables.error || group.error) return <main className="page"><TopBar back={back} /><p className="error">{tables.error ?? group.error}</p></main>;
-  if (!table || !c || events[tableId] === undefined) return <main className="page"><TopBar back={back} /><Loading /></main>;
+  if (!table || !c || own.loading) {
+    return (
+      <main className="page">
+        <TopBar back={back} />
+        <Loading />
+        {(slow || own.error) && (
+          <section className="panel">
+            <p className="muted">{own.error ?? '載入得比較慢，可能係網絡問題。'}</p>
+            <button type="button" className="btn" onClick={() => window.location.reload()}>重新載入</button>
+          </section>
+        )}
+      </main>
+    );
+  }
 
   const tableEvents = events[tableId] ?? [];
   const seatedAnywhere = new Set<string>();
   for (const x of Object.values(computed)) if (x && !x.state.ended) x.state.seats.forEach((s) => seatedAnywhere.add(s));
   const candidates = members.data.filter((m) => !seatedAnywhere.has(m.uid)).map((m) => ({ id: m.uid, name: m.name }));
 
+  // 只有坐喺呢張枱嘅人（同場主、局主）先可以入數；其他人只可以睇
+  const owner = !!group.data && (group.data.ownerId === user.uid || admin);
+  const canEnter = c.state.seats.includes(user.uid) || session.data?.createdBy === user.uid || owner;
+
   return (
     <TableScreen
       table={table}
+      canEnter={canEnter}
       computed={c}
       rules={rules}
       fanTable={fanTableOf(group.data)}
@@ -71,8 +94,9 @@ export default function TablePage({ user, groupId, sessionId, tableId }: { user:
       }}
       onCancelSwap={(id) => cancelSwap(groupId, sessionId, id)}
       onReseat={async (seats) => {
-        if (tableEvents.length > 0) throw new Error('已開局，不能再掉位');
-        await reseat(groupId, sessionId, tableId, seats);
+        // 未開局：直接改座位；開咗局（例如打完四圈換位）：入一條「換位」紀錄，之前嘅數唔變
+        if (tableEvents.length === 0) await reseat(groupId, sessionId, tableId, seats);
+        else await appendEvent(groupId, sessionId, tableId, tableEvents.length + 1, user.uid, { type: 'reseat', seats });
       }}
       onDice={async () => { await rollDice(groupId, sessionId, tableId, user.uid, (table.dice?.n ?? 0) + 1); }}
     />

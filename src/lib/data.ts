@@ -126,6 +126,8 @@ export interface ExpenseDoc {
   amount: number;
   /** 分嘅人；transfer 就係收錢嗰個 */
   sharedBy: string[];
+  /** 冇打牌但有份嘅訪客名（id → 名） */
+  names?: Record<string, string>;
   by: string;
   at: number | null;
 }
@@ -537,9 +539,10 @@ export interface TeamDoc {
 
 export const teamActive = (t: Pick<TeamDoc, 'members' | 'accepted'>) => t.members.length >= 2 && t.members.every((id) => t.accepted.includes(id));
 
-export async function createTeam(g: string, by: string, members: string[]): Promise<void> {
+/** 局主開嘅 Group 即刻生效；成員開嘅要其他人同意 */
+export async function createTeam(g: string, by: string, members: string[], byOwner = false): Promise<void> {
   const ref = doc(collection(fs(), 'groups', g, 'teams'));
-  await setDoc(ref, { members, accepted: members.includes(by) ? [by] : [], by, at: serverTimestamp() });
+  await setDoc(ref, { members, accepted: byOwner ? members : members.includes(by) ? [by] : [], by, at: serverTimestamp() });
 }
 
 export async function acceptTeam(g: string, id: string, uid: string): Promise<void> {

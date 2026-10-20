@@ -31,6 +31,10 @@ export interface TableState {
   chains: Chain[];
   /** 上一鋪食糊係雙響 / 三響，用嚟計反雙 / 反三響 */
   lastMultiWin: { loser: PlayerId; winners: PlayerId[] } | null;
+  /** 打完預定圈數之後加咗幾多個快圈（快東、快南…） */
+  extraRounds: number;
+  /** 打完預定圈數（或者快圈），等全枱揀：打快圈、換人、定完場 */
+  roundsDone: boolean;
   ended: boolean;
 }
 
@@ -55,6 +59,10 @@ export type TableEvent =
     }
   | { type: 'falseWin'; player: PlayerId }
   | { type: 'draw' }
+  /** 打完圈數之後繼續：rounds = 1 係快圈（快東、快南…），4 = 再打四圈；拉住嘅數照拉 */
+  | { type: 'extend'; rounds?: number }
+  /** 中途換位（例如打完四圈）：同一班人重新排位，坐東位嘅做莊；拉住嘅數照拉 */
+  | { type: 'reseat'; seats: PlayerId[] }
   /** 輸家喺第 3、6、9… 拉揀找數 */
   | { type: 'settle'; puller: PlayerId; pulled: PlayerId }
   /** 換位：批咗即時生效，呢張枱有拉就即時找數 */
@@ -105,6 +113,8 @@ export function createTable(seats: PlayerId[], dealerSeat = 0): TableState {
     water: 0,
     chains: [],
     lastMultiWin: null,
+    extraRounds: 0,
+    roundsDone: false,
     ended: false,
   };
 }
@@ -112,6 +122,12 @@ export function createTable(seats: PlayerId[], dealerSeat = 0): TableState {
 export function applyEvent(prev: TableState, ev: TableEvent, rules: Rules = DEFAULT_RULES): StepResult {
   if (prev.ended) throw new RuleError('此枱已完場');
   const s: TableState = structuredClone(prev);
+  // 舊資料冇呢兩個欄
+  s.extraRounds ??= 0;
+  s.roundsDone ??= false;
+  if (s.roundsDone && (ev.type === 'win' || ev.type === 'draw' || ev.type === 'special' || ev.type === 'falseWin')) {
+    throw new RuleError('已打完圈數，請先揀打快圈或者完場');
+  }
   const lines: Line[] = [];
   const prompts: Prompt[] = [];
   const received: Record<PlayerId, number> = {};
@@ -148,10 +164,8 @@ export function applyEvent(prev: TableState, ev: TableEvent, rules: Rules = DEFA
     s.dealerSeat = (s.dealerSeat + 1) % 4;
     s.streak = 0;
     s.dealerTurns += 1;
-    if (rules.rounds > 0 && s.dealerTurns >= rules.rounds * 4) {
-      settleAllChains('完場找數');
-      s.ended = true;
-    }
+    // 打完圈數唔會自動完場：停低問全枱（打快圈 / 換人 / 完場），拉照拉
+    if (rules.rounds > 0 && s.dealerTurns >= (rules.rounds + s.extraRounds) * 4) s.roundsDone = true;
   };
   const mustSeat = (p: PlayerId) => {
     if (!s.seats.includes(p)) throw new RuleError(`${p} 不在此枱`);
@@ -321,6 +335,24 @@ export function applyEvent(prev: TableState, ev: TableEvent, rules: Rules = DEFA
       s.ended = true;
       break;
     }
+
+    case 'extend': {
+      // 打多一個快圈（快東、快南…）；拉住嘅數照拉
+      if (!s.roundsDone) throw new RuleError('未打完圈數');
+      s.extraRounds += Math.max(1, Math.round(ev.rounds ?? 1));
+      s.roundsDone = false;
+      break;
+    }
+
+    case 'reseat': {
+      const now = [...s.seats].sort().join('|');
+      if (ev.seats.length !== s.seats.length || [...ev.seats].sort().join('|') !== now) throw new RuleError('換位只可以同一班人重新排');
+      s.seats = [...ev.seats];
+      s.dealerSeat = 0;
+      s.streak = 0;
+      s.lastMultiWin = null;
+      break;
+    }
   }
 
   if (rules.water.timing === 'settle') {
@@ -365,6 +397,10 @@ export function seatWind(state: TableState, player: PlayerId): string {
 export function roundInfo(state: TableState) {
   return {
     roundWind: WINDS[Math.floor(state.dealerTurns / 4) % 4],
+    /** 打緊快圈 */
+    quick: (state.extraRounds ?? 0) > 0,
+    /** 下一個快圈叫咩（快東、快南…） */
+    nextQuick: `快${WINDS[Math.floor(state.dealerTurns / 4) % 4]}`,
     dealer: state.seats[state.dealerSeat],
     streak: state.streak,
     dealerFan: 2 * state.streak + 1,

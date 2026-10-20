@@ -64,7 +64,7 @@ export default function TeamsEditor({ teams, people, me, canDeleteAny, onCreate,
       {adding && (
         <Sheet onClose={() => setAdding(false)} label="新增預設 Group">
           <h2>新增預設 Group</h2>
-          <Hint>選兩位或以上成員。每位成員要按「同意」才生效。</Hint>
+          <Hint>{canDeleteAny ? '選兩位或以上成員。局主新增會即刻生效。' : '選兩位或以上成員。每位成員要按「同意」才生效。'}</Hint>
           <div className="choices">
             {people.map((p) => {
               const on = picked.includes(p.id);

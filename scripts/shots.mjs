@@ -177,6 +177,11 @@ for (const scheme of ['light', 'dark']) {
       await page.getByRole('dialog').getByRole('button', { name: 'Athena', exact: true }).first().click();
       await page.waitForTimeout(200);
       await page.screenshot({ path: `${out}/expense-sheet.png` });
+      await page.getByRole('button', { name: /^＋ 加其他人/ }).click();
+      await page.getByLabel('訪客名').fill('阿明');
+      await page.getByRole('dialog').getByRole('button', { name: '加', exact: true }).click();
+      await page.waitForTimeout(200);
+      await page.screenshot({ path: `${out}/expense-guest.png` });
       await page.getByRole('button', { name: /^新增 \$36/ }).click();
       await page.waitForTimeout(300);
     });
@@ -300,6 +305,38 @@ for (const scheme of ['light', 'dark']) {
       await page.waitForTimeout(1100);
       await page.screenshot({ path: `${out}/heaven.png` });
       await page.waitForTimeout(2500);
+    });
+    await step('rounds', async () => {
+      await page.goto(`${base}/demo/t/4`, { waitUntil: 'networkidle' });
+      await page.waitForTimeout(1200);
+      await page.screenshot({ path: `${out}/rounds-done.png` });
+      await page.getByRole('button', { name: '換位', exact: true }).click();
+      await page.getByRole('tab', { name: '自己揀' }).click();
+      const a = await page.locator('.pick-seat').nth(0).boundingBox();
+      const b = await page.locator('.pick-seat').nth(3).boundingBox();
+      if (a && b) {
+        await page.mouse.move(a.x + a.width / 2, a.y + a.height / 2);
+        await page.mouse.down();
+        await page.mouse.move(a.x + a.width / 2 + 20, a.y + a.height / 2 + 20, { steps: 4 });
+        await page.mouse.move(b.x + b.width / 2, b.y + b.height / 2, { steps: 8 });
+        await page.screenshot({ path: `${out}/reseat-drag.png` });
+        await page.mouse.up();
+      }
+      await page.waitForTimeout(200);
+      await page.screenshot({ path: `${out}/reseat-dropped.png` });
+      await page.getByRole('button', { name: '確認座位' }).click();
+      await page.waitForTimeout(400);
+      await page.getByRole('button', { name: /^打快/ }).click();
+      await page.waitForTimeout(800);
+      await page.screenshot({ path: `${out}/rounds-extended.png` });
+      await page.getByRole('button', { name: /^特別事項/ }).click();
+      await page.waitForTimeout(300);
+      await page.getByRole('dialog').getByRole('button', { name: /詐糊/ }).click();
+      await page.getByRole('dialog').getByRole('button', { name: 'Lok', exact: true }).click();
+      await page.getByRole('button', { name: /^入數，付每家/ }).click();
+      await page.waitForTimeout(1400);
+      await page.screenshot({ path: `${out}/gag-ink.png` });
+      await page.waitForTimeout(2400);
     });
     await step('dealer', async () => {
       await page.goto(`${base}/demo/t/2`, { waitUntil: 'networkidle' });

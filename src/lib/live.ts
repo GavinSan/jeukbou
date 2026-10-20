@@ -77,6 +77,7 @@ const toSession = (id: string, d: DocumentData): Session => ({
 const toExpense = (id: string, d: DocumentData): ExpenseDoc => ({
   id, kind: d.kind === 'transfer' ? 'transfer' : 'expense', label: String(d.label ?? ''), payer: String(d.payer ?? ''),
   amount: Number(d.amount ?? 0), sharedBy: Array.isArray(d.sharedBy) ? d.sharedBy.map(String) : [], by: String(d.by ?? ''),
+  names: d.names && typeof d.names === 'object' ? Object.fromEntries(Object.entries(d.names).map(([k, v]) => [k, String(v)])) : undefined,
   at: d.at && typeof d.at.toMillis === 'function' ? d.at.toMillis() : null,
 });
 const toPair = (id: string, d: DocumentData): PairDoc => ({

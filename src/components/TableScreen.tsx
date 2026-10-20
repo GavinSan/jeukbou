@@ -22,7 +22,7 @@ import { Chips, ConfirmDelete, Hint, NumInput, RollingNumber, Sheet, TopBar, fmt
 import FanWheel from './FanWheel.tsx';
 import DiceRoll, { Die } from './Dice.tsx';
 import SeatDraw from './SeatDraw.tsx';
-import { CHASE_MAX_REPEAT, SPECIAL_ITEMS, SpecialArt, SpecialBurst, artOf, chaseAmount, heavenAmount, suggestRepeat } from './Specials.tsx';
+import { CHASE_MAX_REPEAT, HEAVEN_AMOUNT, SPECIAL_ITEMS, SpecialArt, SpecialBurst, artOf, chaseAmount, suggestRepeat } from './Specials.tsx';
 import type { Art } from './Specials.tsx';
 
 const SPOTS = ['s-bottom', 's-right', 's-top', 's-left'];
@@ -74,6 +74,8 @@ export interface TableScreenProps {
   onDecline?: (key: string) => Promise<void>;
   /** 找數單用嚟換算金額 */
   cash?: { perUnit: number; currency: string; rounding?: 'up' | 'round' | 'none' };
+  /** 唔喺呢張枱（又唔係場主／局主）：只可以睇 */
+  canEnter?: boolean;
 }
 
 const totalOf = (c: Computed, id: string) => (c.state.settled[id] ?? 0) + (c.pending[id] ?? 0);
@@ -84,6 +86,9 @@ export default function TableScreen(props: TableScreenProps) {
   const name = useCallback((id: string) => table.names[id] ?? '玩家', [table.names]);
   const seats = c.state.seats;
   const ended = c.state.ended;
+  const viewOnly = props.canEnter === false;
+  // 打完圈數：問繼續（快圈／再打四圈）、換位、換人定完場
+  const roundsDone = !!c.state.roundsDone && !ended;
 
   // 自己坐喺下面
   const rotate = me && seats.includes(me) ? seats.indexOf(me) : 0;
@@ -115,7 +120,7 @@ export default function TableScreen(props: TableScreenProps) {
   const [receipt, setReceipt] = useState<number | null>(null);
   const [delTable, setDelTable] = useState(false);
   const [party, setParty] = useState<{ fan: number; key: number } | null>(null);
-  const [gag, setGag] = useState<{ name: string; key: number } | null>(null);
+  const [gag, setGag] = useState<{ name: string; key: number; variant: number } | null>(null);
   const endGag = useCallback(() => setGag(null), []);
   // 食糊動畫播緊：找數單同「夠拉」提示等佢播完先出，唔好撞埋一齊
   const [winHold, setWinHold] = useState(false);
@@ -199,7 +204,8 @@ export default function TableScreen(props: TableScreenProps) {
     else if (last?.type === 'falseWin') {
       sfx.falseWin();
       buzz('hit');
-      if (isNew) setGag({ name: name(last.player), key: Date.now() });
+      // 兩款貓：跟紀錄序號揀，全枱電話見到同一款
+      if (isNew) setGag({ name: name(last.player), key: Date.now(), variant: (lastStep?.seq ?? 0) % 2 });
     }
     else if (last?.type === 'end') { sfx.end(); buzz('win'); }
     else sfx.tap();
@@ -286,6 +292,8 @@ export default function TableScreen(props: TableScreenProps) {
   function startWin(id: string) {
     unlock();
     if (ended) return;
+    if (viewOnly) { flash('你唔喺呢張枱，只可以睇'); return; }
+    if (roundsDone) { flash('已打完圈數，請先揀繼續定完場'); return; }
     if (locked) { flash('請先決定是否找數'); sfx.tap(); return; }
     setError('');
     sfx.tap();
@@ -399,6 +407,7 @@ export default function TableScreen(props: TableScreenProps) {
 
   function openSpecial() {
     unlock();
+    if (viewOnly) { flash('你唔喺呢張枱，只可以睇'); return; }
     if (locked) { flash('請先決定是否找數'); return; }
     setError('');
     setSpArt('');
@@ -495,14 +504,35 @@ export default function TableScreen(props: TableScreenProps) {
         </div>
       </section>
 
-      {!ended && !entry && (pf.hints || locked) && (
+      {viewOnly && !ended && <p className="banner calm">你唔喺呢張枱，只可以睇。坐低嘅人、場主同局主先可以入數。</p>}
+      {roundsDone && !viewOnly && (
+        <section className="rounds-done" aria-label="打完圈數">
+          <div className="rounds-head">
+            <span className="wind-tile small-tile">完</span>
+            <div className="grow">
+              <h2>打完 {rules.rounds + (c.state.extraRounds ?? 0)} 圈</h2>
+              <p className="muted small">仲有冇人繼續？繼續打，拉住嘅數照拉。</p>
+            </div>
+          </div>
+          <div className="rounds-go">
+            <button type="button" className="btn" disabled={busy} onClick={() => push({ type: 'extend', rounds: 1 }, `打${c.info.nextQuick}`)}>打{c.info.nextQuick}<small>一圈</small></button>
+            <button type="button" className="btn plain" disabled={busy} onClick={() => push({ type: 'extend', rounds: 4 }, '再打四圈')}>再打四圈</button>
+          </div>
+          <div className="rounds-more">
+            {props.onReseat && <button type="button" className="textbtn" onClick={() => { setError(''); setMore('reseat'); }}>換位</button>}
+            {props.onSwap && <button type="button" className="textbtn" onClick={() => { setSwapOut(''); setSwapIn(''); setGuestName(''); setError(''); setMore('swap'); }}>換人</button>}
+            <button type="button" className="textbtn loss" onClick={() => { setError(''); setMore('end'); }}>完場</button>
+          </div>
+        </section>
+      )}
+      {!ended && !entry && !viewOnly && !roundsDone && (pf.hints || locked) && (
         <div className="actions">
           <span className={`hint${locked ? ' loss' : ''}`}>{locked ? '有人夠拉，決定找數後才可再入數' : '按贏家入數'}</span>
         </div>
       )}
-      {!ended && (
+      {!ended && !viewOnly && !roundsDone && (
         <div className="acts">
-          <button type="button" className="act" disabled={locked} onClick={openSpecial}><span>特別事項</span><small>花草槓骰追</small></button>
+          <button type="button" className="act" disabled={locked} onClick={openSpecial}><span>特別事項</span><small>花草槓骰追詐</small></button>
           <button type="button" className="act" disabled={locked} onClick={() => { unlock(); setError(''); setMore('draw'); }}><span>流局</span><small>無人食糊</small></button>
           <button type="button" className="act end" onClick={() => { unlock(); setError(''); setMore('end'); }}><span>完場</span><small>結算全部</small></button>
         </div>
@@ -511,7 +541,7 @@ export default function TableScreen(props: TableScreenProps) {
       <section className="stack">
         <div className="section-head">
           <h2>紀錄</h2>
-          {lastStep && !ended && (
+          {lastStep && !ended && !viewOnly && (
             <button type="button" className="textbtn loss" disabled={busy} onClick={() => push({ type: 'undo', target: lastStep.seq }, '已撤回')}>撤回上一鋪</button>
           )}
         </div>
@@ -657,9 +687,9 @@ export default function TableScreen(props: TableScreenProps) {
                 ))}
               </div>
               {(() => {
-                // 呢鋪有莊家有份（莊食、莊出銃、或者自摸）先問莊點計
+                // 莊食糊（包括莊自摸）或者莊出銃先問莊點計
                 const dealerId = c.state.seats[c.state.dealerSeat];
-                const involved = entry.loser === null || entry.loser === dealerId || entry.winners.includes(dealerId);
+                const involved = entry.loser === dealerId || entry.winners.includes(dealerId);
                 if (!involved) return null;
                 const autoZ = rules.dealer.enabled ? 2 * c.state.streak + 1 : 0;
                 const opts: { key: 'auto' | 'one' | 'none'; label: string }[] = [{ key: 'auto', label: autoZ ? `跟家規 ${autoZ}` : '跟家規（不計）' }];
@@ -716,10 +746,10 @@ export default function TableScreen(props: TableScreenProps) {
             <>
               <h2>其他</h2>
               <div className="choices three">
-                {props.onSwap && !ended && <button type="button" className="choice" onClick={() => { setSwapOut(''); setSwapIn(''); setGuestName(''); setMore('swap'); }}>換人<small>有人加入</small></button>}
+                {props.onSwap && !ended && !viewOnly && <button type="button" className="choice" onClick={() => { setSwapOut(''); setSwapIn(''); setGuestName(''); setMore('swap'); }}>換人<small>有人加入</small></button>}
                 {props.onDice && !ended && <button type="button" className="choice" onClick={() => run(() => props.onDice!(), '')}>擲骰<small>三粒骰</small></button>}
-                {props.onReseat && !ended && c.steps.length === 0 && <button type="button" className="choice" onClick={() => setMore('reseat')}>掉位<small>抽風牌或自己揀</small></button>}
-                {!ended && <button type="button" className="choice" disabled={locked} onClick={() => setMore('falseWin')}>詐糊<small>付每家 {rules.falseWinPenalty}</small></button>}
+                {props.onReseat && !ended && !viewOnly && (c.steps.length === 0 || roundsDone) && <button type="button" className="choice" onClick={() => setMore('reseat')}>{c.steps.length === 0 ? '掉位' : '換位'}<small>抽風牌或自己揀</small></button>}
+                {!ended && !viewOnly && <button type="button" className="choice" disabled={locked || roundsDone} onClick={() => setMore('falseWin')}>詐糊<small>付每家 {rules.falseWinPenalty}</small></button>}
                 <button type="button" className="choice" aria-pressed={pf.sound} onClick={() => { unlock(); setPref('sound', !pf.sound); if (!pf.sound) setTimeout(() => sfx.tap(), 30); }}>
                   聲效<small>{pf.sound ? '開' : '關'}</small>
                 </button>
@@ -745,16 +775,16 @@ export default function TableScreen(props: TableScreenProps) {
           {more === 'special' && (() => {
             const item = SPECIAL_ITEMS.find((x) => x.art === spArt);
             const isChase = spArt === 'chase';
-            const heaven = heavenAmount(props.cash?.perUnit);
-            const amount = isChase ? chaseAmount(chaseKind, repeat, instant) : spArt === 'heaven' ? heaven : item?.amount ?? 0;
+            const amount = isChase ? chaseAmount(chaseKind, repeat, instant) : spArt === 'heaven' ? HEAVEN_AMOUNT : spArt === 'false' ? rules.falseWinPenalty : item?.amount ?? 0;
             const pick = (art: Art) => {
               unlock();
               setSpArt(art);
               setSpPlay((n) => n + 1);
               if (art === 'chase') { const r = suggestRepeat(lastStep?.event, chaseKind); setRepeat(r); setInstant(r > 0); sfx.tap(); }
-              else if (art === 'triple' || art === 'dice123') sfx.dice();
+              // 每款撳落去都有自己把聲（天槓留返入數先播全套）
               else if (art === 'heaven') sfx.special('kong');
-              else sfx.chips();
+              else if (art === 'false') sfx.falseWin();
+              else sfx.special(art);
             };
             return (
               <>
@@ -771,7 +801,7 @@ export default function TableScreen(props: TableScreenProps) {
                     >
                       <SpecialArt art={it.art} heat={it.art === 'chase' && spArt === 'chase' && instant ? repeat : 0} />
                       <span className="sp-label">{it.label}</span>
-                      <span className="sp-note">{it.art === 'chase' && spArt === 'chase' ? `付每家 ${amount}` : it.art === 'heaven' ? `收每家 $10（${heaven} 番）` : it.note}</span>
+                      <span className="sp-note">{it.art === 'chase' && spArt === 'chase' ? `付每家 ${amount}` : it.art === 'false' ? `付每家 ${rules.falseWinPenalty}` : it.note}</span>
                     </button>
                   ))}
                 </div>
@@ -812,7 +842,7 @@ export default function TableScreen(props: TableScreenProps) {
                 )}
                 {spArt && (
                   <div className="field">
-                    <span>{item?.dir === 'collect' ? '誰收？' : isChase ? '誰被追？' : '誰付？'}</span>
+                    <span>{item?.dir === 'collect' ? '誰收？' : isChase ? '誰被追？' : spArt === 'false' ? '誰詐糊？' : '誰付？'}</span>
                     <div className="choices">
                       {seats.map((s) => (
                         <button key={s} type="button" className={`choice${item?.dir === 'pay' ? ' loser' : ''}`} aria-pressed={who === s} onClick={() => setWho(s)}>
@@ -828,6 +858,7 @@ export default function TableScreen(props: TableScreenProps) {
                   disabled={busy || !who || !item}
                   onClick={() => {
                     if (!item) return;
+                    if (item.art === 'false') { push({ type: 'falseWin', player: who }, '已入數'); return; }
                     const rep = instant ? repeat : 0;
                     const label = isChase ? `被追（${chaseKind === 'fan' ? '番子' : '非番子'}${instant ? '，即摸' : ''}）${rep > 0 ? `同一隻第 ${rep + 1} 次` : ''}` : item.label;
                     push({
@@ -982,7 +1013,7 @@ export default function TableScreen(props: TableScreenProps) {
 
       {settings && <Settings onClose={() => setSettings(false)} />}
       {party && <Celebrate key={party.key} fan={party.fan} onDone={() => setParty(null)} />}
-      {gag && <CatGag key={gag.key} name={gag.name} onDone={endGag} />}
+      {gag && <CatGag key={gag.key} name={gag.name} variant={gag.variant} onDone={endGag} />}
       {delTable && props.onDeleteTable && (
         <ConfirmDelete title="刪除此枱" detail={`會永久刪除「${table.name}」所有紀錄，無法復原。`} word={table.name} onConfirm={props.onDeleteTable} onClose={() => setDelTable(false)} />
       )}

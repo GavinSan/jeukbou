@@ -1227,3 +1227,44 @@ button.join-code:active { background: var(--line); }
 .hv-coin { width: 14px !important; height: 14px !important; border-radius: 50%; background: radial-gradient(circle at 35% 35%, #FFF3C4, #F2C14E 45%, #B8860B); box-shadow: 0 0 6px rgba(242, 193, 78, .8); }
 .hv-stamp { top: 70% !important; background: linear-gradient(180deg, #FFE08A, #C08A16) !important; color: #5A1A08 !important; border-color: #FFF3C4 !important; animation-delay: .9s !important; font-size: 40px !important; }
 @media (prefers-reduced-motion: reduce) { .hv-rays, .play .hv-tile, .hv-flash, .hv-sun, .hv-big { animation: none !important; } .burst-heaven { display: none; } }
+
+/* 老貓燒鬚：水墨版 */
+.gag.ink-bg { background: radial-gradient(circle at 50% 45%, rgba(244, 239, 223, .95), rgba(244, 239, 223, .75) 45%, rgba(28, 31, 29, .35) 75%); }
+.gag-card.ink { background: #F4EFDF; border-radius: 22px; padding: 18px 22px 16px; box-shadow: 0 16px 40px rgba(0, 0, 0, .35), inset 0 0 0 1px rgba(0, 0, 0, .06); }
+.gag-card.ink .gag-cat { filter: none; }
+.ink-enso { transform-origin: 100px 104px; animation: enso 1.2s ease-out both; }
+@keyframes enso { from { stroke-dashoffset: 540; } to { stroke-dashoffset: 0; } }
+.ink-smoke { fill: rgba(28, 31, 29, .35) !important; }
+.ink-text { position: relative; color: #1C1F1D; text-shadow: none; }
+.ink-text b { color: #1C1F1D; font-size: 42px; letter-spacing: .08em; }
+.ink-text span { color: #5C6863; }
+.ink-seal { position: absolute; right: -18px; top: -6px; font-style: normal; font-family: var(--font-kai); font-weight: 700; font-size: 20px; color: #FFF6EE; background: #B02E26; border-radius: 4px; padding: 2px 6px; transform: rotate(8deg); box-shadow: 0 0 0 2px #F4EFDF, 0 0 0 3px #B02E26; animation: seal .4s cubic-bezier(.2, 1.6, .4, 1) 1s both; }
+@keyframes seal { from { transform: rotate(8deg) scale(2.2); opacity: 0; } }
+
+/* 打完圈數 */
+.rounds-done { background: var(--surface); border-radius: 18px; padding: 16px; display: flex; flex-direction: column; gap: 12px; box-shadow: 0 0 0 2px var(--felt) inset; animation: ask-in .38s cubic-bezier(.2, 1.3, .4, 1); }
+.rounds-head { display: flex; gap: 12px; align-items: center; }
+.rounds-head h2 { margin: 0; }
+.rounds-head p { margin: 2px 0 0; }
+.small-tile { width: 40px !important; height: 50px !important; font-size: 24px !important; }
+.rounds-go { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.rounds-go .btn { flex-direction: column; gap: 0; min-height: 58px; font-size: 17px; }
+.rounds-go .btn small { font-size: 12px; font-weight: 500; opacity: .8; }
+.rounds-more { display: flex; justify-content: space-around; }
+
+/* 長名唔好爆枱：揀人格細字、可以兩行 */
+.choice { min-width: 0; overflow: hidden; }
+.choice > span, .choice .ellipsis { max-width: 100%; }
+.choices .choice { font-size: 15px; line-height: 1.2; word-break: break-word; }
+.choices:not(.three) .choice > .ellipsis { white-space: normal; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; text-overflow: ellipsis; }
+.tcard .ellipsis, .t-name .ellipsis { min-width: 0; }
+
+/* 掉位拖放 */
+.pick-seat { touch-action: none; user-select: none; -webkit-user-select: none; }
+.pick-seat.dragging { opacity: .35; }
+.pick-seat.over { border-color: var(--gain); transform: scale(1.04); box-shadow: 0 0 0 4px var(--gain-soft), 0 3px 0 var(--tile-back); }
+.pick-ghost {
+  position: fixed; z-index: 60; transform: translate(-50%, -60%) rotate(-4deg); pointer-events: none;
+  padding: 12px 18px; border-radius: 12px; background: var(--tile); color: var(--tile-ink); font-size: 17px; font-weight: 700;
+  box-shadow: 0 4px 0 var(--tile-back), 0 14px 28px rgba(0, 0, 0, .3);
+}

@@ -1,5 +1,6 @@
 // 掉位：抽風牌（四隻風牌冚住，逐隻反開，邊個攞到東就坐東），或者自己揀邊個坐邊
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
+import type { PointerEvent as RPointerEvent } from 'react';
 import { sfx } from '../lib/sound.ts';
 import { Hint } from '../ui.tsx';
 
@@ -45,6 +46,37 @@ export default function SeatDraw({ players, name, onConfirm, onCancel, busy }: {
   // 每個人抽到邊個風
   const windOf = (p: string) => (result ? result.indexOf(p) : -1);
 
+  // 拖放：撳住一個位拖去另一個位放手，兩個人對調
+  const drag = useRef<{ from: number; x: number; y: number; moved: boolean } | null>(null);
+  const [ghost, setGhost] = useState<{ i: number; x: number; y: number; over: number | null } | null>(null);
+  const seatAt = (x: number, y: number): number | null => {
+    const el = document.elementFromPoint(x, y)?.closest('[data-seat]') as HTMLElement | null;
+    return el ? Number(el.dataset.seat) : null;
+  };
+  function onDown(e: RPointerEvent<HTMLButtonElement>, i: number) {
+    drag.current = { from: i, x: e.clientX, y: e.clientY, moved: false };
+  }
+  function onMove(e: RPointerEvent<HTMLButtonElement>) {
+    const d = drag.current;
+    if (!d) return;
+    if (!d.moved && Math.hypot(e.clientX - d.x, e.clientY - d.y) < 8) return;
+    if (!d.moved) { d.moved = true; e.currentTarget.setPointerCapture?.(e.pointerId); setSel(null); }
+    const over = seatAt(e.clientX, e.clientY);
+    setGhost({ i: d.from, x: e.clientX, y: e.clientY, over: over !== null && over !== d.from ? over : null });
+  }
+  function onUp(e: RPointerEvent<HTMLButtonElement>, i: number) {
+    const d = drag.current;
+    drag.current = null;
+    if (!d) return;
+    if (!d.moved) { tapSeat(i); return; }
+    setGhost(null);
+    const to = seatAt(e.clientX, e.clientY);
+    if (to !== null && to !== d.from) {
+      setOrder((o) => { const n = [...o]; [n[d.from], n[to]] = [n[to], n[d.from]]; return n; });
+      sfx.chips();
+    }
+  }
+
   /** 自己揀：撳一個位，再撳另一個位，兩個人對調 */
   function tapSeat(i: number) {
     if (sel === null) { setSel(i); sfx.tap(); return; }
@@ -68,16 +100,21 @@ export default function SeatDraw({ players, name, onConfirm, onCancel, busy }: {
       <div className="stack">
         <h2>掉位</h2>
         {tabs}
-        <Hint>撳一個位，再撳另一個位，兩人對調。坐東位的做首莊。</Hint>
+        <Hint>拖一個人去另一個位放手就對調（或者撳兩個位）。坐東位的做首莊。</Hint>
         <div className="pick-seats">
           {order.map((p, i) => (
             <button
               key={WINDS[i]}
               type="button"
-              className={`pick-seat${sel === i ? ' on' : ''}`}
+              data-seat={i}
+              className={`pick-seat${sel === i ? ' on' : ''}${ghost?.i === i ? ' dragging' : ''}${ghost?.over === i ? ' over' : ''}`}
               aria-pressed={sel === i}
               aria-label={`${WINDS[i]}位：${name(p)}`}
-              onClick={() => tapSeat(i)}
+              onPointerDown={(e) => onDown(e, i)}
+              onPointerMove={onMove}
+              onPointerUp={(e) => onUp(e, i)}
+              onPointerCancel={() => { drag.current = null; setGhost(null); }}
+              onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); tapSeat(i); } }}
             >
               <span className="pick-wind">{WINDS[i]}</span>
               <span className="ellipsis">{name(p)}</span>
@@ -85,6 +122,7 @@ export default function SeatDraw({ players, name, onConfirm, onCancel, busy }: {
             </button>
           ))}
         </div>
+        {ghost && <div className="pick-ghost" style={{ left: ghost.x, top: ghost.y }} aria-hidden="true">{name(order[ghost.i])}</div>}
         <div className="row">
           <button type="button" className="btn grow" disabled={busy || !changed} onClick={() => onConfirm(order)}>{changed ? '確認座位' : '未有改動'}</button>
           <button type="button" className="btn plain" onClick={changed ? () => { setOrder(players); setSel(null); } : onCancel}>{changed ? '還原' : '取消'}</button>

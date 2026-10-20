@@ -39,7 +39,14 @@ const TABLES: TableDoc[] = [
   { id: 't1', name: '第 2 枱', order: 1, seats: ['janice', 'sang', 'clau', 'af'], names: { janice: 'Janice', sang: 'Sang', clau: 'Clau', af: 'AF' } },
   { id: 't2', name: '第 3 枱', order: 2, seats: ['robin', 'tat', 'nat', 'ts'], names: { robin: 'Robin', tat: 'Tat', nat: 'Nat', ts: 'TS' } },
   { id: 't3', name: '第 4 枱', order: 3, seats: ['mandy', 'ben', 'wing', 'kitty'], names: { mandy: 'Mandy', ben: 'Ben', wing: 'Wing', kitty: 'Kitty' } },
+  { id: 't4', name: '第 5 枱', order: 4, seats: ['pat', 'sam', 'lok', 'yan'], names: { pat: 'Pat Chan', sam: 'Samantha Wong', lok: 'Lok', yan: 'Yan' } },
 ];
+
+// 第 5 枱：打完四圈（每鋪下家食，莊逐個過），用嚟睇「打完圈數」
+const FULL_ROUNDS: TableEvent[] = (() => {
+  const seats = ['pat', 'sam', 'lok', 'yan'];
+  return Array.from({ length: 16 }, (_, i) => ({ type: 'win', winners: [{ player: seats[(i + 1) % 4], fan: 5 + (i % 3) * 5 }], loser: seats[(i + 2) % 4] }) as TableEvent);
+})();
 
 const eat = (w: string, fan: number, l: string): TableEvent => ({ type: 'win', winners: [{ player: w, fan }], loser: l });
 const self = (w: string, fan: number): TableEvent => ({ type: 'win', winners: [{ player: w, fan }], loser: null });
@@ -48,13 +55,14 @@ const SCRIPT: Record<string, TableEvent[]> = {
   t0: [eat('athena', 8, 'viola'), self('ivan', 10), { type: 'special', player: 'ivan', label: '暗槓', amount: 5, direction: 'collect' }, eat('gavin', 15, 'ivan'), eat('gavin', 20, 'ivan')],
   t1: [self('janice', 12), eat('sang', 30, 'clau'), { type: 'draw' }],
   t2: [eat('tat', 6, 'nat'), eat('robin', 10, 'tat'), self('tat', 15), eat('ts', 40, 'robin')],
+  t4: FULL_ROUNDS,
 };
 
 function seed(): Record<string, StoredEvent[]> {
   const out: Record<string, StoredEvent[]> = {};
   const start = Date.now() - 95 * 60 * 1000;
   for (const [t, evs] of Object.entries(SCRIPT)) {
-    out[t] = evs.map((event, i) => ({ seq: i + 1, by: 'demo', event, at: start + (i + 1) * (17 + t.length) * 60 * 1000 + Number(t.slice(1)) * 4 * 60 * 1000 }));
+    out[t] = evs.map((event, i) => ({ seq: i + 1, by: 'demo', event, at: t === 't4' ? start + (i + 1) * 5 * 60 * 1000 : start + (i + 1) * (17 + t.length) * 60 * 1000 + Number(t.slice(1)) * 4 * 60 * 1000 }));
   }
   return out;
 }
@@ -337,7 +345,7 @@ export default function Demo() {
           await push({ type: 'swap', out, in: incoming.id });
           return 'done';
         }}
-        onReseat={async (s) => setSeatOverride((o) => ({ ...o, [table.id]: s }))}
+        onReseat={async (s) => ((events[table.id] ?? []).length ? push({ type: 'reseat', seats: s }) : setSeatOverride((o) => ({ ...o, [table.id]: s })))}
         onDice={async () => {
           const values = [1, 2, 3].map(() => 1 + Math.floor(Math.random() * 6));
           setDice((d) => ({ ...d, [table.id]: { values, by: 'gavin', at: Date.now(), n: (d[table.id]?.n ?? 0) + 1 } }));

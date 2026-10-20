@@ -1,7 +1,7 @@
 import { useMemo } from 'react';
 import type { User } from 'firebase/auth';
 import SettleScreen from '../components/SettleScreen.tsx';
-import { acceptPair, addExpense, approveClose, cancelClose, closeSession, deleteExpense, deletePair, isGuest, proposePair, requestClose, saveSettleConfig, setSessionWaterTo, settleConfigOf } from '../lib/data.ts';
+import { acceptPair, acceptTeam, addExpense, approveClose, cancelClose, closeSession, deleteExpense, deletePair, isGuest, proposePair, requestClose, saveSettleConfig, setSessionWaterTo, settleConfigOf } from '../lib/data.ts';
 import { useExpenses, useGroup, useManyEvents, useMembers, usePairs, useSession, useTables, useTeams } from '../lib/live.ts';
 import { computeTable, rulesOf, rulesTimeline } from '../lib/score.ts';
 import type { Computed } from '../lib/score.ts';
@@ -77,6 +77,7 @@ export default function SettlePage({ user, groupId, sessionId }: { user: User; g
       expenses={expenses.data}
       pairs={pairs.data}
       teams={teams.data}
+      onAcceptTeam={(id) => acceptTeam(groupId, id, user.uid)}
       teamsHref={`/g/${groupId}/rules#settle`}
       me={user.uid}
       onSaveConfig={(c) => saveSettleConfig(groupId, c)}

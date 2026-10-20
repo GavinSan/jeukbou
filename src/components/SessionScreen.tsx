@@ -42,17 +42,24 @@ export default function SessionScreen({ title, back, tables, computed, tableHref
   const [error, setError] = useState('');
 
   const ranking = useMemo(() => {
-    const rows: { id: string; name: string; table: string; net: number; spark: number[] }[] = [];
-    for (const t of tables) {
+    // 同一個人打過幾張枱：合埋一行，走勢接駁落去
+    const byId = new Map<string, { id: string; name: string; table: string; net: number; spark: number[] }>();
+    for (const t of [...tables].sort((a, b) => a.order - b.order)) {
       const c = computed[t.id];
       if (!c) continue;
       const ids = Object.keys(c.state.settled);
       const trend = trendOf(c, ids);
       for (const id of ids) {
-        rows.push({ id, name: t.names[id] ?? '玩家', table: t.name, net: (c.state.settled[id] ?? 0) + (c.pending[id] ?? 0), spark: trend[id] });
+        const net = (c.state.settled[id] ?? 0) + (c.pending[id] ?? 0);
+        const row = byId.get(id);
+        if (!row) { byId.set(id, { id, name: t.names[id] ?? '玩家', table: t.name, net, spark: trend[id] }); continue; }
+        const base = row.spark[row.spark.length - 1] ?? 0;
+        row.spark = [...row.spark, ...trend[id].slice(1).map((v) => v + base)];
+        row.net += net;
+        row.table = `${row.table}、${t.name}`;
       }
     }
-    return rows.sort((a, b) => b.net - a.net);
+    return [...byId.values()].sort((a, b) => b.net - a.net);
   }, [tables, computed]);
 
   const feed = useMemo(() => {
@@ -70,7 +77,7 @@ export default function SessionScreen({ title, back, tables, computed, tableHref
   }, [tables, computed]);
 
   const water = Object.values(computed).reduce((a, c) => a + (c?.state.water ?? 0), 0);
-  const people = tables.reduce((a, t) => a + (computed[t.id]?.state.seats.length ?? t.seats.length), 0);
+  const people = new Set(tables.flatMap((t) => Object.keys(computed[t.id]?.state.settled ?? {}).length ? Object.keys(computed[t.id]!.state.settled) : t.seats)).size;
 
   function toggle(p: Candidate) {
     setPicked((list) => (list.some((x) => x.id === p.id) ? list.filter((x) => x.id !== p.id) : list.length < 4 ? [...list, p] : list));
@@ -174,7 +181,7 @@ export default function SessionScreen({ title, back, tables, computed, tableHref
           </span>
           <span className="grow">
             <b>埋數</b>
-            <small>換算金額、晚餐等開支、GP、轉賬</small>
+            <small>換算金額、晚餐等開支、Group、轉賬</small>
           </span>
           <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" aria-hidden="true"><path d="M9 6l6 6-6 6" /></svg>
         </Link>
@@ -188,7 +195,7 @@ export default function SessionScreen({ title, back, tables, computed, tableHref
           </div>
           <div className="list">
             {ranking.map((r, i) => (
-              <div key={r.id + r.table} className="listrow">
+              <div key={r.id} className="listrow">
                 <span className="num rank">{i + 1}</span>
                 <Avatar name={r.name} size="sm" />
                 <span className="grow rank-who"><span className="ellipsis">{r.name}</span><small className="muted">{r.table}</small></span>
@@ -229,7 +236,7 @@ export default function SessionScreen({ title, back, tables, computed, tableHref
         </section>
       )}
       {delSession && onDeleteSession && (
-        <ConfirmDelete title="刪除大局" detail={`會永久刪除「${title}」所有枱、紀錄、開支同 GP，無法復原。`} word={title} onConfirm={onDeleteSession} onClose={() => setDelSession(false)} />
+        <ConfirmDelete title="刪除大局" detail={`會永久刪除「${title}」所有枱、紀錄、開支同 Group，無法復原。`} word={title} onConfirm={onDeleteSession} onClose={() => setDelSession(false)} />
       )}
 
       {invite && (
