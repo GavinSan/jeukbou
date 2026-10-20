@@ -106,7 +106,7 @@ export function PlayTable({ play, ids, name, me }: { play: PlayStats; ids: strin
           <span className="ellipsis"><span className="rank-no">{i + 1}</span>{name(r.id)}</span>
           {COLS.map(([k]) => (
             <span key={k} className={`num${k === 's' ? ' gain' : k === 'd' ? ' loss' : ''}`}>
-              <span className="crown-wrap">{crown(k, r[k]) && k !== 'd' && <span className="crown" aria-label="第一">👑</span>}{r[k] || '–'}</span>
+              <span className="crown-wrap">{crown(k, r[k]) && <span className="crown" aria-label="第一">👑</span>}{r[k] || '–'}</span>
             </span>
           ))}
         </div>

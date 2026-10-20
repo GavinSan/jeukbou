@@ -2,6 +2,7 @@
 import { useState } from 'react';
 import type { PayItem } from '../lib/pay.ts';
 import { Sheet } from '../ui.tsx';
+import { Link } from '../lib/router.tsx';
 import { money } from './SettleScreen.tsx';
 
 const md = (t: number) => { const d = new Date(t); return `${d.getMonth() + 1}月${d.getDate()}日`; };
@@ -61,18 +62,22 @@ export function PayRows({ items, pp, showSession, busyKey, onToggle, canToggle =
           const counter = it.dir === 'pay' ? it.to : it.from;
           return (
             <li key={`${it.sid}-${it.key}`} className={`pay-row${it.paid ? ' done' : ''} ${it.dir}`}>
-              <button type="button" className="pay-main" onClick={() => setWho({ ids: (it.dir === 'get' ? it.from : it.to).split(' + '), amount: it.amount })}>
+              <button type="button" className="pay-main" aria-label="收款資料" onClick={() => setWho({ ids: (it.dir === 'get' ? it.from : it.to).split(' + '), amount: it.amount })}>
                 <span className="pay-text">
                 <span className="pay-names">
                   <span className="pay-from">{nameOfKey(it.from, pp)}</span>
                   <span className="pay-arrow" aria-label="俾">→</span>
                   <span className="pay-to">{nameOfKey(it.to, pp)}</span>
                 </span>
-                {showSession && <small className="muted">{it.gname} · {it.sname || md(it.at)}</small>}
                 {it.dir === 'pay' && !it.paid && pp.emails[counter.split(' + ')[0]] && <small className="pay-hint">Interac：{pp.emails[counter.split(' + ')[0]]}</small>}
               </span>
               </button>
               <b className={`num pay-amt ${it.dir === 'pay' ? 'loss' : it.dir === 'get' ? 'gain' : ''}`}>{money(it.amount)}</b>
+              {showSession && (
+                <Link to={`/g/${it.gid}/s/${it.sid}/pay`} className="pay-session" ariaLabel={`睇 ${it.sname || md(it.at)} 嘅數`}>
+                  <span className="ellipsis">{it.gname} · {it.sname || md(it.at)}</span><span className="chev" aria-hidden="true">›</span>
+                </Link>
+              )}
               {onToggle && canToggle(it) ? (
                 <button type="button" className={`tf-paid${it.paid ? ' on' : ''}`} aria-pressed={it.paid} disabled={busyKey === it.key} onClick={() => onToggle(it, !it.paid)}>
                   {it.paid ? '✓ 已轉' : '標記已轉'}

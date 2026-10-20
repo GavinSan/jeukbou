@@ -34,6 +34,8 @@ export interface SessionScreenProps {
   me?: string | null;
   /** 已埋數但撳咗「開枱」：去今日大局（冇就開新大局） */
   onClosedAdd?: () => void;
+  /** 幾張枱一齊執位（場主／局主） */
+  onRegroup?: (plan: { tableId: string; seats: string[] }[]) => Promise<void>;
 }
 
 /** 快圈紀錄：「快東」「快南」…；再打四圈就「加四圈」 */
@@ -48,7 +50,7 @@ function quickTags(c: Computed): string[] {
   return out;
 }
 
-export default function SessionScreen({ title, back, tables, computed, tableHref, invite, rulesHref, onDeleteSession, water: waterCtl, closedNote, notice, candidates = [], onAddTable, me = null, onClosedAdd }: SessionScreenProps) {
+export default function SessionScreen({ title, back, tables, computed, tableHref, invite, rulesHref, onDeleteSession, water: waterCtl, closedNote, notice, candidates = [], onAddTable, me = null, onClosedAdd, onRegroup }: SessionScreenProps) {
   const now = useNow();
   const [adding, setAdding] = useState(false);
   const [delSession, setDelSession] = useState(false);
@@ -56,6 +58,12 @@ export default function SessionScreen({ title, back, tables, computed, tableHref
   const [guest, setGuest] = useState('');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
+  const [regroup, setRegroup] = useState<{ tableId: string; seats: string[] }[] | null>(null);
+  const openTables = tables.filter((t) => computed[t.id] && !computed[t.id]!.state.ended);
+  const shufflePlan = () => {
+    const all = shuffle(openTables.flatMap((t) => computed[t.id]!.state.seats));
+    return openTables.map((t, i) => ({ tableId: t.id, seats: all.slice(i * 4, i * 4 + 4) }));
+  };
   // 底部中間「＋ 開枱」：網址帶 #add-table 就打開加枱
   const canAdd = !!onAddTable;
   useEffect(() => {
@@ -172,7 +180,7 @@ export default function SessionScreen({ title, back, tables, computed, tableHref
             <Link key={t.id} to={tableHref(t.id)} className="tcard">
               <div className="tcard-head">
                 <h3>{t.name}</h3>
-                <span className="muted small">{!c ? '' : c.state.ended ? '已完場' : `${c.info.roundWind}圈 第 ${c.info.hand} 鋪`}</span>
+                <span className="muted small">{!c ? '' : c.state.ended ? '已完場' : `${c.info.roundWind}圈${WINDS[c.state.dealerTurns % 4]}位 第 ${c.info.hand} 鋪`}</span>
               </div>
               <div className="tcard-rows">
                 {seats.map((id) => {
@@ -185,8 +193,8 @@ export default function SessionScreen({ title, back, tables, computed, tableHref
                         <span className="prow-text">
                           {name(id)}
                           {dealer && <span className="prow-dealer">莊</span>}
-                          {kings.win === id && <span className="king-tag win" title="全場食糊最多">糊王</span>}
-                          {kings.self === id && <span className="king-tag self" title="全場自摸最多">摸王</span>}
+                          {kings.win === id && <span className="king-tag win" title="全場食糊最多">食糊王</span>}
+                          {kings.self === id && <span className="king-tag self" title="全場自摸最多">自摸王</span>}
                         </span>
                         {owe[id] ? <Chips amount={owe[id]} /> : null}
                       </span>
@@ -215,6 +223,7 @@ export default function SessionScreen({ title, back, tables, computed, tableHref
           );
         })}
         {onAddTable && <button type="button" className="btn plain" onClick={() => { setAdding(true); setPicked([]); setError(''); }}>加一張枱</button>}
+        {onRegroup && openTables.length >= 2 && <button type="button" className="btn plain" onClick={() => { setError(''); setRegroup(shufflePlan()); }}>{openTables.length} 張枱一齊執位</button>}
       </section>
 
       {ranking.length > 0 && (
@@ -228,7 +237,7 @@ export default function SessionScreen({ title, back, tables, computed, tableHref
               <div key={r.id} className="listrow">
                 <span className="num rank">{i + 1}</span>
                 <Avatar name={r.name} size="sm" />
-                <span className="grow rank-who"><span className="ellipsis">{r.name}{kings.win === r.id && <span className="king-tag win">糊王</span>}{kings.self === r.id && <span className="king-tag self">摸王</span>}</span><small className="muted">{r.table}</small></span>
+                <span className="grow rank-who"><span className="ellipsis">{r.name}{kings.win === r.id && <span className="king-tag win">食糊王</span>}{kings.self === r.id && <span className="king-tag self">自摸王</span>}</span><small className="muted">{r.table}</small></span>
                 <Sparkline values={r.spark} />
                 <RollingNumber value={r.net} className={`num ${tone(r.net)} big-num`} />
               </div>
@@ -284,6 +293,42 @@ export default function SessionScreen({ title, back, tables, computed, tableHref
           <Hint>對方登入後會自動加入牌友圈並來到這個大局，之後可換入枱或另開一枱。</Hint>
           <CopyLink url={invite} />
         </section>
+      )}
+
+      {regroup && onRegroup && (
+        <Sheet onClose={() => setRegroup(null)} label="一齊執位">
+          <h2>{openTables.length} 張枱一齊執位</h2>
+          <Hint>全部打緊嘅人隨機分去每張枱、重新排位。有拉住嘅數會先結算。</Hint>
+          <div className="regroup">
+            {regroup.map((p) => {
+              const t = tables.find((x) => x.id === p.tableId);
+              return (
+                <div key={p.tableId} className="regroup-table">
+                  <b>{t?.name}</b>
+                  <div className="regroup-seats">
+                    {p.seats.map((id, i) => (
+                      <span key={id} className={`regroup-seat${t && computed[t.id]?.state.seats.includes(id) ? '' : ' moved'}`}>
+                        <small>{WINDS[i]}</small>{allNames[id] ?? '玩家'}
+                      </span>
+                    ))}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+          <p className="muted small">深色 = 由其他枱轉過嚟。</p>
+          <button type="button" className="btn plain" disabled={busy} onClick={() => setRegroup(shufflePlan())}>再洗一次</button>
+          <button
+            type="button"
+            className="btn big"
+            disabled={busy}
+            onClick={async () => {
+              setBusy(true); setError('');
+              try { await onRegroup(regroup); setRegroup(null); } catch (err) { setError(message(err)); } finally { setBusy(false); }
+            }}
+          >確認執位</button>
+          {error && <p className="error" role="alert">{error}</p>}
+        </Sheet>
       )}
 
       {adding && onAddTable && (

@@ -1,6 +1,7 @@
 // 段位牌、成就牌、數字跳動、圓環：首頁同段位頁用
 import { useEffect, useRef, useState } from 'react';
-import type { CSSProperties } from 'react';
+import type { CSSProperties, MouseEvent } from 'react';
+import { go } from '../lib/router.tsx';
 import type { Badge, Stats, Tier } from '../lib/stats.ts';
 import { BADGE_CATS } from '../lib/stats.ts';
 
@@ -17,15 +18,23 @@ export function TierChip({ tier }: { tier: Tier }) {
   return <span className={`tier-chip ${tier.cls}`}>{tier.name}</span>;
 }
 
-export function BadgeTile({ b }: { b: Badge }) {
+export function BadgeTile({ b, href }: { b: Badge; href?: string }) {
   const color = BADGE_CATS.find((c) => c.key === b.cat)?.color ?? '#C08A16';
-  return (
-    <div className={`badge${b.got ? ` got lv${b.level}` : ''}`} title={b.note} style={{ '--bc': color } as CSSProperties}>
+  const cls = `badge${b.got ? ` got lv${b.level}` : ''}${href ? ' badge-link' : ''}`;
+  const style = { '--bc': color } as CSSProperties;
+  const body = (
+    <>
       <span className="badge-mark" aria-hidden="true">{b.mark}</span>
       <b>{b.name}</b>
       <small>{b.note}</small>
       {!b.got && <span className="badge-bar" aria-hidden="true"><i style={{ width: `${Math.round(b.progress * 100)}%` }} /></span>}
-    </div>
+    </>
+  );
+  if (!href) return <div className={cls} title={b.note} style={style}>{body}</div>;
+  return (
+    <a className={cls} title={b.note} style={style} href={href} onClick={(e: MouseEvent<HTMLAnchorElement>) => { if (e.metaKey || e.ctrlKey) return; e.preventDefault(); go(href); }}>
+      {body}
+    </a>
   );
 }
 
@@ -86,7 +95,7 @@ export function BadgeCats({ badges, stats }: { badges: Badge[]; stats?: Stats })
         const need = c.need && stats ? c.need(stats) : null;
         const progressTxt = next ? (c.show ? c.show(next.now, next.goal) : `${next.now}/${next.goal} ${c.unit}`) : '';
         return (
-          <div key={c.key} className={`bcat${top ? ` lv${top.level}` : ''}`} style={{ '--bc': c.color, animationDelay: `${ci * 0.03}s` } as CSSProperties}>
+          <div key={c.key} id={`badge-${c.key}`} className={`bcat${top ? ` lv${top.level}` : ''}`} style={{ '--bc': c.color, animationDelay: `${ci * 0.03}s` } as CSSProperties}>
             <div className="bcat-head">
               <span className={`badge-mark${top ? ` on lv${top.level}` : ''}`} aria-hidden="true">{c.mark}</span>
               <span className="grow">

@@ -29,8 +29,9 @@ export default function Incoming({ user, groupId, sessionId, requests, tables, c
       if (accept) {
         const c = computed[r.tableId];
         if (!c || !c.state.seats.includes(r.out)) throw new Error('該座位已改變，請對方重新邀請');
-        const seated = Object.values(computed).some((x) => x && !x.state.ended && x.state.seats.includes(user.uid));
-        if (seated) throw new Error('你正在另一張枱，請先離開再接受');
+        // 對調嘅邀請：自己喺 fromTable 打緊係正常；其他情況唔可以同時坐兩張枱
+        const seatedElsewhere = Object.entries(computed).some(([tid, x]) => tid !== r.fromTable && x && !x.state.ended && x.state.seats.includes(user.uid));
+        if (seatedElsewhere) throw new Error('你正在另一張枱，請先離開再接受');
         if (c.state.ended) throw new Error('該枱已完場');
       }
       await answerSwap(groupId, sessionId, r, user, accept);
@@ -52,7 +53,10 @@ export default function Incoming({ user, groupId, sessionId, requests, tables, c
         const outName = t?.names[r.out] ?? '玩家';
         return (
           <div key={r.id} className="banner invite">
-            <span className="grow"><b>{t?.name ?? '一張枱'}</b> 邀請你替換 {outName}</span>
+            <span className="grow">
+              <b>{t?.name ?? '一張枱'}</b> 邀請你替換 {outName}
+              {r.fromTable && <small className="muted">　{outName} 會過嚟坐你嘅位（{tables.find((x) => x.id === r.fromTable)?.name ?? '你嗰枱'}）</small>}
+            </span>
             <button type="button" className="btn" disabled={busy === r.id} onClick={() => answer(r, true)}>接受</button>
             <button type="button" className="textbtn" disabled={busy === r.id} onClick={() => answer(r, false)}>拒絕</button>
           </div>

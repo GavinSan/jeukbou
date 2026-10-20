@@ -218,6 +218,9 @@ export interface SwapRequest {
   inName: string;
   by: string;
   status: 'pending' | 'accepted' | 'declined' | 'cancelled';
+  /** 對方而家喺另一張枱打緊：接受就兩張枱對調 */
+  fromTable?: string;
+  outName?: string;
 }
 
 export interface UndoEvent {
@@ -532,6 +535,30 @@ export async function applySwap(
   }
 }
 
+/** 幾張枱一齊執位：每張枱用換人（swap）換走唔再坐呢枱嘅人，再用換位（reseat）排位；未開局嘅枱直接改座位 */
+export async function regroupTables(
+  groupId: string, sessionId: string, by: string,
+  plan: { tableId: string; current: string[]; seats: string[]; names: Record<string, string>; fresh: boolean }[],
+): Promise<void> {
+  for (const p of plan) {
+    const ref = doc(fs(), 'groups', groupId, 'sessions', sessionId, 'tables', p.tableId);
+    const out = p.current.filter((x) => !p.seats.includes(x));
+    const inn = p.seats.filter((x) => !p.current.includes(x));
+    if (p.fresh) {
+      await updateDoc(ref, { seats: p.seats, ...Object.fromEntries(inn.map((id) => [`names.${id}`, p.names[id] ?? '玩家'])) });
+      continue;
+    }
+    const now = [...p.current];
+    for (let i = 0; i < out.length; i++) {
+      await applySwap(groupId, sessionId, p.tableId, by, out[i], inn[i], p.names[inn[i]] ?? '玩家');
+      now[now.indexOf(out[i])] = inn[i];
+    }
+    if (now.join('|') !== p.seats.join('|')) {
+      await appendEvent(groupId, sessionId, p.tableId, await nextSeq(groupId, sessionId, p.tableId), by, { type: 'reseat', seats: p.seats });
+    }
+  }
+}
+
 export async function requestSwap(groupId: string, sessionId: string, req: Omit<SwapRequest, 'id' | 'status'>): Promise<void> {
   const ref = doc(collection(fs(), 'groups', groupId, 'sessions', sessionId, 'requests'));
   await setDoc(ref, { ...req, status: 'pending', createdAt: serverTimestamp() });
@@ -539,7 +566,11 @@ export async function requestSwap(groupId: string, sessionId: string, req: Omit<
 
 export async function answerSwap(groupId: string, sessionId: string, req: SwapRequest, user: User, accept: boolean): Promise<void> {
   const ref = doc(fs(), 'groups', groupId, 'sessions', sessionId, 'requests', req.id);
-  if (accept) await applySwap(groupId, sessionId, req.tableId, user.uid, req.out, req.in, displayName(user));
+  if (accept) {
+    await applySwap(groupId, sessionId, req.tableId, user.uid, req.out, req.in, displayName(user));
+    // 由另一張枱過嚟：嗰張枱就由離開嗰個補上（對調）
+    if (req.fromTable) await applySwap(groupId, sessionId, req.fromTable, user.uid, req.in, req.out, req.outName ?? '玩家');
+  }
   await updateDoc(ref, { status: accept ? 'accepted' : 'declined' });
 }
 

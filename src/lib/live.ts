@@ -99,6 +99,7 @@ export const toTable = (id: string, d: DocumentData): TableDoc => ({
 const toRequest = (id: string, d: DocumentData): SwapRequest => ({
   id, tableId: String(d.tableId ?? ''), out: String(d.out ?? ''), in: String(d.in ?? ''), inName: String(d.inName ?? ''),
   by: String(d.by ?? ''), status: d.status ?? 'pending',
+  fromTable: d.fromTable ? String(d.fromTable) : undefined, outName: d.outName ? String(d.outName) : undefined,
 });
 export const toEvent = (_id: string, d: DocumentData): StoredEvent => ({
   seq: Number(d.seq),

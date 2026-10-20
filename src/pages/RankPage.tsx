@@ -1,5 +1,5 @@
 // 段位頁：自己段位、點樣攞分、全部成就、每個牌友圈嘅雀力排行
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import type { User } from 'firebase/auth';
 import { useProfile } from '../lib/live.ts';
 import { POINT_RULES, TIERS, badgesOf, pointsFor, statsOf, tierOf, useMyHistory } from '../lib/stats.ts';
@@ -9,6 +9,19 @@ import { TopBar } from '../ui.tsx';
 
 export function RankView({ me, mine, groups, loading }: { me: string; mine: MySession[]; groups: GroupResults[]; loading: boolean }) {
   const st = statsOf(mine);
+  // 由主頁撳成就入嚟：捲去成就／嗰一類，閃一閃
+  useEffect(() => {
+    if (loading) return;
+    const h = window.location.hash.slice(1);
+    if (!h.startsWith('badge')) return;
+    const el = document.getElementById(h);
+    if (!el) return;
+    const t1 = setTimeout(() => {
+      el.scrollIntoView({ behavior: 'smooth', block: h === 'badges' ? 'start' : 'center' });
+      if (h !== 'badges') { el.classList.add('flash-focus'); setTimeout(() => el.classList.remove('flash-focus'), 1800); }
+    }, 120);
+    return () => clearTimeout(t1);
+  }, [loading]);
   const t = tierOf(st.points);
   const badges = badgesOf(st);
   const [gi, setGi] = useState(0);
@@ -42,7 +55,7 @@ export function RankView({ me, mine, groups, loading }: { me: string; mine: MySe
       <section className="stack">
         <h2 className="section-head">段位</h2>
         <ol className="list ladder">
-          {[...TIERS].reverse().map((x) => (
+          {TIERS.map((x) => (
             <li key={x.name} className={x.name === t.tier.name ? 'here' : st.points >= x.min ? 'done' : ''}>
               <TierTile tier={x} size="sm" />
               <span className="grow">{x.name}</span>
@@ -62,7 +75,7 @@ export function RankView({ me, mine, groups, loading }: { me: string; mine: MySe
         </div>
       </section>
 
-      <section className="stack">
+      <section className="stack" id="badges">
         <h2 className="section-head">成就 {badges.filter((b) => b.got).length}/{badges.length}</h2>
         <BadgeCats badges={badges} stats={st} />
       </section>

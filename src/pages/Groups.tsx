@@ -5,7 +5,7 @@ import type { User } from 'firebase/auth';
 import { cancelJoinRequest, createGroup, joinGroup, lookupJoinCode, settlePending } from '../lib/data.ts';
 import { useGroup, useJoinRequests, useMyJoinRequest, useMyMember, useProfile } from '../lib/live.ts';
 import { Link, go } from '../lib/router.tsx';
-import { Sheet, TopBar, message } from '../ui.tsx';
+import { Sheet, TopBar, message, useConfirm } from '../ui.tsx';
 import { seenAt } from '../lib/notify.ts';
 import { useSuperAdmin } from '../lib/admin.ts';
 
@@ -54,14 +54,16 @@ export function SearchAdd({ q, onQ, onAdd }: { q: string; onQ: (v: string) => vo
 function PendingRow({ g, name, uid }: { g: string; name: string; uid: string }) {
   const member = useMyMember(g, uid);
   const req = useMyJoinRequest(g, uid);
+  const [confirmUI, ask] = useConfirm();
   const joined = !!member.data;
   useEffect(() => { if (joined) settlePending(uid, g, true).catch(() => undefined); }, [joined, uid, g]);
   if (joined || member.loading || req.loading) return null;
   const rejected = !req.data;
   return (
     <div className="listrow pending-row">
+      {confirmUI}
       <span className="grow">{name}<small className="muted">{rejected ? '　申請未獲批准' : '　等待局主批准'}</small></span>
-      <button type="button" className="textbtn" onClick={() => cancelJoinRequest(uid, g).catch(() => undefined)}>{rejected ? '移除' : '取消申請'}</button>
+      <button type="button" className="textbtn" onClick={() => ask({ title: rejected ? '移除' : '取消申請', detail: rejected ? `由名單移除「${name}」。` : `取消加入「${name}」嘅申請。`, action: rejected ? '移除' : '取消申請', run: () => cancelJoinRequest(uid, g).catch(() => undefined) })}>{rejected ? '移除' : '取消申請'}</button>
     </div>
   );
 }

@@ -25,6 +25,7 @@ const MyPayPage = lazyPage(() => import('./pages/MyPayPage.tsx'));
 const PayPage = lazyPage(() => import('./pages/PayPage.tsx'));
 import TabBar, { HOME_DEMO_TABS, appTabs } from './components/TabBar.tsx';
 import { navContext } from './lib/nav.ts';
+import { applySkin, usePrefs } from './lib/prefs.ts';
 import { GroupWatchers, NoticeBar } from './components/Watch.tsx';
 import { UpdateWatcher } from './lib/update.tsx';
 const Demo = lazyPage(() => import('./demo.tsx'));
@@ -60,6 +61,8 @@ export default function App() {
   const [, setTick] = useState(0);
   const refresh = () => setTick((t) => t + 1);
   const path = usePath();
+  const { skin } = usePrefs();
+  useEffect(() => { applySkin(skin); }, [skin]);
 
   // 大局頁記低我坐邊張枱之後，tab 要更新
   useEffect(() => {
@@ -88,8 +91,8 @@ export default function App() {
     return (
       <>
         <Suspense fallback={<main className="page narrow"><Loading /></main>}><Demo /></Suspense>
-        {path === '/demo/admin' ? null : path === '/demo/home' || path === '/demo/rank' || path === '/demo/groups' || path === '/demo/pay'
-          ? <TabBar tabs={HOME_DEMO_TABS} active={path === '/demo/rank' ? 'rank' : path === '/demo/groups' ? 'groups' : path === '/demo/pay' ? 'pay' : 'home'} />
+        {path === '/demo/admin' ? null : path === '/demo/home' || path === '/demo/rank' || path === '/demo/groups' || path === '/demo/pay' || path === '/demo/skins'
+          ? <TabBar tabs={HOME_DEMO_TABS} active={path === '/demo/rank' ? 'rank' : path === '/demo/groups' ? 'groups' : path === '/demo/pay' ? 'pay' : path === '/demo/skins' ? 'settings' : 'home'} />
           : <TabBar tabs={demoTabs} active={active} />}
       </>
     );

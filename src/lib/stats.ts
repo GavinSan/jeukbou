@@ -50,15 +50,13 @@ export interface PointInput {
 
 /**
  * 一個大局嘅分：出席 10、贏錢 10、當晚第一 10、每贏 100 番 +2（最多 +20）、
- * 每食 3 糊 +1、每自摸 +1、每拉 3 次 +1。輸唔扣分。
+ * 每拉人 3 次 +1。輸唔扣分。
  */
 export function sessionPoints(s: PointInput): number {
   let p = 10;
   if (s.mine > 0) p += 10;
   if (s.rank === 1 && s.players > 1 && s.mine > 0) p += 10;
   p += Math.min(20, Math.floor(Math.max(0, s.mine) / 100) * 2);
-  p += Math.floor((s.wins ?? 0) / 3);
-  p += s.selfDraws ?? 0;
   p += Math.floor((s.pulls ?? 0) / 3);
   return p;
 }
@@ -68,8 +66,6 @@ export const POINT_RULES: [string, string][] = [
   ['當晚贏錢', '+10'],
   ['當晚第一（龍頭）', '+10'],
   ['每贏 100 番', '+2（最多 +20）'],
-  ['每食 3 鋪糊', '+1'],
-  ['每次自摸', '+1'],
   ['每拉人 3 次', '+1'],
   ['輸錢', '不扣分'],
 ];
@@ -84,15 +80,15 @@ export interface Tier {
 }
 
 export const TIERS: Tier[] = [
-  { name: '雀苗', mark: '苗', min: 0, cls: 't0' },
+  { name: '雀蛋', mark: '蛋', min: 0, cls: 't0' },
   { name: '雀仔', mark: '仔', min: 100, cls: 't1' },
   { name: '雀友', mark: '友', min: 300, cls: 't2' },
-  { name: '雀將', mark: '將', min: 600, cls: 't3' },
-  { name: '雀王', mark: '王', min: 1000, cls: 't4' },
+  { name: '雀士', mark: '士', min: 600, cls: 't3' },
+  { name: '雀豪', mark: '豪', min: 1000, cls: 't4' },
   { name: '雀霸', mark: '霸', min: 1800, cls: 't5' },
-  { name: '雀神', mark: '神', min: 3000, cls: 't6' },
-  { name: '雀聖', mark: '聖', min: 5000, cls: 't7' },
-  { name: '雀帝', mark: '帝', min: 7500, cls: 't8' },
+  { name: '雀王', mark: '王', min: 3000, cls: 't6' },
+  { name: '雀皇', mark: '皇', min: 5000, cls: 't7' },
+  { name: '雀神', mark: '神', min: 7500, cls: 't8' },
   { name: '雀仙', mark: '仙', min: 10000, cls: 't9' },
 ];
 
@@ -272,7 +268,7 @@ export const BADGE_CATS: BadgeCat[] = [
   { key: 'streak', title: '連贏', mark: '連', color: '#D9607A', unit: '次', value: (s) => s.bestStreak, note: (g) => `連續 ${g} 次大局贏錢`,
     tiers: [[2, '二連'], [3, '三連'], [4, '四連'], [5, '五連'], [6, '六連'], [7, '七連'], [8, '八連'], [10, '十連霸']] },
   { key: 'points', title: '雀力分', mark: '力', color: '#2F63B0', unit: '分', value: (s) => s.points, note: (g) => `雀力 ${g} 分`,
-    tiers: [[100, '雀仔'], [300, '雀友'], [600, '雀將'], [1000, '雀王'], [1800, '雀霸'], [3000, '雀神'], [5000, '雀聖'], [10000, '雀仙']] },
+    tiers: [[300, '雀友'], [600, '雀士'], [1000, '雀豪'], [1800, '雀霸'], [3000, '雀王'], [5000, '雀皇'], [7500, '雀神'], [10000, '雀仙']] },
   { key: 'days', title: '打牌日', mark: '日', color: '#24508F', unit: '日', value: (s) => s.days, note: (g) => `打過 ${g} 日`,
     tiers: [[1, '初日'], [7, '一週'], [14, '半月'], [30, '一月'], [60, '二月'], [100, '百日'], [200, '二百日'], [365, '一年']] },
   { key: 'month', title: '一個月', mark: '月', color: '#8A4A12', unit: '次', value: (s) => s.maxMonth, note: (g) => `一個月打 ${g} 次`,

@@ -6,7 +6,7 @@ import type { NewTable } from '../lib/data.ts';
 import { useGroup, useMembers } from '../lib/live.ts';
 import { go } from '../lib/router.tsx';
 import { shuffle } from '../components/SeatDraw.tsx';
-import { Hint, Loading, TopBar, message, clampName } from '../ui.tsx';
+import { Hint, Loading, TopBar, message, clampName, useConfirm } from '../ui.tsx';
 
 const WINDS = ['東', '南', '西', '北'];
 const GUEST = '__guest__';
@@ -31,6 +31,7 @@ export default function NewSession({ user, groupId }: { user: User; groupId: str
   const [tables, setTables] = useState<SeatPick[][]>(() => [[{ value: user.uid, guestName: '' }, emptySeat(), emptySeat(), emptySeat()]]);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
+  const [confirmUI, ask] = useConfirm();
 
   const used = useMemo(() => new Set(tables.flat().map((s) => s.value).filter((v) => v && v !== GUEST)), [tables]);
 
@@ -103,7 +104,7 @@ export default function NewSession({ user, groupId }: { user: User; groupId: str
               <h2>第 {ti + 1} 枱</h2>
               <span className="row" style={{ gap: 4 }}>
                 <button type="button" className="textbtn" onClick={() => shuffleTable(ti)}>掉位</button>
-                {tables.length > 1 && <button type="button" className="textbtn loss" onClick={() => removeTable(ti)}>刪除</button>}
+                {tables.length > 1 && <button type="button" className="textbtn loss" onClick={() => ask({ title: `刪除第 ${ti + 1} 枱`, detail: '呢張枱揀咗嘅人會清走。', run: () => removeTable(ti) })}>刪除</button>}
               </span>
             </div>
             <div className="seat-grid">
@@ -141,6 +142,7 @@ export default function NewSession({ user, groupId }: { user: User; groupId: str
           <Hint>牌友圈有 {members.data.length} 位成員；未加入的人可先用訪客位。</Hint>
         )}
       </form>
+      {confirmUI}
     </main>
   );
 }

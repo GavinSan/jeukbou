@@ -6,7 +6,7 @@ import { guestId, isGuest, pairActive, teamActive } from '../lib/data.ts';
 import type { ExpenseDoc, PairDoc, Payout, SettleConfig, TeamDoc } from '../lib/data.ts';
 import { payKey } from '../lib/data.ts';
 import { buildSettle, payoutOf, samePayout } from '../lib/settle.ts';
-import { Hint, NumInput, Sheet, TopBar, clampName, message } from '../ui.tsx';
+import { Hint, NumInput, Sheet, TopBar, clampName, message, useConfirm } from '../ui.tsx';
 import { go } from '../lib/router.tsx';
 
 export interface Player {
@@ -137,6 +137,7 @@ export default function SettleScreen(p: SettleScreenProps) {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
   const [copied, setCopied] = useState(false);
+  const [confirmUI, ask] = useConfirm();
 
   const skipTeams = p.skipTeams ?? [];
   const inputKey = JSON.stringify([p.players, people, p.fan, p.water, cfg, p.expenses, p.pairs, p.teams ?? [], skipTeams]);
@@ -472,7 +473,7 @@ export default function SettleScreen(p: SettleScreenProps) {
             <span key={pl.id} className="person-chip">
               {pl.name}
               {!locked && p.onRemovePerson && !p.expenses.some((e) => e.payer === pl.id || (!isAll[e.id] && e.sharedBy.includes(pl.id))) && (
-                <button type="button" aria-label={`移除 ${pl.name}`} disabled={busy} onClick={() => run(() => p.onRemovePerson!(pl), true)}>×</button>
+                <button type="button" aria-label={`移除 ${pl.name}`} disabled={busy} onClick={() => ask({ title: `移除 ${pl.name}`, detail: `${pl.name} 會由今日名單移除，「全部人」嘅開支唔再計佢。`, action: '移除', run: () => run(() => p.onRemovePerson!(pl), true) })}>×</button>
               )}
             </span>
           ))}
@@ -510,7 +511,7 @@ export default function SettleScreen(p: SettleScreenProps) {
                   {!locked && p.onSkipTeam && (skipped ? (
                     <button type="button" className="textbtn" disabled={busy} onClick={() => run(() => p.onSkipTeam!(t.id, false), true)}>恢復</button>
                   ) : here.length > 1 && (
-                    <button type="button" className="iconbtn small" aria-label="今晚唔一齊計" disabled={busy} onClick={() => run(() => p.onSkipTeam!(t.id, true), true)}>
+                    <button type="button" className="iconbtn small" aria-label="今晚唔一齊計" disabled={busy} onClick={() => ask({ title: '今晚唔一齊計', detail: `${t.members.map(nameOf).join(' + ')} 今晚會分開計（之後可以撳「恢復」）。`, action: '分開計', run: () => run(() => p.onSkipTeam!(t.id, true), true) })}>
                       <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18" /></svg>
                     </button>
                   ))}
@@ -529,7 +530,7 @@ export default function SettleScreen(p: SettleScreenProps) {
                   </span>
                   {!active && (p.isAdmin || (p.me && waiting.includes(p.me))) && <button type="button" className="btn small-btn" disabled={busy} onClick={() => run(() => p.onAcceptPair(pr.id))}>{p.isAdmin && !(p.me && waiting.includes(p.me)) ? '直接生效' : '同意'}</button>}
                   {!locked && (
-                    <button type="button" className="iconbtn small" aria-label="取消此 Group" disabled={busy} onClick={() => run(() => p.onDeletePair(pr.id))}>
+                    <button type="button" className="iconbtn small" aria-label="取消此 Group" disabled={busy} onClick={() => ask({ title: '取消呢個 Group', detail: `${nameOf(pr.a)} + ${nameOf(pr.b)} 今晚會分開計。`, action: '取消 Group', run: () => run(() => p.onDeletePair(pr.id)) })}>
                       <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18" /></svg>
                     </button>
                   )}
@@ -559,10 +560,7 @@ export default function SettleScreen(p: SettleScreenProps) {
           onAddPerson={p.onAddPerson}
           onClose={() => setSheet(null)}
           onSave={(e) => run(() => (editing ? (p.onUpdateExpense ? p.onUpdateExpense(editing.id, e) : Promise.resolve()) : p.onAddExpense(e)))}
-          onDelete={editing ? () => {
-            if (!window.confirm(`刪除「${editing.label}」？`)) return;
-            run(() => p.onDeleteExpense(editing.id));
-          } : undefined}
+          onDelete={editing ? () => ask({ title: '刪除開支', detail: `「${editing.label} ${money(editing.amount)}」會被刪除，無得返轉頭。`, run: () => run(() => p.onDeleteExpense(editing.id)) }) : undefined}
         />
       )}
       {sheet === 'person' && p.onAddPerson && (
@@ -578,6 +576,7 @@ export default function SettleScreen(p: SettleScreenProps) {
           onSave={(a, b) => run(() => p.onProposePair(a, b))}
         />
       )}
+      {confirmUI}
       {r && who && (
         <Sheet onClose={() => setSheet(null)} label="明細">
           <PersonBreakdown

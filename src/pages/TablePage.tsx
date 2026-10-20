@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import type { User } from 'firebase/auth';
 import TableScreen from '../components/TableScreen.tsx';
 import Incoming from '../components/Incoming.tsx';
-import { appendEvent, applySwap, cancelSwap, declineSettle, requestSwap, reseat, rollDice, fanTableOf, settleConfigOf, deleteTable } from '../lib/data.ts';
+import { appendEvent, applySwap, cancelSwap, declineSettle, requestSwap, reseat, rollDice, fanTableOf, settleConfigOf, deleteTable, isGuest } from '../lib/data.ts';
 import { useSuperAdmin } from '../lib/admin.ts';
 import { go } from '../lib/router.tsx';
 import { useEvents, useGroup, useManyEvents, useMembers, useRequests, useSession, useTables } from '../lib/live.ts';
@@ -55,7 +55,18 @@ export default function TablePage({ user, groupId, sessionId, tableId }: { user:
   const tableEvents = events[tableId] ?? [];
   const seatedAnywhere = new Set<string>();
   for (const x of Object.values(computed)) if (x && !x.state.ended) x.state.seats.forEach((s) => seatedAnywhere.add(s));
-  const candidates = members.data.filter((m) => !seatedAnywhere.has(m.uid)).map((m) => ({ id: m.uid, name: m.name }));
+  // 換人：空閒成員、打完枱嘅訪客、同埋其他枱打緊嘅人（會對調）
+  const candidates: { id: string; name: string; table?: { id: string; name: string } }[] = members.data.filter((m) => !seatedAnywhere.has(m.uid)).map((m) => ({ id: m.uid, name: m.name }));
+  for (const t of tables.data) {
+    if (t.id === tableId) continue;
+    const x = computed[t.id];
+    if (!x) continue;
+    for (const s of x.state.seats) {
+      if (candidates.some((k) => k.id === s)) continue;
+      if (!x.state.ended) candidates.push({ id: s, name: t.names[s] ?? '玩家', table: { id: t.id, name: t.name } });
+      else if (isGuest(s) && !seatedAnywhere.has(s)) candidates.push({ id: s, name: t.names[s] ?? '訪客' });
+    }
+  }
 
   // 只有坐喺呢張枱嘅人（同場主、局主）先可以入數；其他人只可以睇
   const owner = !!group.data && (group.data.ownerId === user.uid || admin);
@@ -83,13 +94,16 @@ export default function TablePage({ user, groupId, sessionId, tableId }: { user:
       notice={<Incoming user={user} groupId={groupId} sessionId={sessionId} requests={requests.data} tables={tables.data} computed={computed} />}
       onPush={(event) => appendEvent(groupId, sessionId, tableId, tableEvents.length + 1, user.uid, event)}
       onSwap={async (out, incoming, guest) => {
-        if (guest) {
+        const outName = table.names[out] ?? '玩家';
+        // 訪客冇帳戶：即刻換（喺其他枱就兩邊對調）
+        if (guest || isGuest(incoming.id)) {
           await applySwap(groupId, sessionId, tableId, user.uid, out, incoming.id, incoming.name);
+          if (incoming.table) await applySwap(groupId, sessionId, incoming.table.id, user.uid, incoming.id, out, outName);
           return 'done';
         }
         const dup = requests.data.some((r) => r.status === 'pending' && r.in === incoming.id);
         if (dup) throw new Error(`已邀請 ${incoming.name}，請等待回覆`);
-        await requestSwap(groupId, sessionId, { tableId, out, in: incoming.id, inName: incoming.name, by: user.uid });
+        await requestSwap(groupId, sessionId, { tableId, out, in: incoming.id, inName: incoming.name, by: user.uid, ...(incoming.table ? { fromTable: incoming.table.id, outName } : {}) });
         return 'requested';
       }}
       onCancelSwap={(id) => cancelSwap(groupId, sessionId, id)}

@@ -175,8 +175,10 @@ export function clampName(s: string): string {
 }
 
 /** 刪除確認：彈出嚟問多一次就得（唔使打字） */
-export function ConfirmDelete({ title, detail, onConfirm, onClose }: {
+export function ConfirmDelete({ title, detail, onConfirm, onClose, action = '刪除' }: {
   title: string; detail: string; /** 舊介面：已唔使打字確認 */ word?: string; onConfirm: () => Promise<void>; onClose: () => void;
+  /** 確認掣嘅字，例如「撤回」 */
+  action?: string;
 }) {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
@@ -197,12 +199,21 @@ export function ConfirmDelete({ title, detail, onConfirm, onClose }: {
               try { await onConfirm(); onClose(); } catch (err) { setError(message(err)); setBusy(false); }
             }}
           >
-            {busy ? '刪除中…' : '刪除'}
+            {busy ? `${action}中…` : action}
           </button>
         </div>
       </div>
     </div>
   );
+}
+
+/** 問一問先做（刪除、撤回、移除…）：const [confirmUI, ask] = useConfirm(); ask({ title, detail, run }) */
+export function useConfirm(): [ReactNode, (o: { title: string; detail: string; action?: string; run: () => unknown }) => void] {
+  const [req, setReq] = useState<null | { title: string; detail: string; action?: string; run: () => unknown }>(null);
+  const ui = req ? (
+    <ConfirmDelete title={req.title} detail={req.detail} action={req.action} onConfirm={async () => { await req.run(); }} onClose={() => setReq(null)} />
+  ) : null;
+  return [ui, setReq];
 }
 
 /** 說明文字：設定入面可以收起 */

@@ -6,7 +6,8 @@ import { withRules } from './engine/rules.ts';
 import type { Dice, StoredEvent, TableDoc, LogEvent } from './lib/data.ts';
 import { computeTable, emptyPlay } from './lib/score.ts';
 import type { Computed } from './lib/score.ts';
-import { match, usePath } from './lib/router.tsx';
+import { Link, match, usePath } from './lib/router.tsx';
+import { SkinPicker } from './components/Settings.tsx';
 import SessionScreen from './components/SessionScreen.tsx';
 import TableScreen from './components/TableScreen.tsx';
 import RulesEditor from './components/RulesEditor.tsx';
@@ -217,6 +218,7 @@ export default function Demo() {
           loading={false}
           resume={<ResumeRow href="/demo" name="10月18日 屋企局" />}
           sessionHref={() => '/demo'}
+          rankHref="/demo/rank"
         />
         <NoticeBar />
       </>
@@ -260,6 +262,21 @@ export default function Demo() {
     ];
     const users = people.map(([uid, name, email]) => ({ uid, name, email, payEmail: email, groups: uid === 'gavin' ? ['a'] : uid === 'ivan' ? ['a'] : ['a', 'b'], updatedAt: now - day }));
     return <AdminView me="gavin" groups={groups} users={users} error="" onRefresh={() => undefined} />;
+  }
+
+  if (path === '/demo/skins') {
+    return (
+      <main className="page">
+        <TopBar back="/demo/home" title="試風格" />
+        <p className="muted small">揀一款，之後去其他示範頁睇吓。只係改呢部機，隨時可以喺「設定」轉返。</p>
+        <SkinPicker />
+        <div className="list">
+          {[['/demo/home', '主頁'], ['/demo', '大局'], ['/demo/t/0', '枱'], ['/demo/settle', '埋數'], ['/demo/board', '龍虎榜'], ['/demo/rank', '段位']].map(([href, label]) => (
+            <Link key={href} to={href} className="listrow"><span className="grow">{label}</span><span className="chev" aria-hidden="true">›</span></Link>
+          ))}
+        </div>
+      </main>
+    );
   }
 
   if (path === '/demo/rank') {
@@ -434,6 +451,10 @@ export default function Demo() {
       settleHref="/demo/settle"
       water={{ on: !noWater, onToggle: async (on) => setNoWater(!on) }}
       candidates={[{ id: 'kit', name: 'Kit' }, { id: 'jo', name: 'Jo' }]}
+      me="gavin"
+      onRegroup={async (plan) => {
+        setSeatOverride((m) => ({ ...m, ...Object.fromEntries(plan.map((p) => [p.tableId, p.seats])) }));
+      }}
     />
   );
 }

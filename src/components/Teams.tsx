@@ -3,7 +3,7 @@
 import { useState } from 'react';
 import { teamActive } from '../lib/data.ts';
 import type { TeamDoc } from '../lib/data.ts';
-import { Hint, Sheet, message } from '../ui.tsx';
+import { Hint, Sheet, message, useConfirm } from '../ui.tsx';
 
 export interface TeamPerson {
   id: string;
@@ -23,6 +23,7 @@ export default function TeamsEditor({ teams, people, me, canDeleteAny, onCreate,
   const [picked, setPicked] = useState<string[]>([]);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
+  const [confirmUI, ask] = useConfirm();
   const nameOf = (id: string) => people.find((p) => p.id === id)?.name ?? '（已離開）';
   const taken = new Set(teams.flatMap((t) => t.members));
 
@@ -36,7 +37,9 @@ export default function TeamsEditor({ teams, people, me, canDeleteAny, onCreate,
     <section className="stack">
       <div className="section-head">
         <h2>預設 Group</h2>
-        <button type="button" className="textbtn" onClick={() => { setPicked([]); setError(''); setAdding(true); }}>＋ 新增</button>
+        <button type="button" className="iconbtn add-btn" aria-label="新增預設 Group" onClick={() => { setPicked([]); setError(''); setAdding(true); }}>
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" aria-hidden="true"><path d="M12 5v14M5 12h14" /></svg>
+        </button>
       </div>
       {teams.length ? (
         <ul className="list exp-list">
@@ -51,7 +54,7 @@ export default function TeamsEditor({ teams, people, me, canDeleteAny, onCreate,
                 </span>
                 {waiting.includes(me) && <button type="button" className="btn small-btn" disabled={busy} onClick={() => run(() => onAccept(t.id))}>同意</button>}
                 {(canDeleteAny || t.members.includes(me)) && (
-                  <button type="button" className="textbtn loss" disabled={busy} onClick={() => run(() => onDelete(t.id))}>取消</button>
+                  <button type="button" className="textbtn loss" disabled={busy} onClick={() => ask({ title: '取消預設 Group', detail: `${t.members.map(nameOf).join(' + ')} 之後唔會再自動一齊計。`, action: '取消 Group', run: () => run(() => onDelete(t.id)) })}>取消</button>
                 )}
               </li>
             );
@@ -86,6 +89,7 @@ export default function TeamsEditor({ teams, people, me, canDeleteAny, onCreate,
           >{picked.length >= 2 ? `新增 ${picked.map(nameOf).join(' + ')}` : '選兩位或以上'}</button>
         </Sheet>
       )}
+      {confirmUI}
     </section>
   );
 }

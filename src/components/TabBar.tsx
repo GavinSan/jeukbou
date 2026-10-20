@@ -40,7 +40,7 @@ export const HOME_DEMO_TABS: Tab[] = [
   { key: 'groups', label: '牌友圈', href: '/demo/groups' },
   { key: 'pay', label: '找數', href: '/demo/pay' },
   { key: 'rank', label: '段位', href: '/demo/rank' },
-  { key: 'settings', label: '設定', href: '/demo/home' },
+  { key: 'settings', label: '設定', href: '/demo/skins' },
 ];
 
 export default function TabBar({ tabs, active }: { tabs: Tab[]; active: string | null }) {

@@ -127,9 +127,10 @@ export function ResumeRow({ href, name }: { href: string; name: string }) {
   );
 }
 
-export function DashboardView({ name, photo, joined, groupCount, mine, loading, resume, sessionHref }: {
+export function DashboardView({ name, photo, joined, groupCount, mine, loading, resume, sessionHref, rankHref = '/rank' }: {
   name: string; photo: string | null; joined: string; groupCount: number; mine: MySession[]; loading: boolean; resume?: ReactNode;
   sessionHref: (s: MySession) => string;
+  rankHref?: string;
 }) {
   const st = statsOf(mine);
   const t = tierOf(st.points);
@@ -226,9 +227,9 @@ export function DashboardView({ name, photo, joined, groupCount, mine, loading, 
           <section className="stack">
             <div className="section-head">
               <h2>成就</h2>
-              <Link to="/rank" className="textbtn">全部 {got.length}/{badges.length}</Link>
+              <Link to={`${rankHref}#badges`} className="textbtn">全部 {got.length}/{badges.length}</Link>
             </div>
-            <div className="badge-row">{preview.map((b) => <BadgeTile key={b.key} b={b} />)}</div>
+            <div className="badge-row">{preview.map((b) => <BadgeTile key={b.key} b={b} href={`${rankHref}#badge-${b.cat}`} />)}</div>
           </section>
 
           {st.curve.length > 2 && (

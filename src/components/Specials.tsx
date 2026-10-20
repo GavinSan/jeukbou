@@ -26,11 +26,11 @@ export const SPECIAL_ITEMS: SpecialItem[] = [
   { art: 'false', label: '詐糊', amount: 0, dir: 'pay', note: '付每家' },
 ];
 
-/** 追牌：番子 5、非番子 10；即摸先會「同一隻再追」每次加 5，最多加 3 次 */
-export const CHASE_MAX_REPEAT = 3;
+/** 追牌：番子 5、非番子 10；即摸 +5，即摸 2 隻 +10，即摸 3 隻 +15（最多 3 隻） */
+export const CHASE_MAX_REPEAT = 2;
 
 
-/** 被追：番子 5、非番子 10；即摸 +5，同一隻再追每次再 +5（最多再追 3 次） */
+/** 被追：番子 5、非番子 10；即摸每隻 +5（最多 3 隻） */
 export function chaseAmount(kind: 'fan' | 'other', repeat: number, instant = true): number {
   const extra = instant ? 1 + Math.max(0, Math.min(CHASE_MAX_REPEAT, repeat)) : 0;
   return (kind === 'fan' ? 5 : 10) + 5 * extra;
@@ -135,25 +135,21 @@ export function SpecialArt({ art, heat = 0 }: { art: Art; heat?: number }) {
               <text x={34 + i * 31} y={48} textAnchor="middle" fontSize="16" fontWeight="700" fill="#D8DCD9" style={{ fontFamily: 'var(--font-kai)' }}>？</text>
             </g>
           ))}
-          <path className="strike" d="M24 16 L137 72 M137 16 L24 72" stroke={RED} strokeWidth="5" strokeLinecap="round" opacity="0.9" />
+          <path className="strike" pathLength={100} d="M24 16 L137 72 M137 16 L24 72" stroke={RED} strokeWidth="5" strokeLinecap="round" opacity="0.9" />
         </svg>
       );
     case 'false':
       return (
         <svg className="sp-art side falsewin" viewBox="0 0 160 90" preserveAspectRatio="xMidYMid meet" aria-hidden="true">
-          <g className="fw-cat">
-            <path d="M92 30 L98 12 L108 26 Z M124 30 L118 12 L110 26 Z" fill="#F2B45F" stroke="#7A4A1C" strokeWidth="2" strokeLinejoin="round" />
-            <ellipse cx="108" cy="38" rx="20" ry="14" fill="#F2B45F" stroke="#7A4A1C" strokeWidth="2" />
-            <circle cx="101" cy="36" r="3.4" fill="#FFF" stroke="#3A2410" strokeWidth="1.2" /><circle cx="115" cy="36" r="3.4" fill="#FFF" stroke="#3A2410" strokeWidth="1.2" />
-            <circle cx="101" cy="36" r="1.2" fill="#1C1F1D" /><circle cx="115" cy="36" r="1.2" fill="#1C1F1D" />
-            <path d="M88 42 L74 40 M88 45 L74 47 M128 42 L142 40 M128 45 L142 47" stroke="#3A2410" strokeWidth="1.4" strokeLinecap="round" />
-            <path className="fw-fire" d="M73 43 q-5 -6 0 -11 q1 5 4 4 q0 6 -4 7 z M143 43 q5 -6 0 -11 q-1 5 -4 4 q0 6 4 7 z" fill="#FF8A3D" />
+          <g transform="translate(80 20) rotate(8)">
+            <circle cx="40" cy="20" r="17" fill="none" stroke={RED} strokeWidth="2.5" opacity="0.85" />
+            <text x="40" y="28" textAnchor="middle" fontSize="22" fontWeight="700" fill={RED} opacity="0.85" style={{ fontFamily: 'var(--font-kai)' }}>詐</text>
           </g>
-          <g transform="translate(36 30)">
+          <g transform="translate(50 22)">
             <rect x="0" y="4" width="34" height="48" rx="5" fill="#C9C2AE" />
             <rect x="0" y="0" width="34" height="48" rx="5" fill="#FBF8EE" stroke="#C9C2AE" strokeWidth="1.5" />
             <text x="17" y="33" textAnchor="middle" fontSize="22" fontWeight="700" fill={INK} style={{ fontFamily: 'var(--font-kai)' }}>糊</text>
-            <path className="strike" d="M4 6 L30 42 M30 6 L4 42" stroke={RED} strokeWidth="3.4" strokeLinecap="round" />
+            <path className="strike" pathLength={100} d="M4 6 L30 42 M30 6 L4 42" stroke={RED} strokeWidth="3.4" strokeLinecap="round" />
           </g>
         </svg>
       );
@@ -178,7 +174,7 @@ export function SpecialArt({ art, heat = 0 }: { art: Art; heat?: number }) {
       return (
         <svg className="sp-art side pong" viewBox="0 0 160 90" preserveAspectRatio="xMidYMid meet" aria-hidden="true">
           <text x="80" y="66" textAnchor="middle" fontSize="54" fontWeight="700" fill={RED} opacity="0.85" style={{ fontFamily: 'var(--font-kai)' }}>碰</text>
-          <path className="strike" d="M42 26 L118 72" stroke={INK} strokeWidth="4" strokeLinecap="round" />
+          <path className="strike" pathLength={100} d="M42 26 L118 72" stroke={INK} strokeWidth="4" strokeLinecap="round" />
         </svg>
       );
     case 'chase':

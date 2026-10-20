@@ -11,7 +11,7 @@ import {
 } from '../lib/adminData.ts';
 import type { AdminGroup, AdminUser } from '../lib/adminData.ts';
 import { Link } from '../lib/router.tsx';
-import { ConfirmDelete, Loading, TopBar, message } from '../ui.tsx';
+import { ConfirmDelete, Loading, TopBar, message, useConfirm } from '../ui.tsx';
 
 type Tab = 'overview' | 'groups' | 'users' | 'data';
 const TABS: [Tab, string][] = [['overview', '總覽'], ['groups', '牌友圈'], ['users', '用家'], ['data', '資料']];
@@ -199,6 +199,7 @@ function Users({ users, groups, onChanged, onData }: { users: AdminUser[]; group
   const [name, setName] = useState('');
   const [resetEmail, setResetEmail] = useState('');
   const [addG, setAddG] = useState('');
+  const [confirmUI, ask] = useConfirm();
   const u = users.find((x) => x.uid === sel) ?? null;
   const shown = users.filter((x) => !q || `${x.name} ${x.email} ${x.uid}`.toLowerCase().includes(q.toLowerCase()));
   const gName = (id: string) => groups.find((g) => g.id === id)?.name ?? id.slice(0, 6);
@@ -240,7 +241,7 @@ function Users({ users, groups, onChanged, onData }: { users: AdminUser[]; group
                 {u.groups.map((g) => (
                   <div key={g} className="listrow">
                     <span className="grow">{gName(g)}</span>
-                    <button type="button" className="btn plain small-btn remove-btn" disabled={busy} onClick={() => run(() => removeFromGroup(u.uid, g, u.groups), '已移出')}>移出</button>
+                    <button type="button" className="btn plain small-btn remove-btn" disabled={busy} onClick={() => ask({ title: '移出牌友圈', detail: `將 ${u.name || u.uid} 移出「${gName(g)}」。紀錄會保留。`, action: '移出', run: () => run(() => removeFromGroup(u.uid, g, u.groups), '已移出') })}>移出</button>
                   </div>
                 ))}
                 {!u.groups.length && <p className="muted pad">未有牌友圈。</p>}
@@ -257,6 +258,7 @@ function Users({ users, groups, onChanged, onData }: { users: AdminUser[]; group
         )}
         {msg && <p className="ok">{msg}</p>}
         {err && <p className="error">{err}</p>}
+        {confirmUI}
       </div>
     </div>
   );

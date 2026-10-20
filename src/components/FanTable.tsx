@@ -3,7 +3,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { DEFAULT_FAN_TABLE, diffFanTable, glossaryOf, optionsOf } from '../lib/fanTable.ts';
 import type { FanTableLog } from '../lib/data.ts';
 import type { FanItem, FanSection, FanTable } from '../lib/fanTable.ts';
-import { message } from '../ui.tsx';
+import { message, useConfirm } from '../ui.tsx';
 
 /** 「明:5|暗:15」顯示成「明 5 · 暗 15」 */
 export function valueText(value: string): string {
@@ -148,6 +148,7 @@ function FanTableEditor({ draft, before, busy, error, onChange, onCancel, onRese
   draft: FanTable; before: FanTable; busy: boolean; error: string; onChange: (t: FanTable) => void; onCancel: () => void; onReset: () => void; onSave: () => void;
 }) {
   const [openSec, setOpenSec] = useState<number | null>(0);
+  const [confirmUI, ask] = useConfirm();
   const changes = useMemo(() => diffFanTable(before, draft), [before, draft]);
   // 編輯期間收埋底部 tab，儲存列固定喺最底
   useEffect(() => {
@@ -188,7 +189,7 @@ function FanTableEditor({ draft, before, busy, error, onChange, onCancel, onRese
                     <li key={ii} className="ft-edit-row">
                       <input className="input" value={it.name} onChange={(e) => setItem(si, ii, { ...it, name: e.target.value })} aria-label="牌型" placeholder="牌型" />
                       <input className="input num" value={it.value} onChange={(e) => setItem(si, ii, { ...it, value: e.target.value })} aria-label="番數" placeholder="番" inputMode="text" />
-                      <button type="button" className="iconbtn small" aria-label={`刪除 ${it.name || '此項'}`} onClick={() => setItem(si, ii, null)}>
+                      <button type="button" className="iconbtn small" aria-label={`刪除 ${it.name || '此項'}`} onClick={() => ask({ title: '刪除牌型', detail: `「${it.name || '此項'}」會喺草稿刪除（未儲存之前可以撳取消還原）。`, run: () => setItem(si, ii, null) })}>
                         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18" /></svg>
                       </button>
                       <input className="input ft-note-input" value={it.note ?? ''} onChange={(e) => setItem(si, ii, { ...it, note: e.target.value || undefined })} aria-label="備註" placeholder="備註（可留空）" />
@@ -200,7 +201,7 @@ function FanTableEditor({ draft, before, busy, error, onChange, onCancel, onRese
                   <span className="grow" />
                   <button type="button" className="textbtn" disabled={si === 0} onClick={() => moveSection(si, -1)} aria-label="上移分類">上移</button>
                   <button type="button" className="textbtn" disabled={si === draft.sections.length - 1} onClick={() => moveSection(si, 1)} aria-label="下移分類">下移</button>
-                  <button type="button" className="textbtn loss" onClick={() => { onChange({ ...draft, sections: draft.sections.filter((_, i) => i !== si) }); setOpenSec(null); }}>刪除分類</button>
+                  <button type="button" className="textbtn loss" onClick={() => ask({ title: '刪除分類', detail: `「${sec.title}」同入面 ${sec.items.length} 項牌型會喺草稿刪除。`, run: () => { onChange({ ...draft, sections: draft.sections.filter((_, i) => i !== si) }); setOpenSec(null); } })}>刪除分類</button>
                 </div>
               </>
             )}
@@ -222,6 +223,7 @@ function FanTableEditor({ draft, before, busy, error, onChange, onCancel, onRese
           <button type="button" className="btn grow" disabled={busy || !changes.length} onClick={() => onSave()}>{busy ? '儲存中…' : '儲存'}</button>
         </div>
       </div>
+      {confirmUI}
     </div>
   );
 }

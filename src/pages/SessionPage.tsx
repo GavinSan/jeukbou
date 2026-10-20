@@ -3,7 +3,7 @@ import { rememberTable } from '../lib/nav.ts';
 import type { User } from 'firebase/auth';
 import SessionScreen from '../components/SessionScreen.tsx';
 import Incoming from '../components/Incoming.tsx';
-import { addTable, deleteSession, findTodaySession, setSessionNoWater } from '../lib/data.ts';
+import { addTable, deleteSession, findTodaySession, regroupTables, setSessionNoWater } from '../lib/data.ts';
 import { Link } from '../lib/router.tsx';
 import { useSuperAdmin } from '../lib/admin.ts';
 import { go } from '../lib/router.tsx';
@@ -77,6 +77,14 @@ export default function SessionPage({ user, groupId, sessionId }: { user: User; 
       notice={<Incoming user={user} groupId={groupId} sessionId={sessionId} requests={requests.data} tables={tables.data} computed={computed} />}
       candidates={candidates}
       me={user.uid}
+      onRegroup={!session.data.closed && (session.data.createdBy === user.uid || group.data.ownerId === user.uid || admin) ? async (plan) => {
+        const names: Record<string, string> = {};
+        for (const t of tables.data) Object.assign(names, t.names);
+        await regroupTables(groupId, sessionId, user.uid, plan.map((p) => {
+          const c = computed[p.tableId];
+          return { tableId: p.tableId, current: c?.state.seats ?? [], seats: p.seats, names, fresh: (events[p.tableId] ?? []).length === 0 };
+        }));
+      } : undefined}
       onClosedAdd={async () => {
         const id = await findTodaySession(groupId).catch(() => null);
         go(id && id !== sessionId ? `/g/${groupId}/s/${id}#add-table` : `/g/${groupId}/new`);

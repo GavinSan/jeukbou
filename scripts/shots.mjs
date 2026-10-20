@@ -407,6 +407,32 @@ for (const scheme of ['light', 'dark']) {
       await page.locator('.ledger, .lg').first().scrollIntoViewIfNeeded();
       await page.screenshot({ path: `${out}/ledger-col.png` });
     });
+    await step('skins', async () => {
+      for (const sk of ['teahouse', 'neon', 'minimal']) {
+        await page.goto(`${base}/demo/home?skin=${sk}`, { waitUntil: 'networkidle' });
+        await page.waitForTimeout(900);
+        const close = page.getByRole('button', { name: '關閉' });
+        if (await close.count()) await close.first().click().catch(() => undefined);
+        await page.screenshot({ path: `${out}/skin-${sk}-home.png` });
+        await page.goto(`${base}/demo/t/0?skin=${sk}`, { waitUntil: 'networkidle' });
+        await page.waitForTimeout(1200);
+        await page.screenshot({ path: `${out}/skin-${sk}-table.png` });
+        await page.goto(`${base}/demo/settle?skin=${sk}`, { waitUntil: 'networkidle' });
+        await page.waitForTimeout(500);
+        await page.screenshot({ path: `${out}/skin-${sk}-settle.png` });
+      }
+      await page.goto(`${base}/demo/skins`, { waitUntil: 'networkidle' });
+      await page.waitForTimeout(300);
+      await page.screenshot({ path: `${out}/skins.png` });
+    });
+    await step('regroup', async () => {
+      await page.goto(`${base}/demo`, { waitUntil: 'networkidle' });
+      await page.waitForTimeout(800);
+      await page.getByRole('button', { name: /張枱一齊執位/ }).click();
+      await page.waitForTimeout(300);
+      await page.screenshot({ path: `${out}/regroup.png` });
+      await page.getByRole('button', { name: '關閉' }).first().click().catch(() => undefined);
+    });
     await step('admin', async () => {
       await page.goto(`${base}/demo/admin`, { waitUntil: 'networkidle' });
       await page.waitForTimeout(500);

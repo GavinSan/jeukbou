@@ -1,11 +1,11 @@
 // 設定：個人資料（頭像、名）＋ 呢部機嘅偏好（聲、震、通知）＋ 登出
 import { useState } from 'react';
 import type { ReactNode } from 'react';
-import { setPref, usePrefs } from '../lib/prefs.ts';
+import { SKINS, setPref, usePrefs } from '../lib/prefs.ts';
 import type { Prefs } from '../lib/prefs.ts';
 import { buzz } from '../lib/haptics.ts';
 import { sfx, unlock } from '../lib/sound.ts';
-import { Avatar, NameForm, Sheet, message } from '../ui.tsx';
+import { Avatar, NameForm, Sheet, message, useConfirm } from '../ui.tsx';
 import { askNotify, notifySupported } from '../lib/notify.ts';
 import { signOut } from 'firebase/auth';
 import { auth } from '../firebase.ts';
@@ -61,6 +61,7 @@ export function ProfileEditor() {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
   const [, setTick] = useState(0);
+  const [confirmUI, ask] = useConfirm();
   if (!user) return null;
   const groups = profile.data.groups;
   const photo = profile.data.avatar ?? user.photoURL;
@@ -98,11 +99,12 @@ export function ProfileEditor() {
       {!editing && (
         <div className="row tight-row">
           <span className="muted small grow">撳頭像換相</span>
-          {profile.data.avatar && <button type="button" className="textbtn" disabled={busy} onClick={() => task(() => setAvatar(user, null, groups))}>移除頭像</button>}
+          {profile.data.avatar && <button type="button" className="textbtn" disabled={busy} onClick={() => ask({ title: '移除頭像', detail: '會改返用名嘅第一個字做頭像。', action: '移除', run: () => task(() => setAvatar(user, null, groups)) })}>移除頭像</button>}
         </div>
       )}
       <PayEmailField key={profile.data.payEmail} initial={profile.data.payEmail} onSave={(v) => task(() => setPayEmail(user, v, groups))} busy={busy} />
       {error && <p className="error" role="alert">{error}</p>}
+      {confirmUI}
     </div>
   );
 }
@@ -121,6 +123,22 @@ function PayEmailField({ initial, onSave, busy }: { initial: string; onSave: (v:
       </div>
       <small className="muted">{ok ? '同牌友圈嘅人找數時會見到，方便轉賬。' : 'Email 格式唔啱'}</small>
     </label>
+  );
+}
+
+/** 介面風格：四款，揀咗即刻轉（只存喺呢部機） */
+export function SkinPicker() {
+  const p = usePrefs();
+  return (
+    <div className="skin-pick" role="radiogroup" aria-label="介面風格">
+      {SKINS.map((k) => (
+        <button key={k.key} type="button" role="radio" aria-checked={p.skin === k.key} className={`skin-card${p.skin === k.key ? ' on' : ''}`} onClick={() => { setPref('skin', k.key); sfx.tap(); }}>
+          <span className="skin-sw" aria-hidden="true">{k.colors.map((c) => <i key={c} style={{ background: c }} />)}</span>
+          <b>{k.name}</b>
+          <small>{k.note}</small>
+        </button>
+      ))}
+    </div>
   );
 }
 
@@ -179,6 +197,8 @@ export default function Settings({ onClose }: { onClose: () => void }) {
     <Sheet onClose={onClose} label="設定">
       <h2>設定</h2>
       <ProfileEditor />
+      <h3>風格</h3>
+      <SkinPicker />
       <PrefsList />
       <button type="button" className="btn big" onClick={onClose}>完成</button>
       <SignOutButton onDone={onClose} />
