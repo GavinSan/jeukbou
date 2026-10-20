@@ -192,7 +192,7 @@ export function DashboardView({ name, photo, joined, groupCount, mine, loading, 
             <div className="tile-stat">
               <small>總番數</small>
               <b className={`num ${st.total > 0 ? 'gain' : st.total < 0 ? 'loss' : ''}`}><CountUp value={st.total} format={signed} /></b>
-              <span className="muted small">{st.rounds ? `平均每圈 ${fmt(Math.round(st.total / st.rounds))}` : `平均每次 ${fmt(st.avg)}`}</span>
+              <span className="muted small">{st.rounds ? `平均每圈 ${st.total / st.rounds > 0 ? '+' : ''}${(st.total / st.rounds).toFixed(1)}` : `平均每次 ${fmt(st.avg)}`}</span>
             </div>
             <div className="tile-stat">
               <small>最好一次</small>

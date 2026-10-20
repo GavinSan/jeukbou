@@ -1009,7 +1009,7 @@ export default function TableScreen(props: TableScreenProps) {
                         <button type="button" className="choice" aria-pressed={swapIn === '__guest'} onClick={() => setSwapIn('__guest')}>＋ 新訪客<small>無帳戶</small></button>
                       </div>
                       {rest.length > 0 && (
-                        <details className="more-people">
+                        <details className="more-people" open={here.length === 0}>
                           <summary className="small muted">其他牌友圈成員（{rest.length}）</summary>
                           <div className="choices">{rest.map(chip)}</div>
                         </details>
