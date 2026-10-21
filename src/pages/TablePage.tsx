@@ -77,9 +77,11 @@ export default function TablePage({ user, groupId, sessionId, tableId }: { user:
     if (!seatedAnywhere.has(m.uid) && !candidates.some((k) => k.id === m.uid)) candidates.push({ id: m.uid, name: m.name, tonight: tonight.has(m.uid) });
   }
 
-  // 只有坐喺呢張枱嘅人（同場主、局主）先可以入數；其他人只可以睇
-  const owner = !!group.data && (group.data.ownerId === user.uid || admin);
-  const canEnter = c.state.seats.includes(user.uid) || session.data?.createdBy === user.uid || owner;
+  // 只有坐喺呢張枱嘅人（同超級管理員）先可以入數、擲骰；其他人只可以睇。
+  // 例外：成枱都係冇帳戶嘅訪客，就由場主或者局主幫手入
+  const owner = !!group.data && group.data.ownerId === user.uid;
+  const allGuests = c.state.seats.every((id) => isGuest(id));
+  const canEnter = c.state.seats.includes(user.uid) || admin || (allGuests && (session.data?.createdBy === user.uid || owner));
 
   return (
     <TableScreen

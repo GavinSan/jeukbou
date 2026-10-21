@@ -35,11 +35,13 @@ function useWidth<T extends HTMLElement>(): [RefObject<T>, number] {
   return [ref, w];
 }
 
-/** 走勢：x = 第幾鋪，y = 累計（找咗 + 枱面） */
+/** 走勢：x = 第幾鋪，y = 累計（找咗 + 枱面）。
+ *  四個人或以下：每人一個顏色；人多：其他人灰色幼線，自己（或者撳中嘅人）粗線上色。 */
 export function TrendChart({ series, labels, me }: { series: Series[]; labels: string[]; me?: string | null }) {
   const [ref, width] = useWidth<HTMLDivElement>();
   const [hover, setHover] = useState<number | null>(null);
-  const H = 190;
+  const [picked, setPicked] = useState<string | null>(null);
+  const H = series.length > 4 ? 220 : 190;
   const pad = { l: 36, r: 12, t: 12, b: 22 };
   const n = Math.max(1, ...series.map((s) => s.values.length)) - 1;
   const all = series.flatMap((s) => s.values);
@@ -50,6 +52,12 @@ export function TrendChart({ series, labels, me }: { series: Series[]; labels: s
   const y = (v: number) => pad.t + (1 - (v - lo) / (hi - lo || 1)) * (H - pad.t - pad.b);
 
   const ordered = useMemo(() => [...series].sort((a, b) => (b.values.at(-1) ?? 0) - (a.values.at(-1) ?? 0)), [series]);
+  const many = series.length > 4;
+  const focus = picked ?? (me && series.some((s) => s.id === me) ? me : null);
+  const colorOf = (s: Series) => (many ? (s.id === focus ? 'var(--s2)' : 'var(--muted)') : `var(--s${series.indexOf(s) + 1})`);
+  const strong = (s: Series) => (many ? s.id === focus : s.id === me);
+  // 畫嘅次序：粗線最後畫，喺最上面
+  const drawn = [...series].sort((a, b) => Number(strong(a)) - Number(strong(b)));
 
   function onMove(e: RPointerEvent<SVGRectElement>) {
     const box = e.currentTarget.getBoundingClientRect();
@@ -63,20 +71,24 @@ export function TrendChart({ series, labels, me }: { series: Series[]; labels: s
   const tipLeft = hover !== null && hx > width / 2;
 
   return (
-    <figure className="viz" aria-label="各人累計走勢">
+    <figure className={`viz${many ? ' many' : ''}`} aria-label="各人累計走勢">
       <div className="viz-legend">
         {ordered.map((s) => {
-          const slot = series.indexOf(s) + 1;
           const v = hover !== null ? s.values[Math.min(hover, s.values.length - 1)] ?? 0 : s.values.at(-1) ?? 0;
-          return (
-            <span key={s.id} className={`viz-key${s.id === me ? ' me' : ''}`}>
-              <i style={{ background: `var(--s${slot})` }} />
+          const cls = `viz-key${s.id === me ? ' me' : ''}${many && s.id === focus ? ' focus' : ''}`;
+          const inner = (
+            <>
+              <i style={{ background: colorOf(s) }} />
               <span className="ellipsis">{s.name}</span>
               <b className="num">{fmt(v)}</b>
-            </span>
+            </>
           );
+          return many
+            ? <button key={s.id} type="button" className={cls} aria-pressed={s.id === focus} onClick={() => setPicked(s.id === focus ? null : s.id)}>{inner}</button>
+            : <span key={s.id} className={cls}>{inner}</span>;
         })}
       </div>
+      {many && <small className="muted viz-hint">撳個名，佢條線會變粗上色</small>}
       <div ref={ref} className="viz-plot">
         <svg width={width} height={H} role="img" aria-label={`走勢圖，共 ${n} 鋪`}>
           {ticks.map((t) => (
@@ -87,25 +99,27 @@ export function TrendChart({ series, labels, me }: { series: Series[]; labels: s
           ))}
           <text x={pad.l} y={H - 4} className="viz-tick">{labels[0] ?? '開局'}</text>
           <text x={width - pad.r} y={H - 4} className="viz-tick" textAnchor="end">{labels[n] ?? `第 ${n} 鋪`}</text>
-          {series.map((s, k) => (
+          {drawn.map((s) => (
             <polyline
               key={s.id}
               points={s.values.map((v, i) => `${x(i)},${y(v)}`).join(' ')}
               fill="none"
-              stroke={`var(--s${k + 1})`}
-              strokeWidth={s.id === me ? 2.5 : 2}
+              stroke={colorOf(s)}
+              strokeOpacity={many && !strong(s) ? 0.35 : 1}
+              strokeWidth={strong(s) ? (many ? 3 : 2.5) : many ? 1.4 : 2}
               strokeLinejoin="round"
               strokeLinecap="round"
             />
           ))}
-          {series.map((s, k) => {
+          {drawn.map((s) => {
+            if (many && !strong(s)) return null;
             const i = s.values.length - 1;
-            return <circle key={s.id} cx={x(i)} cy={y(s.values[i])} r={4} fill={`var(--s${k + 1})`} className="viz-dot" />;
+            return <circle key={s.id} cx={x(i)} cy={y(s.values[i])} r={4} fill={colorOf(s)} className="viz-dot" />;
           })}
           {hover !== null && (
             <g>
               <line x1={hx} x2={hx} y1={pad.t} y2={H - pad.b} className="viz-cross" />
-              {series.map((s, k) => (hover < s.values.length ? <circle key={s.id} cx={hx} cy={y(s.values[hover])} r={4.5} fill={`var(--s${k + 1})`} className="viz-dot" /> : null))}
+              {drawn.map((s) => (hover < s.values.length && (!many || strong(s)) ? <circle key={s.id} cx={hx} cy={y(s.values[hover])} r={4.5} fill={colorOf(s)} className="viz-dot" /> : null))}
             </g>
           )}
           <rect

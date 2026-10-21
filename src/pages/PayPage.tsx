@@ -9,6 +9,7 @@ import { useGroup, useMembers, useSession } from '../lib/live.ts';
 import { itemsOf } from '../lib/pay.ts';
 import { Link } from '../lib/router.tsx';
 import { Hint, Loading, TopBar, message } from '../ui.tsx';
+import { useSuperAdmin } from '../lib/admin.ts';
 import { PayRows } from '../components/PayList.tsx';
 import { money } from '../components/SettleScreen.tsx';
 
@@ -18,6 +19,7 @@ export default function PayPage({ user, groupId, sessionId }: { user: User; grou
   const members = useMembers(groupId);
   const [busy, setBusy] = useState('');
   const [error, setError] = useState('');
+  const admin = useSuperAdmin(user.uid);
   const back = `/g/${groupId}/s/${sessionId}`;
   // 已埋數：每次打開都用最新資料計一次（快照冇、舊、或者錯都會更正），唔同就存低
   const [calc, setCalc] = useState<Payout | null>(null);
@@ -47,6 +49,9 @@ export default function PayPage({ user, groupId, sessionId }: { user: User; grou
   const myPay = mine.filter((x) => x.dir === 'pay' && !x.paid).reduce((a, x) => a + x.amount, 0);
   const myGet = mine.filter((x) => x.dir === 'get' && !x.paid).reduce((a, x) => a + x.amount, 0);
   const done = items.filter((x) => x.paid).length;
+  // 俾錢、收錢嘅人，同局主、場主、超級管理員都可以標記
+  const manager = admin || g.ownerId === user.uid || s.createdBy === user.uid;
+  const canToggle = (it: { dir: string }) => manager || it.dir === 'pay' || it.dir === 'get';
 
   async function toggle(key: string, on: boolean) {
     setBusy(key); setError('');
@@ -71,13 +76,13 @@ export default function PayPage({ user, groupId, sessionId }: { user: User; grou
           {mine.length > 0 && (
             <section className="stack">
               <h2 className="section-head">同你有關</h2>
-              <PayRows items={mine} pp={pp} busyKey={busy} canToggle={(it) => it.dir === 'pay'} onToggle={(it, on) => toggle(it.key, on)} />
+              <PayRows items={mine} pp={pp} busyKey={busy} canToggle={canToggle} onToggle={(it, on) => toggle(it.key, on)} />
             </section>
           )}
           <section className="stack">
             <h2 className="section-head">全部轉賬</h2>
-            <PayRows items={items} pp={pp} busyKey={busy} canToggle={(it) => it.dir === 'pay'} onToggle={(it, on) => toggle(it.key, on)} />
-            <Hint>撳人名睇佢嘅 Interac email。俾錢嗰個轉咗就撳「標記已轉」（Group 一齊俾），全部人都會見到。金額係麻雀＋水＋開支合併。</Hint>
+            <PayRows items={items} pp={pp} busyKey={busy} canToggle={canToggle} onToggle={(it, on) => toggle(it.key, on)} />
+            <Hint>撳人名睇佢嘅 Interac email。轉咗就撳「標記已轉」：俾錢、收錢嗰個、局主同場主都撳得，全部人都會見到。金額係麻雀＋水＋開支合併。</Hint>
           </section>
         </>
       )}

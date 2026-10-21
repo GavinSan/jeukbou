@@ -1820,10 +1820,11 @@ a.badge-link:active { transform: scale(.97); }
 :root[data-skin="minimal"] .tabbar { border-radius: 18px; box-shadow: 0 4px 16px rgba(0, 0, 0, .08); }
 
 /* 換人：其他成員收埋 */
-.more-people summary { cursor: pointer; padding: 6px 0; list-style: none; }
-.more-people summary::-webkit-details-marker { display: none; }
-.more-people summary::after { content: ' ›'; }
-.more-people[open] summary::after { content: ' ⌄'; }
+.more-people { display: flex; flex-direction: column; gap: 8px; }
+.more-toggle { display: flex; align-items: center; gap: 8px; width: 100%; min-height: 44px; padding: 0 12px; border: 1px solid var(--line); border-radius: 12px; background: var(--sunk); color: var(--ink); font: inherit; font-size: 14px; text-align: left; cursor: pointer; }
+.more-toggle svg { color: var(--muted); transition: transform .2s ease; flex: none; }
+.more-people.open .more-toggle svg { transform: rotate(180deg); }
+.more-count { min-width: 22px; height: 22px; padding: 0 6px; border-radius: 999px; background: var(--surface); border: 1px solid var(--line); font-size: 12px; font-weight: 700; display: inline-flex; align-items: center; justify-content: center; color: var(--muted); }
 
 /* 番數快捷：10 → 300 慢慢由淡變深紅（唔會去到 70 突然變） */
 .dock-quick button.grad { background: color-mix(in srgb, #C8321E var(--t), var(--surface)); border-color: color-mix(in srgb, #C8321E min(100%, calc(var(--t) + 12%)), var(--line)); color: color-mix(in srgb, #B02E26 min(100%, calc(var(--t) + 30%)), var(--ink)); }
@@ -2096,3 +2097,56 @@ a.btn.small-btn { text-decoration: none; }
 .ig-why { margin: 0; padding-left: 18px; color: var(--muted); font-size: 13px; display: grid; gap: 2px; }
 .install-gate .panel h2 { margin: 0; }
 .nudge.install .nudge-icon { font-size: 22px; }
+
+/* 走勢：人多模式 */
+.viz.many .viz-legend { grid-template-columns: repeat(auto-fill, minmax(118px, 1fr)); font-size: 13px; gap: 2px 10px; }
+.viz.many .viz-key { border: none; background: none; font: inherit; padding: 4px 6px; margin: 0 -6px; border-radius: 8px; cursor: pointer; text-align: left; color: var(--muted); }
+.viz.many .viz-key .num { color: var(--muted); }
+.viz.many .viz-key.focus { background: color-mix(in srgb, var(--s2) 14%, transparent); color: var(--ink); }
+.viz.many .viz-key.focus .ellipsis, .viz.many .viz-key.focus .num { font-weight: 700; color: var(--ink); }
+.viz.many .viz-key.focus i { height: 4px; }
+.viz-hint { display: block; padding: 0 4px 6px; font-size: 12px; }
+
+/* 一齊執位：人數 + 左掃名單 */
+.draw-count { display: flex; align-items: baseline; gap: 6px; padding: 10px 12px; border-radius: 12px; background: color-mix(in srgb, #E0A82E 14%, var(--surface)); border: 1px solid color-mix(in srgb, #E0A82E 40%, var(--line)); font-size: 14px; }
+.draw-count .num { font-size: 26px; line-height: 1; }
+.draw-count.ok { background: var(--gain-soft); border-color: color-mix(in srgb, var(--gain) 40%, var(--line)); }
+.draw-count.ok .grow { color: var(--gain); font-weight: 700; }
+.swipe-list { display: flex; flex-direction: column; border: 1px solid var(--line); border-radius: 14px; overflow: hidden; max-height: 46vh; overflow-y: auto; }
+.swipe-row { position: relative; border-top: 1px solid var(--line); background: var(--loss); }
+.swipe-row:first-child { border-top: none; }
+.swipe-del { position: absolute; inset: 0 0 0 auto; width: 88px; border: none; background: var(--loss); color: #fff; font: inherit; font-weight: 700; cursor: pointer; }
+.swipe-front { position: relative; display: flex; align-items: center; gap: 10px; min-height: 48px; padding: 0 6px 0 12px; background: var(--surface); transition: transform .2s ease; touch-action: pan-y; user-select: none; -webkit-user-select: none; }
+.swipe-front.dragging { transition: none; }
+.swipe-av { width: 28px; height: 28px; border-radius: 50%; background: var(--sunk); display: inline-flex; align-items: center; justify-content: center; font-weight: 700; font-size: 13px; flex: none; }
+.swipe-x { border: none; background: none; color: var(--muted); font-size: 18px; width: 36px; height: 36px; cursor: pointer; border-radius: 8px; }
+/* 揀位牌：細啲、字大啲、一版睇晒 */
+.draw-grid { gap: 8px 6px; }
+.draw-grid .draw-tile { container-type: inline-size; gap: 2px; }
+.draw-grid .dt-face b { font-size: 64cqw; }
+.draw-grid .dt-who { font-size: 11px; height: 14px; }
+.draw-actor .chips-row { flex-wrap: nowrap; overflow-x: auto; padding-bottom: 4px; scrollbar-width: none; }
+.draw-actor .chips-row > * { flex: none; }
+.sheet-head { display: flex; align-items: center; gap: 8px; }
+.sheet-head h2 { margin: 0; }
+.back-btn { padding: 6px 8px 6px 0; font-weight: 600; }
+/* 揀番數表：細字、密啲（3 欄） */
+.picker { gap: 8px; }
+.picker-sec h4 { font-size: 13px; margin: 2px 0 4px; }
+.picker-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 6px; }
+.picker .pick { min-height: 38px; padding: 4px 8px; font-size: 13px; gap: 4px; border-radius: 9px; line-height: 1.25; }
+.picker .pick .num { font-size: 14px; }
+.picker .pick.multi { padding: 6px 8px; }
+.picker .pick-opts button { min-height: 30px; padding: 0 8px; font-size: 12px; }
+.picker-scroll { max-height: 60vh; gap: 8px; }
+.picker-chosen .pill { min-height: 28px; font-size: 12px; padding: 0 10px; }
+@media (max-width: 340px) { .picker-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+
+/* 紀錄表分段：換人之後新一段；每段自己凍結表頭 */
+.lg-seg { position: relative; }
+.lg-seg + .lg-seg { border-top: 6px solid var(--sunk); }
+.lg-seg.old .lg-top { background: color-mix(in srgb, var(--sunk) 70%, var(--page)); }
+.lg-seg.old .lg-cap span:first-child { color: #C08A16; font-weight: 700; }
+/* 冇權標記嘅「未轉」唔好似掣 */
+.transfers .tf-paid.static, .pay-row .tf-paid.static { border-color: transparent !important; background: none !important; color: var(--muted) !important; font-weight: 500; opacity: 1; }
+.transfers .tf-paid.static.on, .pay-row .tf-paid.static.on { color: var(--gain) !important; }

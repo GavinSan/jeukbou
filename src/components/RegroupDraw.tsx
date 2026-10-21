@@ -1,7 +1,7 @@
 // 幾張枱一齊執位：X 張枱 = X × 4 隻牌（壹貳參肆…），反轉擺好；每人揀一隻，同一隻字 = 同一張枱。
 // 可以每人喺自己部機揀，或者同一部機幫人揀，又或者電腦派。揀牌用 transaction，兩個人同時撳都只得一個成功。
 import { useEffect, useMemo, useRef, useState } from 'react';
-import type { CSSProperties } from 'react';
+import type { CSSProperties, PointerEvent as RPointerEvent } from 'react';
 import type { Draw } from '../lib/data.ts';
 import { UPPER_NUM, tableNameUpper } from '../lib/data.ts';
 import { Sheet, clampName, message } from '../ui.tsx';
@@ -25,20 +25,79 @@ function shuffleArr<T>(a: T[]): T[] {
   return x;
 }
 
+/** 名單一行：向左掃出「移除」，掃晒就直接移除 */
+function SwipeRow({ name, note, onRemove }: { name: string; note?: string; onRemove: () => void }) {
+  const [dx, setDx] = useState(0);
+  const [drag, setDrag] = useState(false);
+  const start = useRef<{ x: number; y: number; base: number; w: number; locked: boolean | null } | null>(null);
+  const REVEAL = 88;
+  function down(e: RPointerEvent<HTMLDivElement>) {
+    start.current = { x: e.clientX, y: e.clientY, base: dx, w: e.currentTarget.offsetWidth, locked: null };
+  }
+  function move(e: RPointerEvent<HTMLDivElement>) {
+    const st = start.current;
+    if (!st) return;
+    const mx = e.clientX - st.x;
+    const my = e.clientY - st.y;
+    if (st.locked === null && (Math.abs(mx) > 8 || Math.abs(my) > 8)) {
+      st.locked = Math.abs(mx) > Math.abs(my);
+      if (st.locked) { e.currentTarget.setPointerCapture(e.pointerId); setDrag(true); }
+    }
+    if (st.locked) setDx(Math.min(0, Math.max(-st.w, st.base + mx)));
+  }
+  function up() {
+    const st = start.current;
+    start.current = null;
+    setDrag(false);
+    if (!st?.locked) return;
+    if (-dx > st.w * 0.6) { setDx(-st.w); buzz('tap'); setTimeout(onRemove, 160); return; }
+    setDx(-dx > REVEAL / 2 ? -REVEAL : 0);
+  }
+  return (
+    <div className="swipe-row">
+      <button type="button" className="swipe-del" onClick={onRemove} tabIndex={dx ? 0 : -1} aria-label={`移除 ${name}`}>移除</button>
+      <div
+        className={`swipe-front${drag ? ' dragging' : ''}`}
+        style={{ transform: `translateX(${dx}px)` }}
+        onPointerDown={down}
+        onPointerMove={move}
+        onPointerUp={up}
+        onPointerCancel={up}
+        onClick={() => { if (dx) setDx(0); }}
+      >
+        <span className="swipe-av" aria-hidden="true">{name.slice(0, 1)}</span>
+        <span className="grow ellipsis">{name}</span>
+        {note && <small className="muted">{note}</small>}
+        <button type="button" className="swipe-x" aria-label={`${name} 走咗`} onClick={(e) => { e.stopPropagation(); onRemove(); }}>×</button>
+      </div>
+    </div>
+  );
+}
+
 /** 開始：揀邊啲人參加（可以減走走咗嘅、加新嚟嘅）、用揀牌定電腦派 */
 export function DrawSetup({ tables, candidates, ranking, me, canForce, onStart, onClose }: {
   tables: DrawTable[]; candidates: Person[]; ranking: string[]; me: string; canForce: boolean;
   onStart: (d: Draw) => Promise<void>; onClose: () => void;
 }) {
   const initial = useMemo(() => tables.flatMap((t) => t.seats.map((id) => ({ id, name: t.names[id] ?? '玩家' }))), [tables]);
+  const tableOf = useMemo(() => Object.fromEntries(tables.flatMap((t) => t.seats.map((id) => [id, t.name]))), [tables]);
   const [roster, setRoster] = useState<Person[]>(initial);
+  // 減咗嘅人（包括訪客）記住，等佢可以加返
+  const [removed, setRemoved] = useState<Person[]>([]);
   const [mode, setMode] = useState<'pick' | 'auto'>('pick');
   const [guest, setGuest] = useState('');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
-  const n = roster.length / 4;
-  const ok = roster.length >= 4 && Number.isInteger(n) && n <= UPPER_NUM.length;
-  const free = candidates.filter((c) => !roster.some((r) => r.id === c.id));
+  const count = roster.length;
+  const rem = count % 4;
+  const n = Math.floor(count / 4);
+  const ok = count >= 4 && rem === 0 && n <= UPPER_NUM.length;
+  const inRoster = (id: string) => roster.some((r) => r.id === id);
+  const pool: Person[] = [];
+  for (const p of [...removed, ...initial, ...candidates]) if (!inRoster(p.id) && !pool.some((x) => x.id === p.id)) pool.push(p);
+  const remove = (p: Person) => { setRoster((l) => l.filter((x) => x.id !== p.id)); setRemoved((l) => [p, ...l.filter((x) => x.id !== p.id)]); };
+  const add = (p: Person) => { setRoster((l) => (l.some((x) => x.id === p.id) ? l : [...l, p])); setRemoved((l) => l.filter((x) => x.id !== p.id)); };
+  const status = count < 4 ? `差 ${4 - count} 人先開到枱` : rem === 0 ? `${n} 張枱，啱啱好` : `差 ${4 - rem} 人先夠 ${n + 1} 張枱（或者減 ${rem} 個）`;
 
   async function start() {
     setBusy(true); setError('');
@@ -57,26 +116,24 @@ export function DrawSetup({ tables, candidates, ranking, me, canForce, onStart, 
   return (
     <Sheet onClose={onClose} label="一齊執位">
       <h2>一齊執位</h2>
-      <div className="field">
-        <span>參加嘅人（{roster.length}）{ok ? `・${n} 張枱` : '・要 4 嘅倍數'}</span>
-        <div className="chips-row">
-          {roster.map((p) => (
-            <span key={p.id} className="person-chip">
-              {p.name}
-              <button type="button" aria-label={`${p.name} 走咗`} onClick={() => setRoster((l) => l.filter((x) => x.id !== p.id))}>×</button>
-            </span>
-          ))}
-        </div>
+      <div className={`draw-count${ok ? ' ok' : ''}`}>
+        <b className="num">{count}</b><span>人</span>
+        <span className="grow">{status}</span>
       </div>
-      {free.length > 0 && (
+      <div className="swipe-list" role="list" aria-label="參加嘅人">
+        {roster.map((p) => <SwipeRow key={p.id} name={p.name} note={tableOf[p.id] ?? (p.id.startsWith('guest-') ? '訪客' : '新加')} onRemove={() => remove(p)} />)}
+        {!roster.length && <p className="muted small">未有人。</p>}
+      </div>
+      <small className="muted">向左掃移除；掃晒即刻移除。</small>
+      {pool.length > 0 && (
         <div className="field">
-          <span>加新嚟嘅人</span>
-          <div className="chips-row">{free.map((c) => <button key={c.id} type="button" className="pill" onClick={() => setRoster((l) => [...l, c])}>＋ {c.name}</button>)}</div>
+          <span>加人{removed.length ? '（包括啱啱減咗嘅）' : ''}</span>
+          <div className="chips-row">{pool.map((c) => <button key={c.id} type="button" className="pill" onClick={() => add(c)}>＋ {c.name}</button>)}</div>
         </div>
       )}
       <div className="row">
         <input className="input grow" value={guest} onChange={(e) => setGuest(clampName(e.target.value))} placeholder="加訪客名" aria-label="訪客名" />
-        <button type="button" className="btn plain" disabled={!guest.trim()} onClick={() => { setRoster((l) => [...l, { id: `guest-${Math.random().toString(36).slice(2, 10)}`, name: guest.trim() }]); setGuest(''); }}>加</button>
+        <button type="button" className="btn plain" disabled={!guest.trim()} onClick={() => { add({ id: `guest-${Math.random().toString(36).slice(2, 10)}`, name: guest.trim() }); setGuest(''); }}>加</button>
       </div>
       <div className="seg wide" role="radiogroup" aria-label="點樣執位">
         <button type="button" role="radio" aria-checked={mode === 'pick'} aria-pressed={mode === 'pick'} onClick={() => setMode('pick')}>每人揀牌</button>
@@ -84,7 +141,7 @@ export function DrawSetup({ tables, candidates, ranking, me, canForce, onStart, 
       </div>
       {error && <p className="error">{error}</p>}
       <button type="button" className="btn big" disabled={busy || !ok} onClick={start}>
-        {!ok ? '人數要係 4 嘅倍數' : canForce ? '開始' : '提議（每張枱要一個人同意）'}
+        {!ok ? (count < 4 ? `差 ${4 - count} 人` : `差 ${4 - rem} 人`) : canForce ? `開始（${n} 張枱）` : '提議（每張枱要一個人同意）'}
       </button>
     </Sheet>
   );
@@ -179,10 +236,10 @@ export function DrawBoard({ draw, me, tables, canForce, onApprove, onPick, onAut
                   </button>
                 ))}
               </div>
-              <small className="muted">次序跟全場排名（高分先揀）；冇電話嘅人可以喺同一部機幫佢揀。</small>
+              <small className="muted">高分先揀；冇電話可以喺呢部機幫佢揀。</small>
             </div>
           )}
-          <div className={`draw-grid${shuffling && draw.status === 'picking' && !pickedBy.size ? ' shuffling' : ''}`} style={{ '--cols': 4 } as CSSProperties}>
+          <div className={`draw-grid${shuffling && draw.status === 'picking' && !pickedBy.size ? ' shuffling' : ''}`} style={{ '--cols': Math.min(8, Math.max(4, Math.ceil(Math.sqrt(draw.tiles.length * 1.4)))) } as CSSProperties}>
             {draw.tiles.map((t, i) => {
               const who = pickedBy.get(i);
               const open = who !== undefined;
