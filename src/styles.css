@@ -2150,3 +2150,9 @@ a.btn.small-btn { text-decoration: none; }
 /* 冇權標記嘅「未轉」唔好似掣 */
 .transfers .tf-paid.static, .pay-row .tf-paid.static { border-color: transparent !important; background: none !important; color: var(--muted) !important; font-weight: 500; opacity: 1; }
 .transfers .tf-paid.static.on, .pay-row .tf-paid.static.on { color: var(--gain) !important; }
+/* 揀番數表：按字數排，一行塞幾多得幾多 */
+.picker-grid { display: flex !important; flex-wrap: wrap; gap: 6px; }
+.picker .pick { flex: 1 0 auto; white-space: nowrap; justify-content: space-between; }
+.picker .pick > span:first-child { white-space: nowrap; }
+.picker .pick.multi { flex-basis: 100%; white-space: normal; }
+.picker .pick.multi > span:first-child { white-space: normal; }
