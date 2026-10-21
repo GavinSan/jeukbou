@@ -1811,7 +1811,6 @@ a.badge-link:active { transform: scale(.97); }
     color-scheme: dark;
   }
 }
-:root[data-skin="minimal"] .page { gap: 12px; }
 :root[data-skin="minimal"] .panel, :root[data-skin="minimal"] .list, :root[data-skin="minimal"] .tcard, :root[data-skin="minimal"] .ledger, :root[data-skin="minimal"] .tile-stat, :root[data-skin="minimal"] .transfers li, :root[data-skin="minimal"] .pay-row {
   box-shadow: none !important; border: 1px solid var(--line); border-radius: 10px;
 }
@@ -2157,3 +2156,33 @@ a.btn.small-btn { text-decoration: none; }
 .picker .pick.multi { flex-basis: 100%; white-space: normal; }
 .picker .pick.multi > span:first-child { white-space: normal; }
 .lg-fan { color: var(--muted); font-size: 12px; margin-left: 2px; }
+.row.tight { gap: 2px; }
+.group-desc.auto { color: var(--muted); }
+/* 走勢：手機用下面條拉桿左右睇，唔怕上下碌 */
+.viz-tip { pointer-events: auto; display: flex; align-items: center; gap: 6px; }
+.viz-tip-x { border: none; background: none; color: inherit; font-size: 16px; line-height: 1; padding: 0 2px; cursor: pointer; opacity: .7; }
+.viz-scrub { width: 100%; margin: 6px 0 0; accent-color: var(--felt); height: 28px; touch-action: pan-x; }
+
+/* 六款新風格：成套底色、字色、贏輸色（淺色 + 深色） */
+:root[data-skin="ocean"] { --page: #E6F0F4; --surface: #F8FCFD; --sunk: #E4EEF2; --ink: #10242E; --muted: #5A707A; --line: #CFE0E6; --gain: #13836F; --gain-soft: #D7F0EA; --loss: #C2412D; --loss-soft: #F7E0DA; color-scheme: light; }
+@media (prefers-color-scheme: dark) { :root[data-skin="ocean"]:not([data-theme="light"]) { --page: #0B161C; --surface: #12222A; --sunk: #182C35; --ink: #E2EEF2; --muted: #8FA9B3; --line: #223943; --gain: #4FD1B5; --gain-soft: #11302A; --loss: #F07A66; --loss-soft: #3A1E19; --felt: #123B55; --felt-deep: #0B2A3E; color-scheme: dark; } }
+:root[data-skin="ocean"][data-theme="dark"] { --page: #0B161C; --surface: #12222A; --sunk: #182C35; --ink: #E2EEF2; --muted: #8FA9B3; --line: #223943; --gain: #4FD1B5; --gain-soft: #11302A; --loss: #F07A66; --loss-soft: #3A1E19; --felt: #123B55; --felt-deep: #0B2A3E; color-scheme: dark; }
+:root[data-skin="sakura"] { --page: #FBEFF2; --surface: #FFF9FA; --sunk: #F7E4EA; --ink: #2E1A21; --muted: #82626C; --line: #EED3DB; --gain: #2E7D5B; --gain-soft: #DCEFE5; --loss: #C0335E; --loss-soft: #F9DCE5; color-scheme: light; }
+@media (prefers-color-scheme: dark) { :root[data-skin="sakura"]:not([data-theme="light"]) { --page: #1A1014; --surface: #24161C; --sunk: #2D1C23; --ink: #F6E6EB; --muted: #BC9AA6; --line: #3D2730; --gain: #6FCB9C; --gain-soft: #17301F; --loss: #F27C9E; --loss-soft: #3F1C29; --felt: #8E3253; --felt-deep: #6A2440; color-scheme: dark; } }
+:root[data-skin="sakura"][data-theme="dark"] { --page: #1A1014; --surface: #24161C; --sunk: #2D1C23; --ink: #F6E6EB; --muted: #BC9AA6; --line: #3D2730; --gain: #6FCB9C; --gain-soft: #17301F; --loss: #F27C9E; --loss-soft: #3F1C29; --felt: #8E3253; --felt-deep: #6A2440; color-scheme: dark; }
+:root[data-skin="matcha"] { --page: #EEF0E2; --surface: #FBFBF4; --sunk: #E8ECD8; --ink: #1F2414; --muted: #646B52; --line: #D9DDC4; --gain: #4F7A1F; --gain-soft: #E2EDCF; --loss: #B4452B; --loss-soft: #F4E0D8; color-scheme: light; }
+@media (prefers-color-scheme: dark) { :root[data-skin="matcha"]:not([data-theme="light"]) { --page: #12150C; --surface: #1A1E12; --sunk: #222718; --ink: #EEF1E2; --muted: #A3AA8C; --line: #2E3420; --gain: #A8CF6A; --gain-soft: #24301A; --loss: #EE8466; --loss-soft: #3A2119; --felt: #43511F; --felt-deep: #323D16; color-scheme: dark; } }
+:root[data-skin="matcha"][data-theme="dark"] { --page: #12150C; --surface: #1A1E12; --sunk: #222718; --ink: #EEF1E2; --muted: #A3AA8C; --line: #2E3420; --gain: #A8CF6A; --gain-soft: #24301A; --loss: #EE8466; --loss-soft: #3A2119; --felt: #43511F; --felt-deep: #323D16; color-scheme: dark; }
+:root[data-skin="midnight"] { --page: #E8ECF5; --surface: #F8FAFE; --sunk: #E6EAF4; --ink: #141B2E; --muted: #5D6680; --line: #D2D9E8; --gain: #1F7A5A; --gain-soft: #D8EFE6; --loss: #C23B48; --loss-soft: #F7DEE1; color-scheme: light; }
+@media (prefers-color-scheme: dark) { :root[data-skin="midnight"]:not([data-theme="light"]) { --page: #0A0F1E; --surface: #121A2E; --sunk: #182238; --ink: #E4EAF7; --muted: #93A0BD; --line: #243050; --gain: #5FD0A0; --gain-soft: #11302A; --loss: #FF7B86; --loss-soft: #3B1A22; --felt: #141D38; --felt-deep: #0C1326; color-scheme: dark; } }
+:root[data-skin="midnight"][data-theme="dark"] { --page: #0A0F1E; --surface: #121A2E; --sunk: #182238; --ink: #E4EAF7; --muted: #93A0BD; --line: #243050; --gain: #5FD0A0; --gain-soft: #11302A; --loss: #FF7B86; --loss-soft: #3B1A22; --felt: #141D38; --felt-deep: #0C1326; color-scheme: dark; }
+:root[data-skin="amber"] { --page: #F6EEDF; --surface: #FFFBF3; --sunk: #F1E5CE; --ink: #2A1C0F; --muted: #7A6448; --line: #E6D6B9; --gain: #3F7D32; --gain-soft: #E0EED6; --loss: #B5402A; --loss-soft: #F6DED5; color-scheme: light; }
+@media (prefers-color-scheme: dark) { :root[data-skin="amber"]:not([data-theme="light"]) { --page: #17110A; --surface: #211910; --sunk: #2A2015; --ink: #F5E9D6; --muted: #B9A07E; --line: #3A2C1C; --gain: #8FCB74; --gain-soft: #1F2F18; --loss: #F08A6C; --loss-soft: #3D2118; --felt: #4E3018; --felt-deep: #3A2311; color-scheme: dark; } }
+:root[data-skin="amber"][data-theme="dark"] { --page: #17110A; --surface: #211910; --sunk: #2A2015; --ink: #F5E9D6; --muted: #B9A07E; --line: #3A2C1C; --gain: #8FCB74; --gain-soft: #1F2F18; --loss: #F08A6C; --loss-soft: #3D2118; --felt: #4E3018; --felt-deep: #3A2311; color-scheme: dark; }
+:root[data-skin="violet"] { --page: #F0ECF8; --surface: #FCFAFF; --sunk: #EAE3F6; --ink: #1E1530; --muted: #6A5F82; --line: #DDD4EE; --gain: #237A5A; --gain-soft: #DAF0E6; --loss: #C2385A; --loss-soft: #F8DEE5; color-scheme: light; }
+@media (prefers-color-scheme: dark) { :root[data-skin="violet"]:not([data-theme="light"]) { --page: #120D1E; --surface: #1B1430; --sunk: #231A3B; --ink: #EEE8FA; --muted: #A79BC5; --line: #2F2550; --gain: #6FD3A6; --gain-soft: #12302A; --loss: #F57C9B; --loss-soft: #3B1A2A; --felt: #361F62; --felt-deep: #28164A; color-scheme: dark; } }
+:root[data-skin="violet"][data-theme="dark"] { --page: #120D1E; --surface: #1B1430; --sunk: #231A3B; --ink: #EEE8FA; --muted: #A79BC5; --line: #2F2550; --gain: #6FD3A6; --gain-soft: #12302A; --loss: #F57C9B; --loss-soft: #3B1A2A; --felt: #361F62; --felt-deep: #28164A; color-scheme: dark; }
+/* 示範模式：右上角退出 */
+.demo-bar { display: flex; justify-content: space-between; align-items: center; gap: 6px; padding: max(6px, env(safe-area-inset-top)) 12px 6px; background: repeating-linear-gradient(135deg, color-mix(in srgb, #E0A82E 22%, var(--page)) 0 10px, color-mix(in srgb, #E0A82E 12%, var(--page)) 10px 20px); }
+.demo-pill { font-size: 12px; font-weight: 700; padding: 6px 10px; border-radius: 999px; background: color-mix(in srgb, var(--surface) 92%, transparent); color: var(--ink); border: 1px solid var(--line); text-decoration: none; box-shadow: 0 2px 8px rgba(0, 0, 0, .12); backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px); }
+.demo-pill.exit { background: var(--loss); color: #fff; border-color: transparent; }

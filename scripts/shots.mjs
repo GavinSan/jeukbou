@@ -63,7 +63,7 @@ for (const scheme of ['light', 'dark']) {
     });
     await step('edit', async () => {
       await page.waitForTimeout(1000);
-      await page.getByRole('button', { name: /Gavin 食 Ivan（15 番）/ }).click();
+      await page.getByRole('button', { name: /Gavin 食 Ivan .*牌 15 番/ }).click();
       await page.waitForTimeout(400);
       await page.getByRole('dialog').getByRole('button', { name: '加一番' }).click();
       await page.getByRole('dialog').getByRole('button', { name: '加一番' }).click();
@@ -328,6 +328,17 @@ for (const scheme of ['light', 'dark']) {
       await page.getByRole('button', { name: 'Athena 統計' }).click();
       await page.waitForTimeout(400);
       await page.screenshot({ path: `${out}/group-player.png` });
+    });
+    await step('cases', async () => {
+      await page.goto(`${base}/demo/cases`, { waitUntil: 'networkidle' });
+      await page.waitForTimeout(300);
+      await page.screenshot({ path: `${out}/demo-cases.png`, fullPage: true });
+      await page.goto(`${base}/demo/t/6`, { waitUntil: 'networkidle' });
+      await page.waitForTimeout(600);
+      await page.screenshot({ path: `${out}/table-t6.png`, fullPage: true });
+      await page.goto(`${base}/demo/t/0?view=1`, { waitUntil: 'networkidle' });
+      await page.waitForTimeout(600);
+      await page.screenshot({ path: `${out}/table-view.png` });
     });
     await step('install', async () => {
       await page.goto(`${base}/demo/install`, { waitUntil: 'networkidle' });

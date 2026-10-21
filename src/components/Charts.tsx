@@ -128,18 +128,30 @@ export function TrendChart({ series, labels, me }: { series: Series[]; labels: s
             width={Math.max(0, width - pad.l - pad.r)}
             height={H}
             fill="transparent"
-            style={{ touchAction: 'pan-y' }}
+            // 撳咗一下之後就鎖住：再拖左右睇數唔會俾上下碌搶走（撳 × 收返）
+            style={{ touchAction: hover !== null ? 'none' : 'pan-y' }}
             onPointerDown={onMove}
-            onPointerMove={onMove}
-            onPointerLeave={() => setHover(null)}
+            onPointerMove={(e) => { if (e.pointerType === 'mouse' || e.buttons || hover !== null) onMove(e); }}
+            onPointerLeave={(e) => { if (e.pointerType === 'mouse') setHover(null); }}
           />
         </svg>
         {hover !== null && (
           <div className="viz-tip" style={tipLeft ? { right: width - hx + 10 } : { left: hx + 10 }}>
             <b>{hover === 0 ? '開局' : labels[hover] ?? `第 ${hover} 鋪`}</b>
+            <button type="button" className="viz-tip-x" aria-label="收起" onClick={() => setHover(null)}>×</button>
           </div>
         )}
       </div>
+      <input
+        className="viz-scrub"
+        type="range"
+        min={0}
+        max={n}
+        step={1}
+        value={hover ?? n}
+        aria-label="拉嚟睇每一鋪"
+        onChange={(e) => setHover(Number(e.target.value))}
+      />
     </figure>
   );
 }

@@ -11,7 +11,7 @@ import { useGroup, useJoinRequests, useMeetups, useMembers, useSessions } from '
 import { MeetupsView } from '../components/Meetups.tsx';
 import { Link } from '../lib/router.tsx';
 import { Avatar, ConfirmDelete, Hint, Loading, Sheet, TopBar, fmt, message } from '../ui.tsx';
-import { SettingsButton } from '../components/Settings.tsx';
+import { rulesOf } from '../lib/score.ts';
 import { Leaderboard } from '../components/Charts.tsx';
 import { boardRows, useHistory } from '../lib/history.ts';
 import { PlayerSheet } from '../components/BoardView.tsx';
@@ -134,9 +134,14 @@ export function Invite({ g, canManage, onMode }: { g: Group; canManage: boolean;
 
 const ICONS = ['🀄', '🀅', '🎲', '🐉', '🐯', '🍵', '🏮', '🧧', '💰', '🔥', '🌸', '⭐', '🐼', '🍀', '🌙', '🎯'];
 
-/** 牌友圈頂：icon、名、簡介、公開／私人；局主撳「編輯」改 */
-function GroupHeader({ g, canEdit, memberCount }: { g: Group; canEdit: boolean; memberCount: number }) {
-  const [editing, setEditing] = useState(false);
+/** 冇寫簡介：由家規自動出一句（例如「用水：25 抽 1」） */
+export function autoDescription(g: Group): string {
+  const w = rulesOf(g, null).water;
+  return w.enabled && w.per > 0 && w.take > 0 ? `用水：${w.per} 抽 ${w.take}` : '唔抽水';
+}
+
+/** 牌友圈頂：icon、名、簡介（冇就用家規自動出）、公開／私人；改就撳右上角齒輪 */
+function GroupHeader({ g, memberCount }: { g: Group; memberCount: number }) {
   return (
     <section className="group-head">
       <GroupIcon icon={g.icon} name={g.name} size={52} />
@@ -145,23 +150,45 @@ function GroupHeader({ g, canEdit, memberCount }: { g: Group; canEdit: boolean; 
           <span className={`tag ${g.visibility === 'public' ? 'new' : 'instant'}`}>{g.visibility === 'public' ? '公開' : '私人'}</span>
           <span className="muted small">{memberCount} 個成員</span>
         </span>
-        {g.description ? <p className="group-desc">{g.description}</p> : canEdit ? <p className="muted small">加句簡介，例如「25 抽 1・私人局」</p> : null}
+        <p className={`group-desc${g.description ? '' : ' auto'}`}>{g.description || autoDescription(g)}</p>
       </span>
-      {canEdit && <button type="button" className="textbtn" onClick={() => setEditing(true)}>編輯</button>}
-      {editing && <GroupProfileSheet g={g} memberCount={memberCount} onClose={() => setEditing(false)} />}
     </section>
   );
 }
 
-function GroupProfileSheet({ g, memberCount, onClose }: { g: Group; memberCount: number; onClose: () => void }) {
+/** 牌友圈設定：名、icon、簡介、公開／私人、家規；局主改得，其他人睇 */
+function GroupSettingsSheet({ g, canEdit, memberCount, onClose }: { g: Group; canEdit: boolean; memberCount: number; onClose: () => void }) {
+  const [name, setName] = useState(g.name);
   const [icon, setIcon] = useState(g.icon ?? '');
   const [desc, setDesc] = useState(g.description ?? '');
   const [vis, setVis] = useState<'public' | 'private'>(g.visibility === 'public' ? 'public' : 'private');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
+  const links = (
+    <div className="list">
+      <Link to={`/g/${g.id}/rules`} className="listrow"><span className="grow">家規<small className="muted">　番數表、抽水、拉、埋數</small></span><span className="chev" aria-hidden="true">›</span></Link>
+      <Link to={`/g/${g.id}/board`} className="listrow"><span className="grow">龍虎榜</span><span className="chev" aria-hidden="true">›</span></Link>
+      <Link to={`/g/${g.id}/pay`} className="listrow"><span className="grow">埋數（所有大局）</span><span className="chev" aria-hidden="true">›</span></Link>
+      <Link to="/settings" className="listrow"><span className="grow">我嘅設定<small className="muted">　頭像、名、聲效、通知</small></span><span className="chev" aria-hidden="true">›</span></Link>
+    </div>
+  );
+  if (!canEdit) {
+    return (
+      <Sheet onClose={onClose} label="牌友圈設定">
+        <div className="row"><GroupIcon icon={g.icon} name={g.name} size={44} /><h2 className="grow">{g.name}</h2></div>
+        <p className="muted">{g.description || autoDescription(g)}・{g.visibility === 'public' ? '公開' : '私人'}・{memberCount} 個成員</p>
+        <Hint>淨係局主改得牌友圈資料。</Hint>
+        {links}
+      </Sheet>
+    );
+  }
   return (
-    <Sheet onClose={onClose} label="牌友圈資料">
-      <h2>牌友圈資料</h2>
+    <Sheet onClose={onClose} label="牌友圈設定">
+      <h2>牌友圈設定</h2>
+      <label className="field">
+        <span>名</span>
+        <input className="input" value={name} maxLength={30} onChange={(e) => setName(e.target.value)} />
+      </label>
       <div className="field">
         <span>Icon</span>
         <div className="icon-pick">
@@ -175,7 +202,7 @@ function GroupProfileSheet({ g, memberCount, onClose }: { g: Group; memberCount:
       </div>
       <label className="field">
         <span>簡介</span>
-        <textarea className="input" rows={3} maxLength={200} value={desc} onChange={(e) => setDesc(e.target.value)} placeholder="例如：25 抽 1・逢星期五・私人局" />
+        <textarea className="input" rows={3} maxLength={200} value={desc} onChange={(e) => setDesc(e.target.value)} placeholder={`唔寫就自動顯示「${autoDescription(g)}」`} />
       </label>
       <div className="field">
         <span>邊個搵得到</span>
@@ -186,10 +213,11 @@ function GroupProfileSheet({ g, memberCount, onClose }: { g: Group; memberCount:
         <Hint>{vis === 'public' ? '其他人喺「牌友圈」搜尋得到；入唔入到仍然跟加入方式（自動／要批准／不收新人）。' : '要有邀請連結或者加入碼先加入到。'}</Hint>
       </div>
       {error && <p className="error">{error}</p>}
-      <button type="button" className="btn big" disabled={busy} onClick={async () => {
+      <button type="button" className="btn big" disabled={busy || !name.trim()} onClick={async () => {
         setBusy(true); setError('');
-        try { await updateGroupProfile(g, { icon, description: desc, visibility: vis }, memberCount); onClose(); } catch (err) { setError(message(err)); setBusy(false); }
+        try { await updateGroupProfile(g, { name, icon, description: desc, visibility: vis }, memberCount); onClose(); } catch (err) { setError(message(err)); setBusy(false); }
       }}>儲存</button>
+      {links}
     </Sheet>
   );
 }
@@ -331,6 +359,7 @@ export default function GroupPage({ user, groupId }: { user: User; groupId: stri
   const [showAllSessions, setShowAllSessions] = useState(false);
   const [confirm, setConfirm] = useState<null | { title: string; detail: string; word: string; run: () => Promise<void> }>(null);
   const [permFor, setPermFor] = useState<Member | null>(null);
+  const [groupSettings, setGroupSettings] = useState(false);
 
   if (group.error) return <main className="page"><TopBar back="/groups" /><p className="error">{group.error}</p></main>;
   if (!group.data) return <main className="page"><TopBar back="/groups" /><Loading /></main>;
@@ -350,8 +379,13 @@ export default function GroupPage({ user, groupId }: { user: User; groupId: stri
 
   return (
     <main className="page">
-      <TopBar back="/groups" title={g.name} right={<SettingsButton />} />
-      <GroupHeader g={g} canEdit={canManage} memberCount={members.data.length} />
+      <TopBar back="/groups" title={g.name} right={(
+        <button type="button" className="iconbtn" aria-label="牌友圈設定" onClick={() => setGroupSettings(true)}>
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="3" /><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z" /></svg>
+        </button>
+      )} />
+      <GroupHeader g={g} memberCount={members.data.length} />
+      {groupSettings && <GroupSettingsSheet g={g} canEdit={canManage} memberCount={members.data.length} onClose={() => setGroupSettings(false)} />}
 
       <section className="stack">
         <Link to={`/g/${groupId}/new`} className="btn big">

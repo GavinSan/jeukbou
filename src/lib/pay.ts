@@ -53,7 +53,7 @@ export function itemsOf(g: Pick<Group, 'id' | 'name'>, s: Session, uid: string):
   }));
 }
 
-async function loadGroup(gid: string, uid: string): Promise<{ items: PayItem[]; legacy: LegacyOwe[]; names: Record<string, string>; emails: Record<string, string> } | null> {
+async function loadGroup(gid: string, uid: string, all = false): Promise<{ items: PayItem[]; legacy: LegacyOwe[]; names: Record<string, string>; emails: Record<string, string> } | null> {
   const gSnap = await getDoc(doc(fs(), 'groups', gid));
   if (!gSnap.exists()) return null;
   const g = toGroupDoc(gSnap.id, gSnap.data());
@@ -83,7 +83,7 @@ async function loadGroup(gid: string, uid: string): Promise<{ items: PayItem[]; 
   for (const s of sessions) {
     if (s.payout) {
       Object.assign(names, Object.fromEntries(Object.entries(s.payout.names).filter(([k]) => !names[k])));
-      items.push(...itemsOf(g, s, uid).filter((x) => x.dir !== 'other'));
+      items.push(...itemsOf(g, s, uid).filter((x) => all || x.dir !== 'other'));
     } else if (s.legacy && !s.legacy.paid && myKeys.length) {
       const fan = myKeys.reduce((a, k) => a + Number(s.legacy!.totals[k] ?? 0), 0);
       if (fan) legacy.push({ gid, gname: g.name, sid: s.id, sname: s.name, at: s.createdAt?.toMillis() ?? 0, fan, cash: Math.round((fan / perUnit) * 100) / 100 });
@@ -115,5 +115,22 @@ export function useMyPay(uid: string | null, groupIds: string[], tick = 0): PayD
     return () => { alive = false; };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [key]);
+  return state;
+}
+
+/** 一個牌友圈所有已埋數大局嘅轉賬（包括其他人之間嘅） */
+export function useGroupPay(uid: string | null, gid: string, tick = 0): PayData {
+  const [state, setState] = useState<PayData>({ loading: true, items: [], legacy: [], names: {}, emails: {} });
+  useEffect(() => {
+    if (!uid) return;
+    let alive = true;
+    loadGroup(gid, uid, true).catch(() => null).then((x) => {
+      if (!alive) return;
+      const out: PayData = { loading: false, items: x?.items ?? [], legacy: x?.legacy ?? [], names: x?.names ?? {}, emails: x?.emails ?? {} };
+      out.items.sort((a, b) => b.at - a.at);
+      setState(out);
+    });
+    return () => { alive = false; };
+  }, [uid, gid, tick]);
   return state;
 }

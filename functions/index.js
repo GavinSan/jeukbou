@@ -89,11 +89,12 @@ export const meetupUpdated = onDocumentUpdated('groups/{g}/meetups/{m}', async (
   const at = when(Number(after.at), after.tz);
   const tag = `${g}:meetup:${id}`;
   const url = `/g/${g}#meetups`;
-  if (now.length === 3 && was.length !== 3) {
+  // 三缺一（第一枱或者之後嗰枱都係）：人數增加到 4 嘅倍數差一個
+  if (now.length > was.length && now.length % 4 === 3) {
     const answered = new Set([...now, ...list(after.maybe), ...list(after.no)]);
     const mem = await members(g);
     await send(mem.map((x) => x.uid).filter((u) => !answered.has(u)), {
-      title: `「${name}」三缺一！就差你 🔥`,
+      title: `「${name}」${now.length > 4 ? `第 ${Math.ceil(now.length / 4)} 枱` : ''}三缺一！就差你 🔥`,
       body: `${at}${after.place ? `・${after.place}` : ''}：${now.map((u) => after.names?.[u] ?? '玩家').join('、')} 已經去，仲差一個。`,
       url, tag,
     });

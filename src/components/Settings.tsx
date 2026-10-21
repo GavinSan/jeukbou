@@ -18,7 +18,7 @@ const canVibrate = typeof navigator !== 'undefined' && typeof navigator.vibrate 
 const isIOS = typeof navigator !== 'undefined' && /iP(hone|ad|od)/.test(navigator.userAgent);
 
 const ROWS: { key: Exclude<keyof Prefs, 'skin'>; label: string; note: string }[] = [
-  { key: 'hints', label: '提示文字', note: '顯示各頁的簡短說明' },
+  { key: 'hints', label: '提示文字', note: '預設閂（簡潔）；開咗就每頁都顯示說明' },
   { key: 'sound', label: '聲效', note: '食糊、找數、擲骰' },
   {
     key: 'vibe',

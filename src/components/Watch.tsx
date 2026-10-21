@@ -39,9 +39,9 @@ function MeetupWatch({ g, uid }: { g: string; uid: string }) {
       const n = m.going.length;
       const key = `${g}:meetup:${m.id}`;
       // 三缺一用另一個版本號，咁之前睇過「新約局」都會再提一次
-      const at = n === 3 ? m.createdAt + 3 : m.createdAt;
+      const at = n % 4 === 3 ? m.createdAt + n : m.createdAt;
       if (m.by === uid || at <= seenAt(key)) continue;
-      const line = n === 3 ? '三缺一！就差你 🔥' : n === 2 ? '二缺二，快啲應' : n === 1 ? '一缺三，嚟撐場' : n >= 4 ? '已經夠腳，仲可以開多枱' : '有人約局';
+      const line = n % 4 === 3 ? '三缺一！就差你 🔥' : n === 2 ? '二缺二，快啲應' : n === 1 ? '一缺三，嚟撐場' : n >= 4 ? '已經夠腳，仲可以開多枱' : '有人約局';
       const notice = {
         g: key,
         at,
