@@ -78,6 +78,15 @@ const toSession = (id: string, d: DocumentData): Session => ({
   payout: d.payout && Array.isArray(d.payout.transfers) ? { v: Number(d.payout.v ?? 1), at: Number(d.payout.at ?? 0), currency: String(d.payout.currency ?? ''), transfers: d.payout.transfers.map((t: DocumentData) => ({ from: String(t.from), to: String(t.to), amount: Number(t.amount) })), names: d.payout.names ?? {} } : null,
   paid: d.paid ?? {},
   skipTeams: Array.isArray(d.skipTeams) ? d.skipTeams.map(String) : [],
+  draw: d.draw && Array.isArray(d.draw.tiles) ? {
+    id: String(d.draw.id ?? ''), by: String(d.draw.by ?? ''), at: Number(d.draw.at ?? 0), mode: d.draw.mode === 'auto' ? 'auto' : 'pick',
+    tables: Array.isArray(d.draw.tables) ? d.draw.tables.map(String) : [],
+    players: Array.isArray(d.draw.players) ? d.draw.players.map((x: DocumentData) => ({ id: String(x.id), name: String(x.name ?? '玩家') })) : [],
+    tiles: d.draw.tiles.map(Number), picks: d.draw.picks && typeof d.draw.picks === 'object' ? Object.fromEntries(Object.entries(d.draw.picks).map(([k, v]) => [k, String(v)])) : {},
+    order: Array.isArray(d.draw.order) ? d.draw.order.map(String) : [],
+    status: d.draw.status === 'propose' || d.draw.status === 'done' ? d.draw.status : 'picking',
+    approvals: Array.isArray(d.draw.approvals) ? d.draw.approvals.map(String) : [],
+  } : null,
   people: Array.isArray(d.people) ? d.people.filter((x: DocumentData) => x && x.id).map((x: DocumentData) => ({ id: String(x.id), name: String(x.name ?? '玩家') })) : [],
   closeReq: d.closeReq ? { by: String(d.closeReq.by ?? ''), approvals: Array.isArray(d.closeReq.approvals) ? d.closeReq.approvals.map(String) : [] } : null,
 });

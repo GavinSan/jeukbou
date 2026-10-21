@@ -9,6 +9,7 @@ import {
   doc,
   getDoc,
   getDocs,
+  runTransaction,
   serverTimestamp,
   setDoc,
   updateDoc,
@@ -129,6 +130,106 @@ export interface Session {
   people?: { id: string; name: string }[];
   /** 今晚唔用嘅預設 Group（team id） */
   skipTeams?: string[];
+  /** 幾張枱一齊執位（抽牌） */
+  draw?: Draw | null;
+}
+
+/** 一齊執位：X 張枱 = X × 4 隻牌（壹貳參肆…），同一隻字 = 同一張枱 */
+export interface Draw {
+  id: string;
+  by: string;
+  at: number;
+  /** pick = 每人自己揀牌；auto = 電腦派 */
+  mode: 'pick' | 'auto';
+  /** 原本打緊嘅枱（會完場，除非同一班人坐返一齊揀繼續） */
+  tables: string[];
+  /** 參加嘅人（可以減走離開嘅、加新嚟嘅） */
+  players: { id: string; name: string }[];
+  /** 每隻牌係第幾張枱（0 起），已經洗亂 */
+  tiles: number[];
+  /** 邊隻牌（index）俾邊個揀咗 */
+  picks: Record<string, string>;
+  /** 揀牌次序（全場排名高嘅先） */
+  order: string[];
+  /** propose = 等其他枱同意；picking = 揀緊；done = 揀晒 */
+  status: 'propose' | 'picking' | 'done';
+  approvals: string[];
+}
+
+export const UPPER_NUM = ['壹', '貳', '參', '肆', '伍', '陸', '柒', '捌', '玖', '拾'];
+export const tableNameUpper = (i: number) => `第${UPPER_NUM[i] ?? String(i + 1)}枱`;
+
+export async function startDraw(g: string, s: string, draw: Draw): Promise<void> {
+  await updateDoc(doc(fs(), 'groups', g, 'sessions', s), { draw: clean(draw) });
+}
+
+export async function cancelDraw(g: string, s: string): Promise<void> {
+  await updateDoc(doc(fs(), 'groups', g, 'sessions', s), { draw: deleteField() });
+}
+
+/** 同意執位：每張原本嘅枱有一個人同意就開始 */
+export async function approveDraw(g: string, s: string, uid: string, seatsOf: Record<string, string[]>): Promise<void> {
+  const ref = doc(fs(), 'groups', g, 'sessions', s);
+  await runTransaction(fs(), async (tx) => {
+    const snap = await tx.get(ref);
+    const d = snap.data()?.draw as Draw | undefined;
+    if (!d || d.status !== 'propose') return;
+    const approvals = [...new Set([...d.approvals, uid])];
+    const ok = d.tables.every((t) => (seatsOf[t] ?? []).some((p) => approvals.includes(p)));
+    tx.update(ref, { 'draw.approvals': approvals, ...(ok ? { 'draw.status': 'picking' } : {}) });
+  });
+}
+
+/** 揀牌：用 transaction，兩個人同時撳同一隻，只會有一個成功 */
+export async function pickTile(g: string, s: string, tile: number, player: string): Promise<'ok' | 'taken' | 'done-already'> {
+  const ref = doc(fs(), 'groups', g, 'sessions', s);
+  return runTransaction(fs(), async (tx) => {
+    const snap = await tx.get(ref);
+    const d = snap.data()?.draw as Draw | undefined;
+    if (!d || d.status !== 'picking') return 'taken';
+    if (d.picks[String(tile)]) return 'taken';
+    if (Object.values(d.picks).includes(player)) return 'done-already';
+    const picks = { ...d.picks, [String(tile)]: player };
+    const done = Object.keys(picks).length >= d.tiles.length;
+    tx.update(ref, { [`draw.picks.${tile}`]: player, ...(done ? { 'draw.status': 'done' } : {}) });
+    return 'ok';
+  });
+}
+
+/** 電腦派：未揀嘅人隨機派晒剩低嘅牌 */
+export async function autoDeal(g: string, s: string): Promise<void> {
+  const ref = doc(fs(), 'groups', g, 'sessions', s);
+  await runTransaction(fs(), async (tx) => {
+    const snap = await tx.get(ref);
+    const d = snap.data()?.draw as Draw | undefined;
+    if (!d || (d.status !== 'picking' && d.status !== 'propose')) return;
+    const used = new Set(Object.values(d.picks));
+    const left = d.players.map((p) => p.id).filter((id) => !used.has(id));
+    const free = d.tiles.map((_, i) => i).filter((i) => !d.picks[String(i)]);
+    for (let i = free.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [free[i], free[j]] = [free[j], free[i]]; }
+    const picks = { ...d.picks };
+    left.forEach((id, k) => { if (free[k] !== undefined) picks[String(free[k])] = id; });
+    tx.update(ref, { 'draw.picks': picks, 'draw.status': 'done' });
+  });
+}
+
+/** 執位生效：原本嘅枱完場（拉住嘅數找晒），開新枱；同一班人坐返一齊又揀「繼續」嘅就保留原枱 */
+export async function applyDraw(
+  g: string, s: string, by: string,
+  plan: { keep: string | null; seats: string[]; names: Record<string, string>; name: string }[],
+  endTables: string[], startOrder: number,
+): Promise<void> {
+  for (const t of endTables) {
+    for (let attempt = 0; attempt < 3; attempt++) {
+      try { await appendEvent(g, s, t, await nextSeq(g, s, t), by, { type: 'end' }); break; } catch (err) { if (!(err instanceof ConflictError) || attempt === 2) throw err; }
+    }
+  }
+  let order = startOrder;
+  for (const p of plan) {
+    if (p.keep) continue;
+    await addTable(g, s, order++, { name: p.name, seats: p.seats, names: p.names });
+  }
+  await updateDoc(doc(fs(), 'groups', g, 'sessions', s), { draw: deleteField() });
 }
 
 export interface Payout {

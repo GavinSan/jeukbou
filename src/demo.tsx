@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import type { TableEvent } from './engine/table.ts';
 import { withRules } from './engine/rules.ts';
-import type { Dice, StoredEvent, TableDoc, LogEvent } from './lib/data.ts';
+import type { Dice, Draw, StoredEvent, TableDoc, LogEvent } from './lib/data.ts';
 import { computeTable, emptyPlay } from './lib/score.ts';
 import type { Computed } from './lib/score.ts';
 import { Link, match, usePath } from './lib/router.tsx';
@@ -98,6 +98,16 @@ const DEMO_HISTORY: SessionResult[] = (() => {
   return out;
 })();
 
+/** 示範：電腦派晒剩低嘅牌 */
+function autoFill(d: Draw): Draw {
+  const used = new Set(Object.values(d.picks));
+  const left = d.players.map((p) => p.id).filter((id) => !used.has(id));
+  const free = d.tiles.map((_, i) => i).filter((i) => !d.picks[String(i)]).sort(() => Math.random() - 0.5);
+  const picks = { ...d.picks };
+  left.forEach((id, k) => { if (free[k] !== undefined) picks[String(free[k])] = id; });
+  return { ...d, picks, status: 'done' };
+}
+
 const DEMO_TEAMS = [
   { id: 'd1', members: ['gavin', 'athena'], accepted: ['gavin', 'athena'], by: 'gavin' },
   { id: 'd2', members: ['robin', 'kit'], accepted: ['robin', 'kit'], by: 'robin' },
@@ -162,6 +172,7 @@ export default function Demo() {
     { id: 'e1', kind: 'expense', label: '晚餐', payer: 'gavin', amount: 186.4, sharedBy: ['gavin', 'athena', 'ivan', 'viola', 'janice', 'sang', 'clau', 'af'], by: 'demo', at: null },
     { id: 'e2', kind: 'expense', label: '飲品', payer: 'guest-vincent', amount: 23.92, sharedBy: [], all: true, note: '奶茶', names: { 'guest-vincent': 'Vincent' }, by: 'demo', at: null },
   ]);
+  const [demoDraw, setDemoDraw] = useState<Draw | null>(null);
   const [demoPaid, setDemoPaid] = useState<Record<string, { by: string; at: number }>>({});
   const [people, setPeople] = useState<{ id: string; name: string }[]>([{ id: 'guest-vincent', name: 'Vincent' }]);
   const [pairs, setPairs] = useState<PairDoc[]>([{ id: 'p1', a: 'robin', b: 'tat', by: 'robin', accepted: ['robin'] }]);
@@ -452,25 +463,48 @@ export default function Demo() {
       water={{ on: !noWater, onToggle: async (on) => setNoWater(!on) }}
       candidates={[{ id: 'kit', name: 'Kit' }, { id: 'jo', name: 'Jo' }]}
       me="gavin"
-      onRegroup={async (plan) => {
-        // 同真嘅一樣：開咗局嘅枱用「換人」＋「換位」紀錄，未開局嘅直接改座位；名全部枱通用
-        setExtraNames((n) => ({ ...n, ...Object.assign({}, ...tables.map((t) => t.names)) }));
-        setEvents((prev) => {
-          const next = { ...prev };
-          for (const p of plan) {
-            const list = [...(next[p.tableId] ?? [])];
-            if (!list.length) continue;
-            const add = (event: LogEvent) => list.push({ seq: list.length + 1, by: 'demo', event, at: Date.now() });
-            const current = computed[p.tableId]?.state.seats ?? [];
-            const out = current.filter((x) => !p.seats.includes(x));
-            const inn = p.seats.filter((x) => !current.includes(x));
-            out.forEach((o, i) => add({ type: 'swap', out: o, in: inn[i] }));
-            add({ type: 'reseat', seats: p.seats });
-            next[p.tableId] = list;
-          }
-          return next;
-        });
-        setSeatOverride((m) => ({ ...m, ...Object.fromEntries(plan.filter((p) => !(events[p.tableId] ?? []).length).map((p) => [p.tableId, p.seats])) }));
+      regroup={{
+        draw: demoDraw,
+        canForce: true,
+        candidates: [{ id: 'kit', name: 'Kit' }, { id: 'jo', name: 'Jo' }],
+        onStart: async (d) => {
+          setDemoDraw(d);
+          if (d.mode === 'auto') setTimeout(() => setDemoDraw((x) => (x ? autoFill(x) : x)), 1400);
+        },
+        onApprove: async () => setDemoDraw((x) => (x ? { ...x, status: 'picking' } : x)),
+        onPick: async (tile, player) => {
+          let r: 'ok' | 'taken' | 'done-already' = 'ok';
+          setDemoDraw((x) => {
+            if (!x || x.picks[String(tile)]) { r = 'taken'; return x; }
+            const picks = { ...x.picks, [String(tile)]: player };
+            return { ...x, picks, status: Object.keys(picks).length >= x.tiles.length ? 'done' : 'picking' };
+          });
+          return r;
+        },
+        onAuto: async () => setDemoDraw((x) => (x ? autoFill(x) : x)),
+        onCancel: async () => setDemoDraw(null),
+        onApply: async (plan) => {
+          // 示範：新嘅幾組人放返入原本幾張枱（用換人＋換位紀錄），名全部枱通用
+          const target = tables.filter((t) => computed[t.id] && !computed[t.id]!.state.ended);
+          setExtraNames((n) => ({ ...n, ...Object.assign({}, ...tables.map((t) => t.names)), ...Object.assign({}, ...plan.map((p) => p.names)) }));
+          setEvents((prev) => {
+            const next = { ...prev };
+            plan.forEach((p, k) => {
+              const t = target[k];
+              if (!t || p.keep) return;
+              const list = [...(next[t.id] ?? [])];
+              const add = (event: LogEvent) => list.push({ seq: list.length + 1, by: 'demo', event, at: Date.now() });
+              const current = computed[t.id]?.state.seats ?? [];
+              const out = current.filter((x) => !p.seats.includes(x));
+              const inn = p.seats.filter((x) => !current.includes(x));
+              out.forEach((o, i) => add({ type: 'swap', out: o, in: inn[i] }));
+              add({ type: 'reseat', seats: p.seats });
+              next[t.id] = list;
+            });
+            return next;
+          });
+          setDemoDraw(null);
+        },
       }}
     />
   );

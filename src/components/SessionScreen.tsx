@@ -1,7 +1,9 @@
 // 大局總覽：每張枱最新一鋪、統計、全場排名、最新動態、加枱
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import type { ReactNode } from 'react';
-import type { TableDoc } from '../lib/data.ts';
+import type { Draw, TableDoc } from '../lib/data.ts';
+import { DrawBoard, DrawSetup } from './RegroupDraw.tsx';
+import type { DrawTable } from './RegroupDraw.tsx';
 import { Link } from '../lib/router.tsx';
 import type { Computed } from '../lib/score.ts';
 import { addPlay, ago, describe, emptyPlay, netOf, trendOf } from '../lib/score.ts';
@@ -34,8 +36,18 @@ export interface SessionScreenProps {
   me?: string | null;
   /** 已埋數但撳咗「開枱」：去今日大局（冇就開新大局） */
   onClosedAdd?: () => void;
-  /** 幾張枱一齊執位（場主／局主） */
-  onRegroup?: (plan: { tableId: string; seats: string[] }[]) => Promise<void>;
+  /** 幾張枱一齊執位（抽牌）：任何坐緊嘅人提議；場主／局主可以直接開始 */
+  regroup?: {
+    draw: Draw | null;
+    canForce: boolean;
+    candidates: { id: string; name: string }[];
+    onStart: (d: Draw) => Promise<void>;
+    onApprove: () => Promise<void>;
+    onPick: (tile: number, player: string) => Promise<'ok' | 'taken' | 'done-already'>;
+    onAuto: () => Promise<void>;
+    onCancel: () => Promise<void>;
+    onApply: (plan: { keep: string | null; seats: string[]; names: Record<string, string>; name: string }[], endTables: string[]) => Promise<void>;
+  };
 }
 
 /** 快圈紀錄：「快東」「快南」…；再打四圈就「加四圈」 */
@@ -50,7 +62,7 @@ function quickTags(c: Computed): string[] {
   return out;
 }
 
-export default function SessionScreen({ title, back, tables, computed, tableHref, invite, rulesHref, onDeleteSession, water: waterCtl, closedNote, notice, candidates = [], onAddTable, me = null, onClosedAdd, onRegroup }: SessionScreenProps) {
+export default function SessionScreen({ title, back, tables, computed, tableHref, invite, rulesHref, onDeleteSession, water: waterCtl, closedNote, notice, candidates = [], onAddTable, me = null, onClosedAdd, regroup: rg }: SessionScreenProps) {
   const now = useNow();
   const [adding, setAdding] = useState(false);
   const [delSession, setDelSession] = useState(false);
@@ -58,12 +70,20 @@ export default function SessionScreen({ title, back, tables, computed, tableHref
   const [guest, setGuest] = useState('');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
-  const [regroup, setRegroup] = useState<{ tableId: string; seats: string[] }[] | null>(null);
+  const [drawSetup, setDrawSetup] = useState(false);
+  const [boardOpen, setBoardOpen] = useState(false);
   const openTables = tables.filter((t) => computed[t.id] && !computed[t.id]!.state.ended);
-  const shufflePlan = () => {
-    const all = shuffle(openTables.flatMap((t) => computed[t.id]!.state.seats));
-    return openTables.map((t, i) => ({ tableId: t.id, seats: all.slice(i * 4, i * 4 + 4) }));
-  };
+  const drawTables: DrawTable[] = openTables.map((t) => ({ id: t.id, name: t.name, seats: computed[t.id]!.state.seats, names: t.names }));
+  const draw = rg?.draw ?? null;
+  const seatedMe = !!me && openTables.some((t) => computed[t.id]!.state.seats.includes(me));
+  // 有人開始執位：參加嘅人自動彈個抽牌板出嚟（每次一次）
+  const autoOpened = useRef('');
+  useEffect(() => {
+    if (!draw || !me) return;
+    const key = `${draw.id}-${draw.status}`;
+    if (autoOpened.current === key) return;
+    if (draw.players.some((p) => p.id === me) || draw.by === me) { autoOpened.current = key; setBoardOpen(true); }
+  }, [draw, me]);
   // 底部中間「＋ 開枱」：網址帶 #add-table 就打開加枱
   const canAdd = !!onAddTable;
   useEffect(() => {
@@ -224,7 +244,14 @@ export default function SessionScreen({ title, back, tables, computed, tableHref
           );
         })}
         {onAddTable && <button type="button" className="btn plain" onClick={() => { setAdding(true); setPicked([]); setError(''); }}>加一張枱</button>}
-        {onRegroup && openTables.length >= 2 && <button type="button" className="btn plain" onClick={() => { setError(''); setRegroup(shufflePlan()); }}>{openTables.length} 張枱一齊執位</button>}
+        {rg && !draw && openTables.length >= 1 && (rg.canForce || seatedMe) && <button type="button" className="btn plain" onClick={() => { setError(''); setDrawSetup(true); }}>{openTables.length} 張枱一齊執位</button>}
+        {rg && draw && (
+          <button type="button" className="link-card draw-live" onClick={() => setBoardOpen(true)}>
+            <span className="draw-live-dot" aria-hidden="true" />
+            <span className="grow"><b>一齊執位進行中</b><small>{draw.status === 'propose' ? '等每張枱同意' : draw.status === 'picking' ? `揀緊牌：${Object.keys(draw.picks).length}/${draw.tiles.length}` : '揀晒，等確認'}</small></span>
+            <span className="chev" aria-hidden="true">›</span>
+          </button>
+        )}
       </section>
 
       {ranking.length > 0 && (
@@ -296,40 +323,11 @@ export default function SessionScreen({ title, back, tables, computed, tableHref
         </section>
       )}
 
-      {regroup && onRegroup && (
-        <Sheet onClose={() => setRegroup(null)} label="一齊執位">
-          <h2>{openTables.length} 張枱一齊執位</h2>
-          <Hint>全部打緊嘅人隨機分去每張枱、重新排位。有拉住嘅數會先結算。</Hint>
-          <div className="regroup">
-            {regroup.map((p) => {
-              const t = tables.find((x) => x.id === p.tableId);
-              return (
-                <div key={p.tableId} className="regroup-table">
-                  <b>{t?.name}</b>
-                  <div className="regroup-seats">
-                    {p.seats.map((id, i) => (
-                      <span key={id} className={`regroup-seat${t && computed[t.id]?.state.seats.includes(id) ? '' : ' moved'}`}>
-                        <small>{WINDS[i]}</small>{allNames[id] ?? '玩家'}
-                      </span>
-                    ))}
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-          <p className="muted small">深色 = 由其他枱轉過嚟。</p>
-          <button type="button" className="btn plain" disabled={busy} onClick={() => setRegroup(shufflePlan())}>再洗一次</button>
-          <button
-            type="button"
-            className="btn big"
-            disabled={busy}
-            onClick={async () => {
-              setBusy(true); setError('');
-              try { await onRegroup(regroup); setRegroup(null); } catch (err) { setError(message(err)); } finally { setBusy(false); }
-            }}
-          >確認執位</button>
-          {error && <p className="error" role="alert">{error}</p>}
-        </Sheet>
+      {rg && drawSetup && (
+        <DrawSetup tables={drawTables} candidates={rg.candidates} ranking={ranking.map((r) => r.id)} me={me ?? ''} canForce={rg.canForce} onStart={rg.onStart} onClose={() => setDrawSetup(false)} />
+      )}
+      {rg && draw && boardOpen && (
+        <DrawBoard draw={draw} me={me ?? ''} tables={drawTables} canForce={rg.canForce} onApprove={rg.onApprove} onPick={rg.onPick} onAuto={rg.onAuto} onCancel={rg.onCancel} onApply={rg.onApply} onClose={() => setBoardOpen(false)} />
       )}
 
       {adding && onAddTable && (

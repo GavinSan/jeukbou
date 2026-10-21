@@ -446,7 +446,18 @@ for (const scheme of ['light', 'dark']) {
       await page.getByRole('button', { name: /張枱一齊執位/ }).click();
       await page.waitForTimeout(300);
       await page.screenshot({ path: `${out}/regroup.png` });
-      await page.getByRole('button', { name: '關閉' }).first().click().catch(() => undefined);
+      await page.getByRole('dialog').getByRole('button', { name: '開始' }).click();
+      await page.waitForTimeout(500);
+      await page.screenshot({ path: `${out}/draw-shuffle.png` });
+      await page.waitForTimeout(1200);
+      const tiles = page.locator('.draw-tile:not(.open)');
+      for (let k = 0; k < 3; k++) { await tiles.first().click(); await page.waitForTimeout(500); }
+      await page.screenshot({ path: `${out}/draw-pick.png` });
+      await page.getByRole('button', { name: '電腦派晒' }).click();
+      await page.waitForTimeout(2500);
+      await page.screenshot({ path: `${out}/draw-done.png`, fullPage: true });
+      await page.getByRole('button', { name: /確認執位/ }).click();
+      await page.waitForTimeout(500);
     });
     await step('admin', async () => {
       await page.goto(`${base}/demo/admin`, { waitUntil: 'networkidle' });
