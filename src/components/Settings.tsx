@@ -7,6 +7,7 @@ import { buzz } from '../lib/haptics.ts';
 import { sfx, unlock } from '../lib/sound.ts';
 import { Avatar, NameForm, Sheet, message, useConfirm } from '../ui.tsx';
 import { askNotify, notifySupported } from '../lib/notify.ts';
+import { pushConfigured, registerPush, unregisterPush } from '../lib/push.ts';
 import { signOut } from 'firebase/auth';
 import { auth } from '../firebase.ts';
 import { displayName, setAvatar, setPayEmail, setProfileDetails, syncMemberName } from '../lib/data.ts';
@@ -27,7 +28,7 @@ const ROWS: { key: Exclude<keyof Prefs, 'skin'>; label: string; note: string }[]
   {
     key: 'notify',
     label: '通知',
-    note: notifySupported() ? '牌友圈番數表有更新時通知你' : isIOS ? 'iPhone 要先在 Safari「加入主畫面」，再從主畫面開啟' : '此瀏覽器不支援通知',
+    note: notifySupported() ? (pushConfigured() ? '約局、三缺一、番數表更新、加入申請；app 閂咗都收到' : '牌友圈番數表有更新時通知你') : isIOS ? 'iPhone 要先在 Safari「加入主畫面」，再從主畫面開啟' : '此瀏覽器不支援通知',
   },
 ];
 
@@ -210,7 +211,10 @@ export function PrefsList() {
                     return;
                   }
                   setNote('');
+                  const uid = auth?.currentUser?.uid;
+                  if (uid) registerPush(uid, true).catch(() => setNote('推播登記唔到，app 開住時仍然會通知你。'));
                 }
+                if (r.key === 'notify' && !on) unregisterPush().catch(() => undefined);
                 setPref(r.key, on);
                 if (on && r.key === 'sound') setTimeout(() => sfx.tap(), 30);
                 if (on && r.key === 'vibe') buzz('tap');
@@ -228,7 +232,7 @@ export function PrefsList() {
 export function SignOutButton({ onDone }: { onDone?: () => void }) {
   if (!auth?.currentUser) return null;
   return (
-    <button type="button" className="btn plain" onClick={() => { onDone?.(); if (auth) signOut(auth); }}>
+    <button type="button" className="btn plain" onClick={async () => { onDone?.(); await unregisterPush().catch(() => undefined); if (auth) signOut(auth); }}>
       登出 {auth.currentUser.email ?? ''}
     </button>
   );

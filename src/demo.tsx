@@ -41,6 +41,7 @@ import type { GroupResults } from './lib/stats.ts';
 import TeamsEditor from './components/Teams.tsx';
 import { NoticeBar } from './components/Watch.tsx';
 import { pushNotice } from './lib/notify.ts';
+import { InstallSteps } from './components/InstallGuide.tsx';
 
 const TABLES: TableDoc[] = [
   { id: 't0', name: '第 1 枱', order: 0, seats: ['gavin', 'athena', 'ivan', 'viola'], names: { gavin: 'Gavin', athena: 'Athena', ivan: 'Ivan', viola: 'Viola' } },
@@ -326,6 +327,16 @@ export default function Demo() {
     return <AdminView me="gavin" groups={groups} users={users} error="" onRefresh={() => undefined} />;
   }
 
+  if (path === '/demo/install') {
+    return (
+      <main className="page narrow">
+        <TopBar back="/demo/home" title="加到主畫面（示範）" />
+        <section className="panel stack"><h2>iPhone Safari</h2><InstallSteps p="ios-safari" inviteLink="/join/demo/abc" /></section>
+        <section className="panel stack"><h2>iPhone 其他瀏覽器</h2><InstallSteps p="ios-other" /></section>
+        <section className="panel stack"><h2>Android</h2><InstallSteps p="android" /></section>
+      </main>
+    );
+  }
   if (path === '/demo/skins') {
     return (
       <main className="page">

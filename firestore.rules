@@ -57,6 +57,14 @@ service cloud.firestore {
         && request.resource.data.keys().hasOnly(['name', 'photoURL', 'avatar', 'updatedAt', 'groups', 'pending', 'payEmail', 'email', 'firstName', 'lastName', 'birthday', 'nudgedAt'])
         && (request.resource.data.get('avatar', null) == null || (request.resource.data.avatar is string && request.resource.data.avatar.size() < 200000));
       allow delete: if false;
+
+      // 推播 token：每部機一個，淨係自己讀寫；伺服器用 admin 權限讀
+      match /pushTokens/{t} {
+        allow read, delete: if signedIn() && request.auth.uid == uid;
+        allow create, update: if signedIn() && request.auth.uid == uid
+          && request.resource.data.keys().hasOnly(['token', 'ua', 'at'])
+          && request.resource.data.token is string && request.resource.data.token.size() < 1000;
+      }
     }
 
     // 加入碼：知道個碼先讀到（唔可以列出所有碼）；淨係局主開或者刪

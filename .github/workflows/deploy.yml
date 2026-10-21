@@ -4,6 +4,8 @@ name: Deploy
 # 要先喺 GitHub repo 設定：
 #   Variables → FIREBASE_WEB_CONFIG（Firebase 網頁設定，成段 JSON）
 #   Secrets   → FIREBASE_SERVICE_ACCOUNT（服務帳戶 JSON；唔好放落 repo 任何地方）
+# 推播（可選）：Variables → FIREBASE_VAPID_KEY（Cloud Messaging 網頁推播金鑰）
+#               Variables → ENABLE_PUSH = true（轉咗 Blaze 同畀咗服務帳戶權限之後先開，會部署 Cloud Functions）
 on:
   push:
     branches: [main]
@@ -31,10 +33,12 @@ jobs:
         run: npm run build
         env:
           VITE_FIREBASE_CONFIG: ${{ vars.FIREBASE_WEB_CONFIG }}
+          VITE_FIREBASE_VAPID_KEY: ${{ vars.FIREBASE_VAPID_KEY }}
       - name: 部署（網站 + 資料庫規則）
         env:
           FIREBASE_SERVICE_ACCOUNT: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
           SUPER_ADMIN_EMAIL: ${{ secrets.SUPER_ADMIN_EMAIL }}
+          ENABLE_PUSH: ${{ vars.ENABLE_PUSH }}
         run: |
           if [ -z "$FIREBASE_SERVICE_ACCOUNT" ]; then
             echo "::error::搵唔到 FIREBASE_SERVICE_ACCOUNT secret。去 Settings → Secrets and variables → Actions → Secrets 加返，名要一模一樣。"
@@ -55,9 +59,27 @@ jobs:
           echo "::notice::部署用緊服務帳戶：${sa_email}"
           set +e
           fail=0
-          # 網站同資料庫規則分開部署，一樣失敗唔會拖累另一樣
-          for target in hosting firestore:rules; do
-            npx --yes firebase-tools@13 deploy --only "$target" --project jeukbou-app --non-interactive 2>&1 | tee "$RUNNER_TEMP/deploy.log"
+          targets="hosting firestore:rules"
+          # 推播：開咗 ENABLE_PUSH 先部署 Cloud Functions（要 Blaze 計劃）；地區跟 Firestore 資料庫
+          if [ "$ENABLE_PUSH" = "true" ]; then
+            npm install --prefix functions --no-audit --no-fund --omit=dev
+            loc=$(npx --yes firebase-tools@13 firestore:databases:get "(default)" --project jeukbou-app --json 2>/dev/null | node -e "let s='';process.stdin.on('data',d=>s+=d).on('end',()=>{try{const j=JSON.parse(s);console.log((j.result||j).locationId||'')}catch{console.log('')}})")
+            case "$loc" in
+              nam5|"") region=us-central1 ;;
+              eur3) region=europe-west1 ;;
+              *) region="$loc" ;;
+            esac
+            printf 'PUSH_REGION=%s\n' "$region" > functions/.env
+            echo "::notice title=functions::Firestore 位置 ${loc:-未知}，Functions 地區 ${region}"
+            targets="$targets functions"
+          else
+            echo "::notice title=functions::未開 ENABLE_PUSH，唔部署推播"
+          fi
+          # 每樣分開部署，一樣失敗唔會拖累另一樣
+          for target in $targets; do
+            extra=""
+            [ "$target" = "functions" ] && extra="--force"
+            npx --yes firebase-tools@13 deploy --only "$target" --project jeukbou-app --non-interactive $extra 2>&1 | tee "$RUNNER_TEMP/deploy.log"
             if [ "${PIPESTATUS[0]}" -ne 0 ]; then
               fail=1
               grep -iE "error|denied|permission|not found|not been used|enable|billing|403|404" "$RUNNER_TEMP/deploy.log" \

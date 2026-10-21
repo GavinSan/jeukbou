@@ -9,6 +9,8 @@ import {
 } from 'firebase/auth';
 import { auth } from '../firebase.ts';
 import { Logo, message, saveProfile, clampName } from '../ui.tsx';
+import { InstallGate } from '../components/InstallGuide.tsx';
+import { isStandalone, shouldGuideBeforeLogin } from '../lib/install.ts';
 
 export default function Login({ refresh, joining }: { refresh: () => void; joining: boolean }) {
   const [mode, setMode] = useState<'in' | 'up'>('in');
@@ -17,6 +19,7 @@ export default function Login({ refresh, joining }: { refresh: () => void; joini
   const [name, setName] = useState('');
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
+  const [guide, setGuide] = useState(() => shouldGuideBeforeLogin());
 
   async function withGoogle() {
     if (!auth) return;
@@ -55,6 +58,8 @@ export default function Login({ refresh, joining }: { refresh: () => void; joini
     }
   }
 
+  if (guide) return <InstallGate joining={joining} onSkip={() => setGuide(false)} />;
+
   return (
     <main className="page narrow">
       <div className="brand">
@@ -62,6 +67,7 @@ export default function Login({ refresh, joining }: { refresh: () => void; joini
         <h1>雀簿</h1>
       </div>
       <p className="muted">{joining ? '登入後會自動加入牌友圈。' : '港式台牌即時計分、龍虎榜、埋數。'}</p>
+      {isStandalone() && !joining && <p className="muted small">有邀請連結？登入後去「牌友圈 → 新增」貼上連結，或者輸入加入碼。</p>}
 
       <section className="panel">
         <button type="button" className="btn" onClick={withGoogle} disabled={busy}>

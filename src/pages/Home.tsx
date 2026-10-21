@@ -1,4 +1,5 @@
 // 首頁：自己嘅戰績（段位、雀力分、場數、勝率、走勢、最近幾場、成就）
+import { InstallCard, NotifyCard } from '../components/InstallGuide.tsx';
 import { useCallback, useState } from 'react';
 import type { ReactNode } from 'react';
 import type { User } from 'firebase/auth';
@@ -329,7 +330,7 @@ export default function Home({ user }: { user: User; refresh?: () => void }) {
       mine={history.mine}
       loading={profile.loading || history.loading}
       resume={last.g && last.s ? <Resume g={last.g} s={last.s} t={last.t} /> : null}
-      nudge={<ProfileNudge uid={user.uid} profile={profile.loading ? null : profile.data} />}
+      nudge={<><InstallCard /><NotifyCard uid={user.uid} /><ProfileNudge uid={user.uid} profile={profile.loading ? null : profile.data} /></>}
       live={<LiveNow groupIds={groups} me={user.uid} onLive={onLive} />}
       sessionHref={(s) => `/g/${s.gid}/s/${s.sid}`}
     />

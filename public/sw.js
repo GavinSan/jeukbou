@@ -38,6 +38,18 @@ self.addEventListener('fetch', (e) => {
   }
 });
 
+// 推播（FCM 經 Cloud Functions 發）：伺服器只送 data，由我哋自己顯示；同一個 tag 會取代舊嗰個，唔會重複
+self.addEventListener('push', (e) => {
+  let j = {};
+  try { j = e.data ? e.data.json() : {}; } catch { j = {}; }
+  const d = j.data || j;
+  const n = j.notification || {};
+  const title = d.title || n.title || '雀簿';
+  const opts = { body: d.body || n.body || '', icon: '/icon-192.png', badge: '/icon-192.png', data: { url: d.url || '/' } };
+  if (d.tag) opts.tag = d.tag;
+  e.waitUntil(self.registration.showNotification(title, opts));
+});
+
 // 撳通知：開返 app（已經開咗就跳過去）
 self.addEventListener('notificationclick', (e) => {
   e.notification.close();

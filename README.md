@@ -33,3 +33,14 @@ npm test                     # 計分引擎測試
 ```
 
 示範模式（唔使登入）：`/demo`、`/demo/home`、`/demo/t/0`。
+
+## 推播通知（可選）
+
+app 閂咗都收到約局、三缺一、夠腳、番數表更新同加入申請通知。要：
+
+1. Firebase 轉 Blaze 計劃（用幾多俾幾多；記得喺 Google Cloud 設預算提醒）。
+2. Firebase Console → 專案設定 → Cloud Messaging → 網頁推播憑證 → 產生金鑰組；將公開金鑰加做 GitHub **Variable** `FIREBASE_VAPID_KEY`。
+3. 畀部署用嘅服務帳戶加權限：Cloud Functions Admin、Service Account User、Artifact Registry Administrator、Cloud Build Editor、Eventarc Admin。
+4. GitHub **Variable** `ENABLE_PUSH` = `true`，再 push 上 main（或者手動跑 Deploy）。
+
+程式碼喺 `functions/`；推播 token 存喺 `users/{uid}/pushTokens`。
