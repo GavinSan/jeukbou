@@ -314,7 +314,8 @@ export async function savePayout(g: string, s: string, payout: Payout): Promise<
 
 /** 標記一筆轉賬已轉／未轉 */
 export async function markPaid(g: string, s: string, key: string, uid: string, on: boolean): Promise<void> {
-  await updateDoc(doc(fs(), 'groups', g, 'sessions', s), { [`paid.${key}`]: on ? { by: uid, at: Date.now() } : deleteField() });
+  // lastPaid：規則用嚟核對改緊邊一筆（俾錢／收錢嘅人先改得，局主、場主就乜都改得）
+  await updateDoc(doc(fs(), 'groups', g, 'sessions', s), { [`paid.${key}`]: on ? { by: uid, at: Date.now() } : deleteField(), lastPaid: key });
 }
 
 /** 收錢 email：存喺自己資料同所有牌友圈嘅成員資料（同圈嘅人先睇到） */
@@ -414,6 +415,8 @@ export interface TableDoc {
   seats: string[];
   /** 每個位嘅顯示名（包括換咗出去同換入嚟嘅人） */
   names: Record<string, string>;
+  /** 枱上而家有帳戶嘅人（新枱先有；舊枱冇 = undefined） */
+  liveUsers?: string[];
   /** 最近一次擲骰（全枱見到） */
   dice?: Dice | null;
   /** 夠拉時輸家揀咗「不找」：`puller>pulled#count`，全枱同步 */
@@ -635,6 +638,9 @@ export async function setAvatar(user: User, avatar: string | null, groupIds: str
   await syncMemberName(user, groupIds, avatar ?? user.photoURL);
 }
 
+/** 枱上而家有帳戶嘅人（訪客唔計）：資料庫規則用嚟決定邊個可以入數、擲骰 */
+export const liveUsersOf = (seats: string[]) => seats.filter((id) => !isGuest(id));
+
 export interface NewTable {
   name: string;
   seats: string[];
@@ -648,7 +654,7 @@ export async function createSession(user: User, groupId: string, name: string, t
   batch.set(sessionRef, { name, createdBy: user.uid, createdAt: serverTimestamp(), rules: clean(rules) });
   tables.forEach((t, i) => {
     const tableRef = doc(collection(fs(), 'groups', groupId, 'sessions', sessionRef.id, 'tables'));
-    batch.set(tableRef, { name: t.name, order: i, seats: t.seats, names: t.names, createdAt: serverTimestamp() });
+    batch.set(tableRef, { name: t.name, order: i, seats: t.seats, names: t.names, liveUsers: liveUsersOf(t.seats), createdAt: serverTimestamp() });
   });
   await batch.commit();
   return sessionRef.id;
@@ -664,10 +670,12 @@ export async function appendEvent(
   seq: number,
   by: string,
   event: LogEvent,
+  /** 換人：req = 換人請求 id（未坐低嘅人接受邀請）；pair = 由邊張枱對調過嚟。規則用嚟核對 */
+  extra?: { req?: string; pair?: string },
 ): Promise<void> {
   const ref = doc(fs(), 'groups', groupId, 'sessions', sessionId, 'tables', tableId, 'events', pad(seq));
   try {
-    await setDoc(ref, { seq, by, event: clean(event), at: serverTimestamp() });
+    await setDoc(ref, { seq, by, event: clean(event), at: serverTimestamp(), ...(extra ?? {}) });
   } catch (err) {
     const code = typeof err === 'object' && err && 'code' in err ? String((err as { code: unknown }).code) : '';
     if (code === 'permission-denied') throw new ConflictError();
@@ -700,7 +708,7 @@ export function activeEvents(stored: StoredEvent[]): { seq: number; event: Table
 /** 大局中途加一張枱 */
 export async function addTable(groupId: string, sessionId: string, order: number, table: NewTable): Promise<void> {
   const ref = doc(collection(fs(), 'groups', groupId, 'sessions', sessionId, 'tables'));
-  await setDoc(ref, { name: table.name, order, seats: table.seats, names: table.names, createdAt: serverTimestamp() });
+  await setDoc(ref, { name: table.name, order, seats: table.seats, names: table.names, liveUsers: liveUsersOf(table.seats), createdAt: serverTimestamp() });
 }
 
 /** 開枱之前掉位：重排 4 個位（未有任何一鋪先得） */
@@ -735,15 +743,31 @@ async function nextSeq(groupId: string, sessionId: string, tableId: string): Pro
 /** 即時換人（換入訪客，或者對方已經接受） */
 export async function applySwap(
   groupId: string, sessionId: string, tableId: string, by: string, out: string, incoming: string, inName: string,
+  via?: { req?: string; pair?: string },
 ): Promise<void> {
-  await updateDoc(doc(fs(), 'groups', groupId, 'sessions', sessionId, 'tables', tableId), { [`names.${incoming}`]: inName });
+  const ref = doc(fs(), 'groups', groupId, 'sessions', sessionId, 'tables', tableId);
+  const snap = await getDoc(ref);
+  const cur = snap.get('liveUsers');
+  // 先入紀錄（規則睇入數嗰陣邊個坐喺度），再更新枱上嘅人
+  const extra = { ...(via?.req ? { req: via.req } : {}), ...(via?.pair ? { pair: via.pair } : {}) };
   try {
-    await appendEvent(groupId, sessionId, tableId, await nextSeq(groupId, sessionId, tableId), by, { type: 'swap', out, in: incoming });
+    await appendEvent(groupId, sessionId, tableId, await nextSeq(groupId, sessionId, tableId), by, { type: 'swap', out, in: incoming }, extra);
   } catch (err) {
     if (!(err instanceof ConflictError)) throw err;
     // 啱啱有人入咗數，攞過新序號再試一次
-    await appendEvent(groupId, sessionId, tableId, await nextSeq(groupId, sessionId, tableId), by, { type: 'swap', out, in: incoming });
+    await appendEvent(groupId, sessionId, tableId, await nextSeq(groupId, sessionId, tableId), by, { type: 'swap', out, in: incoming }, extra);
   }
+  const patch: Record<string, unknown> = { [`names.${incoming}`]: inName };
+  // 舊枱冇 liveUsers 就照舊（規則用 names）
+  if (Array.isArray(cur)) patch.liveUsers = [...cur.map(String).filter((x) => x !== out), ...(isGuest(incoming) ? [] : [incoming])].filter((x, i, a) => a.indexOf(x) === i);
+  if (via?.req) patch.lastReq = via.req;
+  if (via?.pair) patch.lastPair = via.pair;
+  await updateDoc(ref, patch);
+}
+
+/** 舊枱補返 liveUsers（坐喺度嘅人開枱時自動做） */
+export async function backfillLiveUsers(groupId: string, sessionId: string, tableId: string, seats: string[]): Promise<void> {
+  await updateDoc(doc(fs(), 'groups', groupId, 'sessions', sessionId, 'tables', tableId), { liveUsers: liveUsersOf(seats) });
 }
 
 /** 幾張枱一齊執位：每張枱用換人（swap）換走唔再坐呢枱嘅人，再用換位（reseat）排位；未開局嘅枱直接改座位 */
@@ -778,9 +802,9 @@ export async function requestSwap(groupId: string, sessionId: string, req: Omit<
 export async function answerSwap(groupId: string, sessionId: string, req: SwapRequest, user: User, accept: boolean): Promise<void> {
   const ref = doc(fs(), 'groups', groupId, 'sessions', sessionId, 'requests', req.id);
   if (accept) {
-    await applySwap(groupId, sessionId, req.tableId, user.uid, req.out, req.in, displayName(user));
+    await applySwap(groupId, sessionId, req.tableId, user.uid, req.out, req.in, displayName(user), { req: req.id });
     // 由另一張枱過嚟：嗰張枱就由離開嗰個補上（對調）
-    if (req.fromTable) await applySwap(groupId, sessionId, req.fromTable, user.uid, req.in, req.out, req.outName ?? '玩家');
+    if (req.fromTable) await applySwap(groupId, sessionId, req.fromTable, user.uid, req.in, req.out, req.outName ?? '玩家', { pair: req.tableId });
   }
   await updateDoc(ref, { status: accept ? 'accepted' : 'declined' });
 }

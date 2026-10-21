@@ -145,6 +145,13 @@ service cloud.firestore {
 
       // 大局同枱
       match /sessions/{s} {
+        function paidOk() {
+          let key = request.resource.data.get('lastPaid', '');
+          let changed = request.resource.data.get('paid', {}).diff(resource.data.get('paid', {})).affectedKeys();
+          return isOwner(g) || resource.data.createdBy == request.auth.uid
+            || (key is string && changed.hasOnly([key])
+              && key.matches('(.*[^A-Za-z0-9])?' + request.auth.uid + '([^A-Za-z0-9].*)?'));
+        }
         allow read: if isMember(g);
         // 匯入嘅舊紀錄（legacy）淨係局主／超級管理員寫得
         allow create: if isMember(g) && (!('legacy' in request.resource.data) || isOwner(g));
@@ -153,7 +160,9 @@ service cloud.firestore {
           && (!request.resource.data.diff(resource.data).affectedKeys().hasAny(['legacy']) || isOwner(g))
           && (!request.resource.data.diff(resource.data).affectedKeys().hasAny(['rules', 'rulesLog', 'waterTo']) || can(g, 'rules'))
           // 已埋數：今日人物唔可以再改（局主除外）
-          && (!request.resource.data.diff(resource.data).affectedKeys().hasAny(['people', 'skipTeams']) || resource.data.get('closed', null) == null || can(g, 'records'));
+          && (!request.resource.data.diff(resource.data).affectedKeys().hasAny(['people', 'skipTeams']) || resource.data.get('closed', null) == null || can(g, 'records'))
+          // 已轉／未轉：局主、場主改得晒；其他人淨係改到自己份（俾錢或者收錢嗰邊有自己）
+          && (!request.resource.data.diff(resource.data).affectedKeys().hasAny(['paid', 'lastPaid']) || paidOk());
         allow delete: if can(g, 'records');
 
         // 直播室留言：同圈成員睇同留；自己或者局主刪
@@ -182,7 +191,45 @@ service cloud.firestore {
         }
 
         match /tables/{t} {
-          allow read, update: if isMember(g);
+          function tablePath(id) {
+            return /databases/$(database)/documents/groups/$(g)/sessions/$(s)/tables/$(id);
+          }
+          // 坐喺呢張枱：新枱睇 liveUsers（而家坐喺度、有帳戶嘅人）；舊枱冇 liveUsers 就睇 names（坐過嘅人）
+          function seatedAt(d) {
+            return d.get('liveUsers', null) != null ? request.auth.uid in d.liveUsers : request.auth.uid in d.names;
+          }
+          function hostOrOwner() {
+            return isOwner(g) || get(/databases/$(database)/documents/groups/$(g)/sessions/$(s)).data.createdBy == request.auth.uid;
+          }
+          // 可以入數、擲骰：坐喺度嘅人；成枱都係訪客就由場主或者局主幫手（超級管理員一律可以，見最頂）
+          function canPlay(d) {
+            return seatedAt(d) || (d.get('liveUsers', null) != null && d.liveUsers.size() == 0 && hostOrOwner());
+          }
+          // 接受換人邀請：請求要係俾自己、喺呢張枱、未答
+          function viaRequest(rid) {
+            let r = get(/databases/$(database)/documents/groups/$(g)/sessions/$(s)/requests/$(rid)).data;
+            return r['in'] == request.auth.uid && r.tableId == t && r.status == 'pending';
+          }
+          // 由隔籬枱對調：要坐喺嗰張枱
+          function viaPair(pid) {
+            return pid is string && pid != '' && pid != t && seatedAt(get(tablePath(pid)).data);
+          }
+
+          allow read: if isMember(g);
+          // 座位、擲骰、坐喺度嘅人：淨係坐喺度嘅人改得；換人邀請、隔籬枱對調、舊枱補資料例外
+          allow update: if isMember(g) && (
+            !request.resource.data.diff(resource.data).affectedKeys().hasAny(['dice', 'seats', 'liveUsers', 'names', 'lastReq', 'lastPair'])
+            || canPlay(resource.data)
+            || (request.resource.data.diff(resource.data).affectedKeys().hasOnly(['names', 'liveUsers', 'lastReq'])
+              && request.resource.data.get('lastReq', '') is string && request.resource.data.get('lastReq', '') != ''
+              && viaRequest(request.resource.data.lastReq))
+            || (request.resource.data.diff(resource.data).affectedKeys().hasOnly(['names', 'liveUsers', 'lastPair'])
+              && viaPair(request.resource.data.get('lastPair', '')))
+            || (resource.data.get('liveUsers', null) == null
+              && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['liveUsers'])
+              && request.resource.data.liveUsers.hasOnly(resource.data.names.keys())
+              && (request.auth.uid in resource.data.names || hostOrOwner()))
+          );
           // 已埋數唔可以再開枱（局主除外）
           allow create: if isMember(g) && (isOpen(g, s) || isOwner(g));
           allow delete: if can(g, 'records');
@@ -192,13 +239,19 @@ service cloud.firestore {
           // 所以兩個人同時入數只會有一個成功。撤回 = 加一條「撤回」事件。
           match /events/{e} {
             allow read: if isMember(g);
-            // 只有坐過呢張枱嘅人、場主、局主先入到數；「完場」（埋數時）全部成員都可以
+            // 只有坐喺呢張枱嘅人先入到數；「完場」（埋數、一齊執位時）全部成員都可以；
+            // 換人：接受邀請嘅人、或者由隔籬枱對調訪客過嚟
             allow create: if isMember(g) && request.resource.data.by == request.auth.uid
               && request.resource.data.seq is int
               && (request.resource.data.event.type == 'end'
-                || request.auth.uid in get(/databases/$(database)/documents/groups/$(g)/sessions/$(s)/tables/$(t)).data.names
-                || get(/databases/$(database)/documents/groups/$(g)/sessions/$(s)).data.createdBy == request.auth.uid
-                || isOwner(g));
+                || canPlay(get(tablePath(t)).data)
+                || (request.resource.data.event.type == 'swap'
+                  && request.resource.data.event['in'] == request.auth.uid
+                  && request.resource.data.get('req', '') is string && request.resource.data.get('req', '') != ''
+                  && viaRequest(request.resource.data.req))
+                || (request.resource.data.event.type == 'swap'
+                  && request.resource.data.event.out.matches('guest-.*')
+                  && viaPair(request.resource.data.get('pair', ''))));
             allow update: if false;
             // 只有刪除成個大局／枱時，局主先可以清走
             allow delete: if isOwner(g);

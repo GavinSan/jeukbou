@@ -434,6 +434,39 @@ export default function TableScreen(props: TableScreenProps) {
     const t = trendOf(c, seats);
     return seats.map((id) => ({ id, name: name(id), values: t[id] }));
   }, [c, seats, name]);
+  // 紀錄每行文字：食糊寫實際食咗幾多番（牌嘅番數 + 莊、連莊…），同牌嘅番數唔同就細字補返
+  const rowText = (st: Computed['steps'][number]): ReactNode => {
+    const e = st.event;
+    if (e.type !== 'win') return describe(e, name);
+    const pairs: { w: string; v: number }[] = [];
+    for (const l of st.result.lines) {
+      if ((l.kind !== 'pending' && l.kind !== 'settle') || !l.to || !e.winners.some((x) => x.player === l.to)) continue;
+      if (/斷拉|劈/.test(l.note ?? '')) continue;
+      const m = /拉 (\d+)（第/.exec(l.note ?? '');
+      pairs.push({ w: l.to, v: l.amount - (m ? Number(m[1]) : 0) });
+    }
+    if (!pairs.length) return describe(e, name);
+    const z = e.dealer === 'one' ? '・莊當 1 番' : e.dealer === 'none' ? '・不計莊' : '';
+    const per = e.winners.map((x) => {
+      const vals = pairs.filter((q) => q.w === x.player).map((q) => q.v);
+      const total = vals.reduce((a, b) => a + b, 0);
+      if (e.loser === null) {
+        const same = vals.length > 0 && vals.every((v) => v === vals[0]);
+        return { id: x.player, fan: x.fan, text: same ? `每家 ${vals[0]} 番` : `共 ${total} 番`, plain: same && vals[0] === x.fan };
+      }
+      return { id: x.player, fan: x.fan, text: `${total} 番`, plain: total === x.fan };
+    });
+    const fanNote = per.every((x) => x.plain) ? '' : `牌 ${per.map((x) => x.fan).join(' / ')} 番`;
+    const who = per.map((x) => name(x.id)).join('、');
+    const amount = per.length === 1 ? per[0].text : per.map((x) => `${name(x.id)} ${x.text}`).join('、');
+    const tag = per.length === 2 ? '雙響：' : per.length === 3 ? '三響：' : '';
+    return (
+      <>
+        {e.loser === null ? `${who} 自摸 ${amount}` : per.length === 1 ? `${who} 食 ${name(e.loser)} ${amount}` : `${who} 食 ${name(e.loser)}（${tag}${amount}）`}
+        {(fanNote || z) && <small className="lg-fan">（{[fanNote, z.replace('・', '')].filter(Boolean).join('・')}）</small>}
+      </>
+    );
+  };
   // 紀錄表分段：每段固定四個人；換人之後開新一段（新入嚟嘅人坐返走咗嗰個嘅欄），
   // 每段有自己凍結嘅表頭，碌落去舊嗰段就見返舊嗰四個人
   const segs = useMemo(() => {
@@ -729,7 +762,7 @@ export default function TableScreen(props: TableScreenProps) {
                             <span className="lg-head">
                               <span className="lg-what">
                                 {hi?.label && <b className="lg-hand">{hi.label}</b>}
-                                {describe(st.event, name)}
+                                {rowText(st)}
                                 {hi?.stay && <span className="tag stay">冧莊</span>}
                                 {st.edited && <span className="tag instant">改過</span>}
                               </span>
