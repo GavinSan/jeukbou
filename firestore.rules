@@ -50,7 +50,7 @@ service cloud.firestore {
     match /users/{uid} {
       allow read: if (signedIn() && request.auth.uid == uid) || isSuperAdmin();
       allow create, update: if signedIn() && request.auth.uid == uid
-        && request.resource.data.keys().hasOnly(['name', 'photoURL', 'avatar', 'updatedAt', 'groups', 'pending', 'payEmail', 'email'])
+        && request.resource.data.keys().hasOnly(['name', 'photoURL', 'avatar', 'updatedAt', 'groups', 'pending', 'payEmail', 'email', 'firstName', 'lastName', 'birthday', 'nudgedAt'])
         && (request.resource.data.get('avatar', null) == null || (request.resource.data.avatar is string && request.resource.data.avatar.size() < 200000));
       allow delete: if false;
     }

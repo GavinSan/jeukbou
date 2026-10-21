@@ -260,7 +260,7 @@ export default function Demo() {
       { id: 'b', name: '星期五雀局', ownerId: 'tony', joinMode: 'auto', joinCode: 'zz81qa', members: people.slice(1, 5).map(([uid, name]) => ({ uid, name })),
         sessions: [2, 12].map((d, i) => ({ id: `t${i}`, name: `星期五 ${i + 1}`, at: now - d * day, closed: true, legacy: false })) },
     ];
-    const users = people.map(([uid, name, email]) => ({ uid, name, email, payEmail: email, groups: uid === 'gavin' ? ['a'] : uid === 'ivan' ? ['a'] : ['a', 'b'], updatedAt: now - day }));
+    const users = people.map(([uid, name, email]) => ({ uid, name, email, payEmail: email, groups: uid === 'gavin' ? ['a'] : uid === 'ivan' ? ['a'] : ['a', 'b'], updatedAt: now - day, firstName: uid === 'tony' ? 'Tony' : '', lastName: uid === 'tony' ? 'Tsui' : '', birthday: uid === 'tony' ? '10-24' : '' }));
     return <AdminView me="gavin" groups={groups} users={users} error="" onRefresh={() => undefined} />;
   }
 

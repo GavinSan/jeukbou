@@ -1919,3 +1919,16 @@ a.badge-link:active { transform: scale(.97); }
 :root[data-skin="amber"] .hero { background: linear-gradient(140deg, #7E522C, #452A14); }
 :root[data-skin="violet"] { --felt: #4B2E83; --felt-deep: #361F62; --felt-ink: #F3EEFB; --tile-back: #9C7BE0; --tile-back-deep: #7356B8; }
 :root[data-skin="violet"] .hero { background: linear-gradient(140deg, #5A3A9A, #2D1856); }
+
+/* 提用家補資料（唔 block） */
+.nudge { display: flex; align-items: center; gap: 12px; padding: 12px 14px; border-radius: 16px; background: color-mix(in srgb, #E0A82E 14%, var(--surface)); border: 1px solid color-mix(in srgb, #E0A82E 35%, var(--line)); animation: rise .4s ease-out both; }
+.nudge-icon { font-size: 22px; }
+.nudge b { display: block; font-size: 15px; }
+.nudge small { display: block; color: var(--muted); font-size: 12.5px; line-height: 1.35; }
+.nudge-acts { display: flex; flex-direction: column; align-items: center; gap: 2px; flex: none; }
+a.btn.small-btn { text-decoration: none; }
+.bday-row { display: flex; flex-wrap: wrap; gap: 8px; }
+.bday-chip { display: flex; flex-direction: column; padding: 8px 12px; border-radius: 12px; background: var(--surface); border: 1px solid var(--line); }
+.bday-chip b { font-size: 14px; }
+.bday-chip small { font-size: 12px; color: var(--muted); }
+.bday-chip.week { background: color-mix(in srgb, #E58FA8 18%, var(--surface)); border-color: color-mix(in srgb, #E58FA8 50%, var(--line)); }

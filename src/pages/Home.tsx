@@ -2,7 +2,7 @@
 import { useState } from 'react';
 import type { ReactNode } from 'react';
 import type { User } from 'firebase/auth';
-import { displayName } from '../lib/data.ts';
+import { displayName, markNudged } from '../lib/data.ts';
 import { useProfile, useSession } from '../lib/live.ts';
 import { Link } from '../lib/router.tsx';
 import { Avatar, TopBar, fmt } from '../ui.tsx';
@@ -144,8 +144,8 @@ export function ResumeRow({ href, name }: { href: string; name: string }) {
   );
 }
 
-export function DashboardView({ name, photo, joined, groupCount, mine, loading, resume, sessionHref, rankHref = '/rank' }: {
-  name: string; photo: string | null; joined: string; groupCount: number; mine: MySession[]; loading: boolean; resume?: ReactNode;
+export function DashboardView({ name, photo, joined, groupCount, mine, loading, resume, nudge, sessionHref, rankHref = '/rank' }: {
+  name: string; photo: string | null; joined: string; groupCount: number; mine: MySession[]; loading: boolean; resume?: ReactNode; nudge?: ReactNode;
   sessionHref: (s: MySession) => string;
   rankHref?: string;
 }) {
@@ -184,6 +184,7 @@ export function DashboardView({ name, photo, joined, groupCount, mine, loading, 
         </div>
       </section>
 
+      {nudge}
       {resume}
 
       {loading && !mine.length ? (
@@ -284,6 +285,28 @@ export function DashboardView({ name, photo, joined, groupCount, mine, loading, 
   );
 }
 
+/** 溫和咁提用家補資料（Interac email、生日、真名）；可以略過，兩個禮拜先再提 */
+function ProfileNudge({ uid, profile }: { uid: string; profile: { payEmail: string; birthday: string; firstName: string; lastName: string; nudgedAt: number } | null }) {
+  const [hidden, setHidden] = useState(false);
+  if (!profile || hidden) return null;
+  const missing = [!profile.payEmail && 'Interac email', !profile.birthday && '生日', !(profile.firstName || profile.lastName) && '真名'].filter(Boolean) as string[];
+  if (!missing.length || Date.now() - profile.nudgedAt < 14 * 86400000) return null;
+  const later = () => { setHidden(true); markNudged(uid).catch(() => undefined); };
+  return (
+    <section className="nudge" role="status">
+      <span className="nudge-icon" aria-hidden="true">✍️</span>
+      <span className="grow">
+        <b>補返少少資料？</b>
+        <small>{missing.join('、')}：方便人哋找數俾你、一齊慶祝生日。唔填都用得。</small>
+      </span>
+      <span className="nudge-acts">
+        <Link to="/settings" className="btn small-btn" ariaLabel="去設定補資料">而家填</Link>
+        <button type="button" className="textbtn" onClick={later}>遲啲先</button>
+      </span>
+    </section>
+  );
+}
+
 function joinedText(user: User): string {
   const t = user.metadata.creationTime ? new Date(user.metadata.creationTime) : null;
   return t ? `${t.getFullYear()}年${t.getMonth() + 1}月加入` : '雀簿玩家';
@@ -303,6 +326,7 @@ export default function Home({ user }: { user: User; refresh?: () => void }) {
       mine={history.mine}
       loading={profile.loading || history.loading}
       resume={last.g && last.s ? <Resume g={last.g} s={last.s} t={last.t} /> : null}
+      nudge={<ProfileNudge uid={user.uid} profile={profile.loading ? null : profile.data} />}
       sessionHref={(s) => `/g/${s.gid}/s/${s.sid}`}
     />
   );

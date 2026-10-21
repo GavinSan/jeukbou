@@ -201,7 +201,7 @@ function Users({ users, groups, onChanged, onData }: { users: AdminUser[]; group
   const [addG, setAddG] = useState('');
   const [confirmUI, ask] = useConfirm();
   const u = users.find((x) => x.uid === sel) ?? null;
-  const shown = users.filter((x) => !q || `${x.name} ${x.email} ${x.uid}`.toLowerCase().includes(q.toLowerCase()));
+  const shown = users.filter((x) => !q || `${x.name} ${x.firstName} ${x.lastName} ${x.email} ${x.uid}`.toLowerCase().includes(q.toLowerCase()));
   const gName = (id: string) => groups.find((g) => g.id === id)?.name ?? id.slice(0, 6);
   async function run(t: () => Promise<void>, done = '') {
     setBusy(true); setErr(''); setMsg('');
@@ -214,7 +214,7 @@ function Users({ users, groups, onChanged, onData }: { users: AdminUser[]; group
         <div className="list">
           {shown.map((x) => (
             <button key={x.uid} type="button" className={`listrow admin-row${sel === x.uid ? ' on' : ''}`} onClick={() => { setSel(x.uid); setName(x.name); setResetEmail(x.email); setErr(''); setMsg(''); }}>
-              <span className="grow exp-text"><span>{x.name || '（未改名）'}</span><small className="muted">{x.email || '未有 email 紀錄'} · {x.groups.length} 個圈</small></span>
+              <span className="grow exp-text"><span>{x.name || '（未改名）'}{(x.firstName || x.lastName) && <small className="muted">　{[x.firstName, x.lastName].filter(Boolean).join(' ')}</small>}</span><small className="muted">{x.email || '未有 email 紀錄'} · {x.groups.length} 個圈</small></span>
               <span className="chev" aria-hidden="true">›</span>
             </button>
           ))}
@@ -232,7 +232,7 @@ function Users({ users, groups, onChanged, onData }: { users: AdminUser[]; group
         {u && (
           <div className="panel">
             <div className="between"><h2>{u.name || '（未改名）'}</h2><button type="button" className="textbtn" onClick={() => onData(`users/${u.uid}`)}>原始資料 ›</button></div>
-            <p className="muted small">uid {u.uid}<br />登入 email：{u.email || '—'}<br />收款 email：{u.payEmail || '—'}<br />最後更新：{md(u.updatedAt)}</p>
+            <p className="muted small">uid {u.uid}<br />真名：{[u.firstName, u.lastName].filter(Boolean).join(' ') || '—'}<br />生日：{u.birthday ? `${Number(u.birthday.slice(0, 2))}月${Number(u.birthday.slice(3, 5))}日` : '—'}<br />登入 email：{u.email || '—'}<br />收款 email：{u.payEmail || '—'}<br />最後更新：{md(u.updatedAt)}</p>
             <label className="field"><span>改顯示名（會同步去所有牌友圈）</span>
               <div className="row"><input className="input grow" value={name} onChange={(e) => setName(e.target.value)} /><button type="button" className="btn small-btn" disabled={busy || !name.trim() || name === u.name} onClick={() => run(() => renameUser(u, name.trim()), '已改名')}>儲存</button></div>
             </label>

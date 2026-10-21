@@ -73,6 +73,8 @@ export interface Member {
   legacyKey?: string;
   /** 收錢用嘅 Interac e-Transfer email */
   payEmail?: string;
+  /** 生日（MM-DD），同圈嘅人見到 */
+  birthday?: string;
 }
 
 export interface Session {
@@ -134,6 +136,25 @@ export async function setPayEmail(user: User, email: string, groupIds: string[])
     const snap = await getDoc(ref);
     if (snap.exists()) await updateDoc(ref, { payEmail: v || deleteField() });
   }));
+}
+
+/** 真名（只係局主同超級管理員睇）同生日（月-日，同圈嘅人見到，方便一齊慶祝） */
+export async function setProfileDetails(user: User, d: { firstName: string; lastName: string; birthday: string }, groupIds: string[]): Promise<void> {
+  const bday = /^\d{2}-\d{2}$/.test(d.birthday) ? d.birthday : '';
+  await setDoc(doc(fs(), 'users', user.uid), {
+    firstName: d.firstName.trim() || deleteField(), lastName: d.lastName.trim() || deleteField(),
+    birthday: bday || deleteField(), updatedAt: serverTimestamp(),
+  }, { merge: true });
+  await Promise.all(groupIds.map(async (g) => {
+    const ref = doc(fs(), 'groups', g, 'members', user.uid);
+    const snap = await getDoc(ref);
+    if (snap.exists()) await updateDoc(ref, { birthday: bday || deleteField() });
+  }));
+}
+
+/** 提咗用家補資料（之後兩個禮拜唔再提） */
+export async function markNudged(uid: string): Promise<void> {
+  await setDoc(doc(fs(), 'users', uid), { nudgedAt: Date.now() }, { merge: true });
 }
 
 /** 埋數設定（牌友圈層面，局主改） */

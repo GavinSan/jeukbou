@@ -65,7 +65,7 @@ function toLog(d: DocumentData | undefined): FanTableLog | null {
 const toJoinRequest = (id: string, d: DocumentData): JoinRequest => ({
   uid: id, name: String(d.name ?? '玩家'), photoURL: d.photoURL ?? null, inviteCode: String(d.inviteCode ?? ''), at: millis(d.at),
 });
-const toMember = (id: string, d: DocumentData): Member => ({ uid: id, name: String(d.name ?? '玩家'), photoURL: d.photoURL ?? null, legacyKey: d.legacyKey ? String(d.legacyKey) : undefined, payEmail: d.payEmail ? String(d.payEmail) : undefined });
+const toMember = (id: string, d: DocumentData): Member => ({ uid: id, name: String(d.name ?? '玩家'), photoURL: d.photoURL ?? null, legacyKey: d.legacyKey ? String(d.legacyKey) : undefined, payEmail: d.payEmail ? String(d.payEmail) : undefined, birthday: typeof d.birthday === 'string' ? d.birthday : undefined });
 const toSession = (id: string, d: DocumentData): Session => ({
   id, name: String(d.name ?? ''), createdBy: String(d.createdBy ?? ''), createdAt: d.createdAt ?? null, rules: d.rules ?? undefined,
   rulesLog: Array.isArray(d.rulesLog) ? d.rulesLog.map((x: DocumentData) => ({ at: Number(x.at ?? 0), rules: x.rules ?? {} })) : undefined,
@@ -115,10 +115,19 @@ export interface Profile {
   /** 自己上載嘅頭像（data URL） */
   avatar: string | null;
   payEmail: string;
+  firstName: string;
+  lastName: string;
+  /** 生日（MM-DD） */
+  birthday: string;
+  nudgedAt: number;
 }
 
 const toProfile = (_id: string, d: DocumentData): Profile => ({
   payEmail: d.payEmail ? String(d.payEmail) : '',
+  firstName: d.firstName ? String(d.firstName) : '',
+  lastName: d.lastName ? String(d.lastName) : '',
+  birthday: typeof d.birthday === 'string' ? d.birthday : '',
+  nudgedAt: Number(d.nudgedAt ?? 0),
   groups: Array.isArray(d.groups) ? d.groups.map(String) : [],
   pending: d.pending && typeof d.pending === 'object' ? Object.fromEntries(Object.entries(d.pending).map(([k, v]) => [k, String(v)])) : {},
   avatar: typeof d.avatar === 'string' ? d.avatar : null,
@@ -126,7 +135,7 @@ const toProfile = (_id: string, d: DocumentData): Profile => ({
 
 export function useProfile(uid: string | null): Live<Profile> {
   const r = useLiveDoc(uid ? ['users', uid] : null, toProfile);
-  return { data: r.data ?? { groups: [], pending: {}, avatar: null, payEmail: '' }, loading: r.loading, error: r.error };
+  return { data: r.data ?? { groups: [], pending: {}, avatar: null, payEmail: '', firstName: '', lastName: '', birthday: '', nudgedAt: 0 }, loading: r.loading, error: r.error };
 }
 
 export function useUserGroups(uid: string | null): Live<string[]> {

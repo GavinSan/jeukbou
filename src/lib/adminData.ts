@@ -21,6 +21,9 @@ export interface AdminUser {
   payEmail: string;
   groups: string[];
   updatedAt: number;
+  firstName: string;
+  lastName: string;
+  birthday: string;
 }
 
 const ms = (v: unknown) => (v instanceof Timestamp ? v.toMillis() : typeof v === 'number' ? v : 0);
@@ -49,6 +52,7 @@ export async function loadAllUsers(): Promise<AdminUser[]> {
     const x = d.data();
     return {
       uid: d.id, name: String(x.name ?? ''), email: String(x.email ?? ''), payEmail: String(x.payEmail ?? ''),
+      firstName: String(x.firstName ?? ''), lastName: String(x.lastName ?? ''), birthday: String(x.birthday ?? ''),
       groups: Array.isArray(x.groups) ? x.groups.map(String) : [], updatedAt: ms(x.updatedAt),
     };
   }).sort((a, b) => a.name.localeCompare(b.name));

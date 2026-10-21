@@ -128,6 +128,35 @@ export function Invite({ g, canManage, onMode }: { g: Group; canManage: boolean;
   );
 }
 
+/** 今個月生日：同一個星期嘅標出嚟，方便一齊慶祝 */
+export function Birthdays({ members }: { members: Member[] }) {
+  const now = new Date();
+  const m = now.getMonth() + 1;
+  const list = members
+    .filter((x) => x.birthday && Number(x.birthday.slice(0, 2)) === m)
+    .map((x) => ({ ...x, d: Number(x.birthday!.slice(3, 5)) }))
+    .sort((a, b) => a.d - b.d);
+  if (!list.length) return null;
+  const week = (d: number) => {
+    const day = new Date(now.getFullYear(), m - 1, d);
+    const start = new Date(now); start.setHours(0, 0, 0, 0); start.setDate(start.getDate() - ((start.getDay() + 6) % 7));
+    const end = new Date(start); end.setDate(end.getDate() + 7);
+    return day >= start && day < end;
+  };
+  return (
+    <section className="stack">
+      <h2 className="section-head">{m} 月生日 🎂</h2>
+      <div className="bday-row">
+        {list.map((x) => (
+          <span key={x.uid} className={`bday-chip${week(x.d) ? ' week' : ''}`}>
+            <b>{x.name}</b><small>{m}月{x.d}日{week(x.d) ? '・今個星期' : ''}</small>
+          </span>
+        ))}
+      </div>
+    </section>
+  );
+}
+
 export interface MemberStat {
   played: number;
   total: number;
@@ -286,6 +315,8 @@ export default function GroupPage({ user, groupId }: { user: User; groupId: stri
         </section>
       )}
 
+
+      <Birthdays members={members.data} />
 
       <section className="stack">
         <div className="section-head">
