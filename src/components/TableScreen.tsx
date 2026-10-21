@@ -101,6 +101,10 @@ export default function TableScreen(props: TableScreenProps) {
 
   const [entry, setEntry] = useState<Entry | null>(null);
   const [more, setMore] = useState<More>(null);
+  // 由入數途中開特別事項：記住入到邊，撳「返回」就返去
+  const [spBack, setSpBack] = useState<Entry | null>(null);
+  // 換人：「今晚未打嘅成員」收埋定打開（null = 自動：今晚冇其他人就打開）
+  const [restOpen, setRestOpen] = useState<boolean | null>(null);
   const [who, setWho] = useState('');
   const [spArt, setSpArt] = useState<Art | ''>('');
   const [spPlay, setSpPlay] = useState(0);
@@ -430,12 +434,46 @@ export default function TableScreen(props: TableScreenProps) {
     const t = trendOf(c, seats);
     return seats.map((id) => ({ id, name: name(id), values: t[id] }));
   }, [c, seats, name]);
-  // 紀錄表嘅欄：開枱嗰四個，之後換入嚟嘅排後面
-  const cols = useMemo(() => {
-    const out = [...table.seats];
-    for (const st of c.steps) for (const id of st.result.state.seats) if (!out.includes(id)) out.push(id);
-    return out;
+  // 紀錄表分段：每段固定四個人；換人之後開新一段（新入嚟嘅人坐返走咗嗰個嘅欄），
+  // 每段有自己凍結嘅表頭，碌落去舊嗰段就見返舊嗰四個人
+  const segs = useMemo(() => {
+    const cols: string[][] = [];
+    const totals: { settled: Record<string, number>; pending: Record<string, number> }[] = [];
+    const segOf: Record<number, number> = {};
+    let cur = [...table.seats];
+    let key = [...cur].sort().join('|');
+    cols.push(cur);
+    for (const st of c.steps) {
+      const after = st.result.state.seats;
+      const k = [...after].sort().join('|');
+      if (k !== key) {
+        const ins = after.filter((id) => !cur.includes(id));
+        cur = [...cur.map((id) => (after.includes(id) ? id : ins.shift() ?? id)), ...ins];
+        key = k;
+        cols.push(cur);
+      }
+      segOf[st.seq] = cols.length - 1;
+      const pending: Record<string, number> = {};
+      for (const ch of st.result.state.chains) {
+        pending[ch.puller] = (pending[ch.puller] ?? 0) + ch.owed;
+        pending[ch.pulled] = (pending[ch.pulled] ?? 0) - ch.owed;
+      }
+      totals[cols.length - 1] = { settled: { ...st.result.state.settled }, pending };
+    }
+    return { cols, totals, segOf };
   }, [table.seats, c.steps]);
+  const cols = segs.cols[segs.cols.length - 1];
+  // 顯示緊嘅紀錄（新到舊）按段分組
+  const ledgerGroups = useMemo(() => {
+    const out: { seg: number; rows: typeof log }[] = [];
+    for (const st of log) {
+      const seg = segs.segOf[st.seq] ?? 0;
+      const last = out[out.length - 1];
+      if (last && last.seg === seg) last.rows.push(st);
+      else out.push({ seg, rows: [st] });
+    }
+    return out;
+  }, [log, segs]);
   const sum = (lines: Line[]) => lines.filter((l) => l.kind !== 'water').reduce((a, l) => a + l.amount, 0);
   const free = candidates.filter((p) => !seats.includes(p.id));
   const myPending = pendingSwaps.filter((r) => r.status === 'pending' && r.tableId === table.id);
@@ -478,6 +516,7 @@ export default function TableScreen(props: TableScreenProps) {
     if (locked) { flash('請先決定是否找數'); return; }
     if (roundsDone) { flash('已打完圈數，請先揀繼續定完場'); return; }
     setError('');
+    setSpBack(entry);
     setEntry(null);
     setSpArt(art);
     setSpPlay((n) => n + 1);
@@ -565,7 +604,7 @@ export default function TableScreen(props: TableScreenProps) {
         <button
           type="button"
           className={`felt-dice at-${diceCorner}`}
-          disabled={!props.onDice || ended || busy}
+          disabled={!props.onDice || ended || busy || viewOnly}
           onClick={() => props.onDice && run(() => props.onDice!(), '')}
           aria-label={corner ? `骰：${corner.values.join('、')}，按此再擲` : '按此擲骰'}
         >
@@ -579,7 +618,7 @@ export default function TableScreen(props: TableScreenProps) {
         </div>
       </section>
 
-      {viewOnly && !ended && <p className="banner calm">你唔喺呢張枱，只可以睇。坐低嘅人、場主同局主先可以入數。</p>}
+      {viewOnly && !ended && <p className="banner calm">你唔喺呢張枱，只可以睇。坐喺呢張枱嘅人先可以入數同擲骰。</p>}
       {roundsDone && !viewOnly && (
         <section className="rounds-done" aria-label="打完圈數">
           <div className="rounds-head">
@@ -619,7 +658,7 @@ export default function TableScreen(props: TableScreenProps) {
               <span>番數表</span>
             </button>
           )}
-          <button type="button" className="act icon-act" disabled={locked} onClick={() => { unlock(); setError(''); setMore('draw'); }}>
+          <button type="button" className="act icon-act" disabled={locked || busy} onClick={() => { unlock(); setError(''); push({ type: 'draw' }, `已入流局（${rules.dealer.drawKeepsDealer ? '連莊' : '過莊'}）`); }}>
             <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" aria-hidden="true"><path d="M3.5 9c2-2 4-2 6 0s4 2 6 0 4-2 5 0" /><path d="M3.5 15c2-2 4-2 6 0s4 2 6 0 4-2 5 0" /></svg>
             <span>流局</span>
           </button>
@@ -641,85 +680,100 @@ export default function TableScreen(props: TableScreenProps) {
         {c.steps.length === 0 ? (
           <p className="muted">未有紀錄。</p>
         ) : (
-          <div className="ledger" style={{ '--cols': cols.length, '--mi': Math.max(0, cols.indexOf(me ?? '')) } as CSSProperties}>
-            {me && cols.includes(me) && <span className="lg-mecol" aria-hidden="true" />}
-            <div className="lg-top">
-              {me && cols.includes(me) && <span className="lg-mecol lg-mecol-top" aria-hidden="true" />}
-              <div className="lg-names" aria-hidden="true">
-                {cols.map((id) => <span key={id} className={id === me ? 'me' : ''}>{name(id)}</span>)}
-              </div>
-              <div className="lg-cells lg-sum" aria-label="合計">
-                {cols.map((id) => {
-                  const v = c.state.settled[id] ?? 0;
-                  const pd = c.pending[id] ?? 0;
-                  return (
-                    <span key={id} className={`lg-cell${id === me ? ' me' : ''}`}>
-                      <b className={`num ${tone2(v + pd)}`}>{fmt(v + pd)}</b>
-                      {pd ? <small className={`lg-pend ${tone2(pd)}`}>枱面 {fmt(pd)}</small> : null}
-                    </span>
-                  );
-                })}
-              </div>
-              <div className="lg-cap"><span>合計{Object.values(c.pending).some(Boolean) ? '（連枱面）' : ''}</span>{c.state.water ? <span>抽水 {c.state.water}</span> : null}</div>
-            </div>
-            <ol className="lg-rows">
-              {log.map((st, li) => {
-                const hi = handInfo[st.seq];
-                const newer = li > 0 ? handInfo[log[li - 1].seq] : null;
-                const divider = hi && (!newer || newer.wind !== hi.wind) ? hi.wind : '';
-                return (
-                  <li key={st.seq} className={divider ? 'has-div' : ''}>
-                    {divider && <span className="lg-div" aria-hidden="true">{divider}圈</span>}
-                    <button
-                      type="button"
-                      className="lg-row"
-                      disabled={ended || !editable(st.event)}
-                      onClick={() => { unlock(); setError(''); setEditing({ seq: st.seq, event: st.event, current: st.event.type === 'win' ? st.event.winners[0].player : '' }); }}
-                    >
-                      <span className="lg-head">
-                        <span className="lg-what">
-                          {hi?.label && <b className="lg-hand">{hi.label}</b>}
-                          {describe(st.event, name)}
-                          {hi?.stay && <span className="tag stay">冧莊</span>}
-                          {st.edited && <span className="tag instant">改過</span>}
-                        </span>
-                        <span className="lg-when">{ago(st.at, now)}</span>
-                      </span>
-                      <span className="lg-cells">
-                        {cols.map((id) => {
-                          // 似記賬：綠／紅大數字 = 真正入咗袋（或者俾咗）嘅數（已扣水）；
-                          // 冇入袋、淨係拉住嘅就用黃色大數字（仲未俾），細字分開「食」同「拉」
-                          const posted = st.delta.settled[id] ?? 0;
-                          const water = st.result.lines.filter((l) => l.kind === 'water' && l.from === id).reduce((a, l) => a + l.amount, 0);
-                          const gross = posted + water;
-                          const pend = st.delta.pending[id] ?? 0;
-                          let la = 0;
-                          let eat = 0;
-                          for (const l of st.result.lines) {
-                            if (l.kind !== 'pending' || l.to !== id) continue;
-                            const m = /拉 (\d+)（第/.exec(l.note ?? '');
-                            const x = m ? Number(m[1]) : 0;
-                            la += x;
-                            eat += l.amount - x;
-                          }
-                          const bits: { k: string; t: string; cls: string }[] = [];
-                          if (water) bits.push({ k: 'g', t: `袋${fmt(gross)}`, cls: tone2(gross) }, { k: 'w', t: `水−${water}`, cls: 'lg-water' });
-                          if (posted && pend) bits.push({ k: 'p', t: `拉${fmt(pend)}`, cls: 'lg-la' });
-                          if (!posted && pend > 0 && la > 0) bits.push({ k: 'e', t: `食${eat}`, cls: '' }, { k: 'l', t: `拉${la}`, cls: 'lg-la' });
-                          if (!posted && pend < 0) bits.push({ k: 'b', t: '未俾', cls: 'lg-la' });
-                          return (
-                            <span key={id} className={`lg-cell${id === me ? ' me' : ''}`}>
-                              {posted ? <b className={`num ${tone2(posted)}`}>{fmt(posted)}</b> : pend ? <b className="num lg-pend-big">{fmt(pend)}</b> : <span className="lg-dash">·</span>}
-                              <small className="lg-pend">{bits.length ? bits.map((b) => <span key={b.k} className={b.cls}>{b.t}</span>) : '\u00a0'}</small>
+          <div className="ledger">
+            {ledgerGroups.map((grp) => {
+              const gcols = segs.cols[grp.seg];
+              const latest = grp.seg === segs.cols.length - 1;
+              const tot = latest ? null : segs.totals[grp.seg];
+              const mi = me ? gcols.indexOf(me) : -1;
+              return (
+                <div key={`seg-${grp.seg}`} className={`lg-seg${latest ? '' : ' old'}`} style={{ '--cols': gcols.length, '--mi': Math.max(0, mi) } as CSSProperties}>
+                  {mi >= 0 && <span className="lg-mecol" aria-hidden="true" />}
+                  <div className="lg-top">
+                    {mi >= 0 && <span className="lg-mecol lg-mecol-top" aria-hidden="true" />}
+                    <div className="lg-names" aria-hidden="true">
+                      {gcols.map((id) => <span key={id} className={id === me ? 'me' : ''}>{name(id)}</span>)}
+                    </div>
+                    <div className="lg-cells lg-sum" aria-label={latest ? '合計' : '換人之前嘅合計'}>
+                      {gcols.map((id) => {
+                        const v = tot ? tot.settled[id] ?? 0 : c.state.settled[id] ?? 0;
+                        const pd = tot ? tot.pending[id] ?? 0 : c.pending[id] ?? 0;
+                        return (
+                          <span key={id} className={`lg-cell${id === me ? ' me' : ''}`}>
+                            <b className={`num ${tone2(v + pd)}`}>{fmt(v + pd)}</b>
+                            {pd ? <small className={`lg-pend ${tone2(pd)}`}>枱面 {fmt(pd)}</small> : null}
+                          </span>
+                        );
+                      })}
+                    </div>
+                    <div className="lg-cap">
+                      <span>{latest ? `合計${Object.values(c.pending).some(Boolean) ? '（連枱面）' : ''}` : '換人之前嘅合計'}</span>
+                      {latest && c.state.water ? <span>抽水 {c.state.water}</span> : null}
+                    </div>
+                  </div>
+                  <ol className="lg-rows">
+                    {grp.rows.map((st, li) => {
+                      const cols = gcols;
+                      const hi = handInfo[st.seq];
+                      const newer = li > 0 ? handInfo[grp.rows[li - 1].seq] : null;
+                      const divider = hi && (!newer || newer.wind !== hi.wind) ? hi.wind : '';
+                      return (
+                        <li key={st.seq} className={divider ? 'has-div' : ''}>
+                          {divider && <span className="lg-div" aria-hidden="true">{divider}圈</span>}
+                          <button
+                            type="button"
+                            className="lg-row"
+                            disabled={ended || viewOnly || !editable(st.event)}
+                            onClick={() => { unlock(); setError(''); setEditing({ seq: st.seq, event: st.event, current: st.event.type === 'win' ? st.event.winners[0].player : '' }); }}
+                          >
+                            <span className="lg-head">
+                              <span className="lg-what">
+                                {hi?.label && <b className="lg-hand">{hi.label}</b>}
+                                {describe(st.event, name)}
+                                {hi?.stay && <span className="tag stay">冧莊</span>}
+                                {st.edited && <span className="tag instant">改過</span>}
+                              </span>
+                              <span className="lg-when">{ago(st.at, now)}</span>
                             </span>
-                          );
-                        })}
-                      </span>
-                    </button>
-                  </li>
-                );
-              })}
-            </ol>
+                            <span className="lg-cells">
+                              {cols.map((id) => {
+                                // 似記賬：綠／紅大數字 = 真正入咗袋（或者俾咗）嘅數（已扣水）；
+                                // 冇入袋、淨係拉住嘅就用黃色大數字（仲未俾），細字分開「食」同「拉」
+                                const posted = st.delta.settled[id] ?? 0;
+                                const water = st.result.lines.filter((l) => l.kind === 'water' && l.from === id).reduce((a, l) => a + l.amount, 0);
+                                const gross = posted + water;
+                                const pend = st.delta.pending[id] ?? 0;
+                                let la = 0;
+                                let eat = 0;
+                                for (const l of st.result.lines) {
+                                  if (l.kind !== 'pending' || l.to !== id) continue;
+                                  const m = /拉 (\d+)（第/.exec(l.note ?? '');
+                                  const x = m ? Number(m[1]) : 0;
+                                  la += x;
+                                  eat += l.amount - x;
+                                }
+                                const bits: { k: string; t: string; cls: string }[] = [];
+                                if (water) bits.push({ k: 'g', t: `袋${fmt(gross)}`, cls: tone2(gross) }, { k: 'w', t: `水−${water}`, cls: 'lg-water' });
+                                if (posted && pend) bits.push({ k: 'p', t: `拉${fmt(pend)}`, cls: 'lg-la' });
+                                if (!posted && pend > 0 && la > 0) bits.push({ k: 'e', t: `食${eat}`, cls: '' }, { k: 'l', t: `拉${la}`, cls: 'lg-la' });
+                                else if (!posted && pend > 0) bits.push({ k: 'e', t: `食${eat || pend}`, cls: '' });
+                                if (!posted && pend < 0) bits.push({ k: 'b', t: '未俾', cls: 'lg-la' });
+                                return (
+                                  <span key={id} className={`lg-cell${id === me ? ' me' : ''}`}>
+                                    {posted ? <b className={`num ${tone2(posted)}`}>{fmt(posted)}</b> : pend ? <b className="num lg-pend-big">{fmt(pend)}</b> : <span className="lg-dash">·</span>}
+                                    <small className="lg-pend">{bits.length ? bits.map((b) => <span key={b.k} className={b.cls}>{b.t}</span>) : '\u00a0'}</small>
+                                  </span>
+                                );
+                              })}
+                            </span>
+                          </button>
+                        </li>
+                      );
+                    })}
+                  </ol>
+                </div>
+              );
+            })}
           </div>
         )}
         {c.steps.length > 0 && <Hint>大數字係真正入袋（或者俾咗）嘅數，已經扣咗水；細字「袋」係扣水之前、「水」係抽水、「拉」係拉住未找（未入袋）。頂部合計 = 袋 + 枱面（拉住未找）。</Hint>}
@@ -884,7 +938,7 @@ export default function TableScreen(props: TableScreenProps) {
               <h2>其他</h2>
               <div className="choices three">
                 {props.onSwap && !ended && !viewOnly && <button type="button" className="choice" onClick={() => { setSwapOut(''); setSwapIn(''); setGuestName(''); setMore('swap'); }}>換人<small>有人加入</small></button>}
-                {props.onDice && !ended && <button type="button" className="choice" onClick={() => run(() => props.onDice!(), '')}>擲骰<small>三粒骰</small></button>}
+                {props.onDice && !ended && !viewOnly && <button type="button" className="choice" onClick={() => run(() => props.onDice!(), '')}>擲骰<small>三粒骰</small></button>}
                 {props.onReseat && !ended && !viewOnly && (c.steps.length === 0 || roundsDone) && <button type="button" className="choice" onClick={() => setMore('reseat')}>{c.steps.length === 0 ? '掉位' : '換位'}<small>抽風牌或自己揀</small></button>}
                 <button type="button" className="choice" aria-pressed={pf.sound} onClick={() => { unlock(); setPref('sound', !pf.sound); if (!pf.sound) setTimeout(() => sfx.tap(), 30); }}>
                   聲效<small>{pf.sound ? '開' : '關'}</small>
@@ -942,7 +996,10 @@ export default function TableScreen(props: TableScreenProps) {
             };
             return (
               <>
-                <h2>特別事項</h2>
+                <div className="sheet-head">
+                  <button type="button" className="textbtn back-btn" onClick={() => { const b = spBack; setMore(null); setSpBack(null); if (b) setEntry(b); }}>‹ 返回</button>
+                  <h2>特別事項</h2>
+                </div>
                 <Hint>即時找數，不影響拉，不抽水。</Hint>
                 <div className="sp-grid">
                   {SPECIAL_ITEMS.map((it) => {
@@ -1081,12 +1138,19 @@ export default function TableScreen(props: TableScreenProps) {
                         {here.map(chip)}
                         <button type="button" className="choice drag-chip" aria-pressed={swapIn === '__guest'} onClick={() => setSwapIn('__guest')} onPointerDown={(e) => startDrag(e, '__guest')}>＋ 新訪客<small>無帳戶</small></button>
                       </div>
-                      {rest.length > 0 && (
-                        <details className="more-people" open={here.length === 0}>
-                          <summary className="small muted">呢個牌友圈今晚未打嘅成員（{rest.length}）</summary>
-                          <div className="choices">{rest.map(chip)}</div>
-                        </details>
-                      )}
+                      {rest.length > 0 && (() => {
+                        const open = restOpen ?? here.length === 0;
+                        return (
+                          <div className={`more-people${open ? ' open' : ''}`}>
+                            <button type="button" className="more-toggle" aria-expanded={open} onClick={() => setRestOpen(!open)}>
+                              <span className="grow">呢個牌友圈今晚未打嘅成員</span>
+                              <span className="more-count">{rest.length}</span>
+                              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M6 9l6 6 6-6" /></svg>
+                            </button>
+                            {open && <div className="choices">{rest.map(chip)}</div>}
+                          </div>
+                        );
+                      })()}
                     </>
                   );
                 })()}

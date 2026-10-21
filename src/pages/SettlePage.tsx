@@ -107,6 +107,7 @@ export default function SettlePage({ user, groupId, sessionId }: { user: User; g
       locked={!!sess.closed && !isOwner}
       perTable={perTable}
       isAdmin={admin}
+      payManager={admin || group.data?.ownerId === user.uid || sess.createdBy === user.uid}
       ready={!tables.loading && tables.data.every((t) => t.id in events) && !expenses.loading && !pairs.loading && !teams.loading && !members.loading}
       skipTeams={sess.skipTeams ?? []}
       onSkipTeam={(id, skip) => setSkipTeam(groupId, sessionId, id, skip)}

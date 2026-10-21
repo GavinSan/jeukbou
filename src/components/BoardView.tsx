@@ -58,13 +58,11 @@ export default function BoardView({ sessions, names, me, sessionHref }: {
   const rows = useMemo(() => boardRows(inRange, names), [inRange, names]);
   const play = useMemo(() => inRange.reduce((acc, x) => (x.play ? addPlay(acc, x.play) : acc), emptyPlay()), [inRange]);
   const days = new Set(inRange.map((s) => md(s.at))).size;
-  // 走勢：頭三名 + 自己，每個大局之後累計
+  // 走勢：所有人，每個大局之後累計（自己條線 highlight）
   const trend = useMemo(() => {
     const sorted = [...inRange].sort((a, b) => a.at - b.at);
     if (sorted.length < 2) return null;
-    const pickIds = rows.slice(0, 3).map((r) => r.id);
-    if (me && rows.some((r) => r.id === me) && !pickIds.includes(me)) pickIds.push(me);
-    else if (rows[3]) pickIds.push(rows[3].id);
+    const pickIds = rows.map((r) => r.id);
     const series = pickIds.map((id) => {
       let acc = 0;
       return { id, name: names[id] || '玩家', values: [0, ...sorted.map((x) => (acc += x.totals[id] ?? 0))] };

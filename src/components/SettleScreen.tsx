@@ -82,6 +82,8 @@ export interface SettleScreenProps {
   perTable?: { id: string; name: string; fan: Record<string, number> }[];
   /** 超級管理員：Group 即刻生效 */
   isAdmin?: boolean;
+  /** 局主、場主、超級管理員：可以幫任何一筆標記已轉 */
+  payManager?: boolean;
   /** 所有資料（枱、每鋪、開支、Group）載入晒：未載晒唔好存快照 */
   ready?: boolean;
   /** 今晚唔用嘅預設 Group */
@@ -316,8 +318,8 @@ export default function SettleScreen(p: SettleScreenProps) {
                 {led.transfers.map((t, i) => {
                   const key = payKey(t);
                   const done = !!p.paid?.[key];
-                  // 只有俾錢嗰個（Group 入面任何一個）先標記得
-                  const canMark = mine(t.from) || !!p.isAdmin;
+                  // 俾錢嗰個、收錢嗰個（Group 入面任何一個）、局主、場主、超級管理員都標記得
+                  const canMark = mine(t.from) || mine(t.to) || !!p.isAdmin || !!p.payManager;
                   return (
                     <li key={i} className={showPaid && done ? 'done' : ''}>
                       <Acct k={t.from} cls="tf-from" />
@@ -342,7 +344,7 @@ export default function SettleScreen(p: SettleScreenProps) {
           ) : (
             <p className="muted">{view === 'expense' && !p.expenses.length ? '未有開支。' : '不用轉賬。'}</p>
           )}
-          {showPaid && <Hint>俾錢嗰個轉咗就撳「未轉」標記（Group 一齊俾，任何一個標記都得），全部人都會見到。</Hint>}
+          {showPaid && <Hint>轉咗數就撳「未轉」標記：俾錢、收錢嗰個（Group 任何一個）、局主同場主都撳得，全部人都會見到。</Hint>}
           {p.payHref && closed && (
             <button type="button" className="link-card" onClick={() => go(p.payHref!)}>
               <span className="grow"><b>轉賬詳情</b><small>收款 email、邊筆未轉</small></span>

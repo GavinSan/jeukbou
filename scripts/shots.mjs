@@ -125,6 +125,13 @@ for (const scheme of ['light', 'dark']) {
       await page.getByRole('dialog').getByRole('button', { name: /一台花/ }).click();
       await page.waitForTimeout(250);
       await page.screenshot({ path: `${out}/special-flower.png` });
+      // 返回入數，再入返特別事項
+      await page.getByRole('dialog').getByRole('button', { name: '‹ 返回' }).click();
+      await page.waitForTimeout(300);
+      await page.screenshot({ path: `${out}/special-back.png` });
+      await page.getByRole('button', { name: /有特別事項/ }).click();
+      await page.waitForTimeout(300);
+      await page.getByRole('dialog').getByRole('button', { name: /一台花/ }).click();
       await page.getByRole('dialog').getByRole('button', { name: /被追/ }).click();
       for (let k = 0; k < 3; k++) { await page.locator('.instant-btn').click(); await page.waitForTimeout(120); }
       await page.getByRole('dialog').getByRole('button', { name: 'Ivan', exact: true }).click();
@@ -140,10 +147,17 @@ for (const scheme of ['light', 'dark']) {
       await page.getByRole('dialog').getByRole('button', { name: /^換人/ }).click();
       await page.waitForTimeout(300);
       await page.getByRole('dialog').getByRole('button', { name: /Ivan/ }).click();
-      const more = page.getByRole('dialog').locator('details.more-people');
-      if (await more.count() && !(await more.evaluate((e) => e.open))) await more.locator('summary').click();
+      const more = page.getByRole('dialog').locator('.more-toggle');
+      if (await more.count() && (await more.getAttribute('aria-expanded')) !== 'true') await more.click();
       await page.getByRole('dialog').getByRole('button', { name: /Kit/ }).click();
       await page.screenshot({ path: `${out}/swap.png` });
+      // 真係換個訪客入嚟，睇紀錄表分段
+      await page.getByRole('dialog').getByRole('button', { name: /新訪客/ }).click();
+      await page.getByRole('dialog').getByLabel('訪客名').fill('Jo');
+      await page.getByRole('dialog').getByRole('button', { name: '換人', exact: true }).click();
+      await page.waitForTimeout(800);
+      await page.locator('.ledger').scrollIntoViewIfNeeded();
+      await page.locator('.ledger').screenshot({ path: `${out}/ledger-seg.png` });
     });
     await step('reseat', async () => {
       await page.goto(`${base}/demo/t/3`, { waitUntil: 'networkidle' });
@@ -461,7 +475,13 @@ for (const scheme of ['light', 'dark']) {
       await page.getByRole('button', { name: /張枱一齊執位/ }).click();
       await page.waitForTimeout(300);
       await page.screenshot({ path: `${out}/regroup.png` });
-      await page.getByRole('dialog').getByRole('button', { name: '開始' }).click();
+      // 減一個人：顯示「差 X 人」；再喺「加人」加返
+      await page.getByRole('dialog').getByRole('button', { name: /走咗$/ }).first().click();
+      await page.waitForTimeout(250);
+      await page.screenshot({ path: `${out}/regroup-short.png` });
+      await page.getByRole('dialog').locator('.pill').first().click();
+      await page.waitForTimeout(250);
+      await page.getByRole('dialog').getByRole('button', { name: /^開始/ }).click();
       await page.waitForTimeout(500);
       await page.screenshot({ path: `${out}/draw-shuffle.png` });
       await page.waitForTimeout(1200);
