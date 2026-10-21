@@ -1,6 +1,7 @@
 // 背景睇住自己所有牌友圈：番數表有新版本就提示（畫面頂）同埋（app 喺背景時）彈系統通知
 import { useEffect } from 'react';
-import { useGroup, useProfile } from '../lib/live.ts';
+import { useGroup, useMeetups, useProfile } from '../lib/live.ts';
+import { meetupWhen } from './Meetups.tsx';
 import { markSeen, pushNotice, seenAt, systemNotify, useNotices } from '../lib/notify.ts';
 import { go } from '../lib/router.tsx';
 
@@ -24,9 +25,40 @@ function FanWatch({ g, uid }: { g: string; uid: string }) {
   return null;
 }
 
+/** 約局：有人約新局、或者三缺一而你未應，就提你（鬼馬少少） */
+function MeetupWatch({ g, uid }: { g: string; uid: string }) {
+  const group = useGroup(g);
+  const { data } = useMeetups(g);
+  useEffect(() => {
+    const name = group.data?.name;
+    if (!name) return;
+    for (const m of data) {
+      if (m.at < Date.now()) continue;
+      const answered = m.going.includes(uid) || m.maybe.includes(uid) || m.no.includes(uid);
+      if (answered) continue;
+      const n = m.going.length;
+      const key = `${g}:meetup:${m.id}`;
+      // 三缺一用另一個版本號，咁之前睇過「新約局」都會再提一次
+      const at = n === 3 ? m.createdAt + 3 : m.createdAt;
+      if (m.by === uid || at <= seenAt(key)) continue;
+      const line = n === 3 ? '三缺一！就差你 🔥' : n === 2 ? '二缺二，快啲應' : n === 1 ? '一缺三，嚟撐場' : n >= 4 ? '已經夠腳，仲可以開多枱' : '有人約局';
+      const notice = {
+        g: key,
+        at,
+        title: `「${name}」${line}`,
+        body: `${m.byName || '有人'} 約 ${meetupWhen(m.at)}${m.place ? `・${m.place}` : ''}`,
+        url: `/g/${g}#meetups`,
+      };
+      pushNotice(notice);
+      systemNotify(notice);
+    }
+  }, [g, uid, group.data?.name, data]);
+  return null;
+}
+
 export function GroupWatchers({ uid }: { uid: string }) {
   const profile = useProfile(uid);
-  return <>{profile.data.groups.map((g) => <FanWatch key={g} g={g} uid={uid} />)}</>;
+  return <>{profile.data.groups.map((g) => <FanWatch key={g} g={g} uid={uid} />)}{profile.data.groups.map((g) => <MeetupWatch key={`m-${g}`} g={g} uid={uid} />)}</>;
 }
 
 export function NoticeBar() {

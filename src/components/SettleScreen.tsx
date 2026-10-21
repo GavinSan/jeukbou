@@ -53,6 +53,8 @@ export interface SettleScreenProps {
     onRequest: () => Promise<void>;
     onApprove: () => Promise<void>;
     onCancel: () => Promise<void>;
+    /** 全部轉賬已轉 */
+    allPaid?: boolean;
   };
   onAddExpense: (e: Omit<ExpenseDoc, 'id' | 'at' | 'by'>) => Promise<void>;
   /** 埋數後嘅轉賬快照、已轉標記 */
@@ -293,7 +295,7 @@ export default function SettleScreen(p: SettleScreenProps) {
         </div>
       )}
 
-      {p.closing && <CloseBar c={{ ...p.closing, onClose: () => p.closing!.onClose(snapshot() ?? undefined) }} me={p.me} nameOf={nameOf} busy={busy} run={run} />}
+      {p.closing && <CloseBar c={{ ...p.closing, allPaid: !!r && r.combined.transfers.length > 0 && r.combined.transfers.every((t) => p.paid?.[payKey(t)]), onClose: () => p.closing!.onClose(snapshot() ?? undefined) }} me={p.me} nameOf={nameOf} busy={busy} run={run} />}
 
       {built.error && <p className="error">{built.error}</p>}
 
@@ -479,7 +481,7 @@ export default function SettleScreen(p: SettleScreenProps) {
           ))}
           {!locked && p.onAddPerson && <button type="button" className="person-chip add" onClick={() => { setError(''); setSheet('person'); }}>＋ 加人</button>}
         </div>
-        {closed && (locked ? <p className="muted small">已埋數，開支已鎖定，唔可以再加或者改。</p> : <p className="muted small">已埋數：其他人已經唔可以再加或者改開支，只有局主仍然可以改。</p>)}
+        {closed && (locked ? <p className="muted small">計好數，開支已鎖定，唔可以再加或者改。</p> : <p className="muted small">計好數：其他人已經唔可以再加或者改開支，只有局主仍然可以改。</p>)}
       </section>
 
       <section className="stack">
@@ -918,7 +920,7 @@ function CloseBar({ c, me, nameOf, busy, run }: {
   if (c.closed) {
     return (
       <div className="closed-stamp">
-        <span className="stamp">已埋數</span>
+        <span className={`stamp${c.allPaid ? ' clear' : ''}`}>{c.allPaid ? '已找清' : '計好數'}</span>
         <span className="muted small">{nameOf(c.closed.by)} · {new Date(c.closed.at).toLocaleString('zh-HK', { month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit' })}</span>
       </div>
     );

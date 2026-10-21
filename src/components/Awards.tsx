@@ -52,6 +52,9 @@ export function awardsOf(play: PlayStats, name: (id: string) => string): Award[]
     const top = topOf(play.specialBy?.[art] ?? {});
     if (top) out.push({ key: `sp-${art}`, mark, title, who: name(top[0]), value: `${top[1]} 次`, cls: `aw-sp aw-sp-${art}` });
   }
+  const wins = Object.values(play.wins).reduce((a, b) => a + b, 0);
+  if (play.fanTotal && wins) out.push({ key: 'fans', mark: '番', title: '全場總番', who: `平均每糊 ${Math.round(play.fanTotal / wins)} 番`, value: `${play.fanTotal} 番`, cls: 'aw-slate' });
+  if (play.hands > 0) out.push({ key: 'draws', mark: '流', title: '流局', who: `共 ${play.hands} 鋪`, value: `${play.draws ?? 0} 次`, cls: 'aw-sp-forgot' });
   const pace = paceOf(play.roundMs);
   if (pace) {
     const perHand = play.hands > 1 && play.playMs > 0 ? `${Math.max(1, Math.round(play.playMs / play.hands / 60000))} 分/鋪` : `${play.roundMs.length} 圈`;

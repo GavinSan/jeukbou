@@ -45,6 +45,9 @@ export interface TableStats {
   rounds: Record<string, number>;
   /** 特別事項：每款（花、槓…）每人幾多次 */
   specialBy: Record<string, Record<string, number>>;
+  /** 流局次數、食糊總番數 */
+  draws: number;
+  fanTotal: number;
 }
 
 export interface Computed {
@@ -128,7 +131,7 @@ export function netOf(d: Step['delta'], fallback = true): Record<string, number>
 function statsOf(steps: Step[]): TableStats {
   const s: TableStats = {
     hands: 0, biggest: null, selfDraws: 0, wins: {}, dealIns: {}, selfDrawBy: {}, bestBy: {}, falseWins: {}, specials: 0,
-    maxStreak: null, maxChain: null, roundMs: [], playMs: 0, pulls: {}, rounds: {}, specialBy: {},
+    maxStreak: null, maxChain: null, roundMs: [], playMs: 0, pulls: {}, rounds: {}, specialBy: {}, draws: 0, fanTotal: 0,
   };
   let first: number | null = null;
   let last: number | null = null;
@@ -162,8 +165,9 @@ function statsOf(steps: Step[]): TableStats {
       }
     }
     if (event.type === 'falseWin') s.falseWins[event.player] = (s.falseWins[event.player] ?? 0) + 1;
-    if (event.type === 'draw') s.hands += 1;
+    if (event.type === 'draw') { s.hands += 1; s.draws += 1; }
     if (event.type !== 'win') continue;
+    for (const w of event.winners) s.fanTotal += w.fan;
     for (const l of result.lines) {
       if (l.kind === 'pending' && l.to && /第 \d+ 拉/.test(l.note ?? '')) s.pulls[l.to] = (s.pulls[l.to] ?? 0) + 1;
     }
@@ -202,6 +206,8 @@ export interface PlayStats {
   rounds?: Record<string, number>;
   /** 特別事項：每款每人幾多次 */
   specialBy?: Record<string, Record<string, number>>;
+  draws?: number;
+  fanTotal?: number;
 }
 
 export function emptyPlay(): PlayStats {
@@ -214,6 +220,8 @@ export function addPlay(a: PlayStats, b: Pick<PlayStats, keyof PlayStats> | Tabl
   add(out.pulls!, b.pulls ?? {});
   out.rounds = { ...(a.rounds ?? {}) };
   add(out.rounds, b.rounds ?? {});
+  out.draws = (a.draws ?? 0) + (b.draws ?? 0);
+  out.fanTotal = (a.fanTotal ?? 0) + (b.fanTotal ?? 0);
   out.specialBy = Object.fromEntries(Object.entries(a.specialBy ?? {}).map(([k, v]) => [k, { ...v }]));
   for (const [art, rec] of Object.entries(b.specialBy ?? {})) add(out.specialBy[art] ?? (out.specialBy[art] = {}), rec);
   for (const [k, v] of Object.entries('bestBy' in b ? b.bestBy : b.best)) out.best[k] = Math.max(out.best[k] ?? 0, v);

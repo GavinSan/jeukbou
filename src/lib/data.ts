@@ -9,6 +9,7 @@ import {
   doc,
   getDoc,
   getDocs,
+  runTransaction,
   serverTimestamp,
   setDoc,
   updateDoc,
@@ -46,6 +47,29 @@ export interface Group {
   joinCode?: string;
   /** 番數表最近一次修改 */
   fanTableLog?: FanTableLog | null;
+  /** 牌友圈 icon：一個 emoji，或者細圖（data URL） */
+  icon?: string;
+  /** 簡介，例如「25 抽 1・私人局」 */
+  description?: string;
+  /** public = 人哋搜尋得到（加唔加入仍然跟加入方式）；private = 要邀請 */
+  visibility?: 'public' | 'private';
+}
+
+/** 成員權限：局主分配 */
+export type Perm = 'approve' | 'remove' | 'records' | 'rules';
+export const PERMS: { key: Perm; label: string; note: string }[] = [
+  { key: 'approve', label: '批人入', note: '批准或拒絕加入申請' },
+  { key: 'remove', label: '移除成員', note: '將人移出牌友圈' },
+  { key: 'records', label: '管紀錄', note: '刪除大局／枱、埋數後仍然可以改開支' },
+  { key: 'rules', label: '改家規', note: '改家規、番數表、水由誰保管' },
+];
+
+/** 我喺呢個牌友圈做唔做得某樣嘢（局主同超級管理員乜都得） */
+export function canDo(g: Pick<Group, 'ownerId'> | null | undefined, me: Pick<Member, 'perms'> | null | undefined, uid: string, admin: boolean, perm: Perm): boolean {
+  if (admin) return true;
+  if (!g) return false;
+  if (g.ownerId === uid) return true;
+  return !!me?.perms?.includes(perm);
 }
 
 export type JoinMode = 'auto' | 'approve' | 'closed';
@@ -73,6 +97,10 @@ export interface Member {
   legacyKey?: string;
   /** 收錢用嘅 Interac e-Transfer email */
   payEmail?: string;
+  /** 生日（MM-DD），同圈嘅人見到 */
+  birthday?: string;
+  /** 局主分配嘅權限 */
+  perms?: Perm[];
 }
 
 export interface Session {
@@ -102,6 +130,168 @@ export interface Session {
   people?: { id: string; name: string }[];
   /** 今晚唔用嘅預設 Group（team id） */
   skipTeams?: string[];
+  /** 幾張枱一齊執位（抽牌） */
+  draw?: Draw | null;
+  /** 電視直播播緊嘅音樂（YouTube／Spotify／Apple Music 連結） */
+  music?: string;
+}
+
+/** 一齊執位：X 張枱 = X × 4 隻牌（壹貳參肆…），同一隻字 = 同一張枱 */
+export interface Draw {
+  id: string;
+  by: string;
+  at: number;
+  /** pick = 每人自己揀牌；auto = 電腦派 */
+  mode: 'pick' | 'auto';
+  /** 原本打緊嘅枱（會完場，除非同一班人坐返一齊揀繼續） */
+  tables: string[];
+  /** 參加嘅人（可以減走離開嘅、加新嚟嘅） */
+  players: { id: string; name: string }[];
+  /** 每隻牌係第幾張枱（0 起），已經洗亂 */
+  tiles: number[];
+  /** 邊隻牌（index）俾邊個揀咗 */
+  picks: Record<string, string>;
+  /** 揀牌次序（全場排名高嘅先） */
+  order: string[];
+  /** propose = 等其他枱同意；picking = 揀緊；done = 揀晒 */
+  status: 'propose' | 'picking' | 'done';
+  approvals: string[];
+}
+
+/** 約局：約將來嘅日子同時間，大家應去唔去 */
+export interface Meetup {
+  id: string;
+  by: string;
+  byName: string;
+  at: number;
+  place: string;
+  note: string;
+  going: string[];
+  maybe: string[];
+  no: string[];
+  names: Record<string, string>;
+  createdAt: number;
+}
+
+export async function createMeetup(g: string, user: User, m: { at: number; place: string; note: string }): Promise<void> {
+  await setDoc(doc(collection(fs(), 'groups', g, 'meetups')), {
+    by: user.uid, byName: displayName(user), at: m.at, place: m.place.trim().slice(0, 60), note: m.note.trim().slice(0, 200),
+    going: [user.uid], maybe: [], no: [], names: { [user.uid]: displayName(user) }, createdAt: Date.now(),
+  });
+}
+
+/** 應約：去／可能／唔去 */
+export async function rsvpMeetup(g: string, id: string, user: User, status: 'going' | 'maybe' | 'no' | null): Promise<void> {
+  const uid = user.uid;
+  await updateDoc(doc(fs(), 'groups', g, 'meetups', id), {
+    going: status === 'going' ? arrayUnion(uid) : arrayRemove(uid),
+    maybe: status === 'maybe' ? arrayUnion(uid) : arrayRemove(uid),
+    no: status === 'no' ? arrayUnion(uid) : arrayRemove(uid),
+    [`names.${uid}`]: displayName(user),
+  });
+}
+
+export async function deleteMeetup(g: string, id: string): Promise<void> {
+  await deleteDoc(doc(fs(), 'groups', g, 'meetups', id));
+}
+
+/** 鬼馬啲嘅人數講法 */
+export function meetupMood(n: number): string {
+  if (n <= 0) return '未有人應';
+  if (n === 1) return '一缺三，快啲搵人！';
+  if (n === 2) return '二缺二，再嗌多兩個';
+  if (n === 3) return '三缺一！仲差一個 🔥';
+  if (n === 4) return '夠腳！開枱 🀄';
+  if (n < 8) return `夠一枱，再嗌 ${8 - n} 個就開兩枱`;
+  if (n % 4 === 0) return `${n / 4} 枱都夠腳！`;
+  return `夠 ${Math.floor(n / 4)} 枱，仲多 ${n % 4} 個`;
+}
+
+/** 直播室留言 */
+export async function sendChat(g: string, s: string, user: User, text: string): Promise<void> {
+  const t = text.trim().slice(0, 200);
+  if (!t) return;
+  await setDoc(doc(collection(fs(), 'groups', g, 'sessions', s, 'chat')), { by: user.uid, name: displayName(user), text: t, at: serverTimestamp() });
+}
+
+export async function setSessionMusic(g: string, s: string, url: string): Promise<void> {
+  await updateDoc(doc(fs(), 'groups', g, 'sessions', s), { music: url.trim() || deleteField() });
+}
+
+export const UPPER_NUM = ['壹', '貳', '參', '肆', '伍', '陸', '柒', '捌', '玖', '拾'];
+export const tableNameUpper = (i: number) => `第${UPPER_NUM[i] ?? String(i + 1)}枱`;
+
+export async function startDraw(g: string, s: string, draw: Draw): Promise<void> {
+  await updateDoc(doc(fs(), 'groups', g, 'sessions', s), { draw: clean(draw) });
+}
+
+export async function cancelDraw(g: string, s: string): Promise<void> {
+  await updateDoc(doc(fs(), 'groups', g, 'sessions', s), { draw: deleteField() });
+}
+
+/** 同意執位：每張原本嘅枱有一個人同意就開始 */
+export async function approveDraw(g: string, s: string, uid: string, seatsOf: Record<string, string[]>): Promise<void> {
+  const ref = doc(fs(), 'groups', g, 'sessions', s);
+  await runTransaction(fs(), async (tx) => {
+    const snap = await tx.get(ref);
+    const d = snap.data()?.draw as Draw | undefined;
+    if (!d || d.status !== 'propose') return;
+    const approvals = [...new Set([...d.approvals, uid])];
+    const ok = d.tables.every((t) => (seatsOf[t] ?? []).some((p) => approvals.includes(p)));
+    tx.update(ref, { 'draw.approvals': approvals, ...(ok ? { 'draw.status': 'picking' } : {}) });
+  });
+}
+
+/** 揀牌：用 transaction，兩個人同時撳同一隻，只會有一個成功 */
+export async function pickTile(g: string, s: string, tile: number, player: string): Promise<'ok' | 'taken' | 'done-already'> {
+  const ref = doc(fs(), 'groups', g, 'sessions', s);
+  return runTransaction(fs(), async (tx) => {
+    const snap = await tx.get(ref);
+    const d = snap.data()?.draw as Draw | undefined;
+    if (!d || d.status !== 'picking') return 'taken';
+    if (d.picks[String(tile)]) return 'taken';
+    if (Object.values(d.picks).includes(player)) return 'done-already';
+    const picks = { ...d.picks, [String(tile)]: player };
+    const done = Object.keys(picks).length >= d.tiles.length;
+    tx.update(ref, { [`draw.picks.${tile}`]: player, ...(done ? { 'draw.status': 'done' } : {}) });
+    return 'ok';
+  });
+}
+
+/** 電腦派：未揀嘅人隨機派晒剩低嘅牌 */
+export async function autoDeal(g: string, s: string): Promise<void> {
+  const ref = doc(fs(), 'groups', g, 'sessions', s);
+  await runTransaction(fs(), async (tx) => {
+    const snap = await tx.get(ref);
+    const d = snap.data()?.draw as Draw | undefined;
+    if (!d || (d.status !== 'picking' && d.status !== 'propose')) return;
+    const used = new Set(Object.values(d.picks));
+    const left = d.players.map((p) => p.id).filter((id) => !used.has(id));
+    const free = d.tiles.map((_, i) => i).filter((i) => !d.picks[String(i)]);
+    for (let i = free.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [free[i], free[j]] = [free[j], free[i]]; }
+    const picks = { ...d.picks };
+    left.forEach((id, k) => { if (free[k] !== undefined) picks[String(free[k])] = id; });
+    tx.update(ref, { 'draw.picks': picks, 'draw.status': 'done' });
+  });
+}
+
+/** 執位生效：原本嘅枱完場（拉住嘅數找晒），開新枱；同一班人坐返一齊又揀「繼續」嘅就保留原枱 */
+export async function applyDraw(
+  g: string, s: string, by: string,
+  plan: { keep: string | null; seats: string[]; names: Record<string, string>; name: string }[],
+  endTables: string[], startOrder: number,
+): Promise<void> {
+  for (const t of endTables) {
+    for (let attempt = 0; attempt < 3; attempt++) {
+      try { await appendEvent(g, s, t, await nextSeq(g, s, t), by, { type: 'end' }); break; } catch (err) { if (!(err instanceof ConflictError) || attempt === 2) throw err; }
+    }
+  }
+  let order = startOrder;
+  for (const p of plan) {
+    if (p.keep) continue;
+    await addTable(g, s, order++, { name: p.name, seats: p.seats, names: p.names });
+  }
+  await updateDoc(doc(fs(), 'groups', g, 'sessions', s), { draw: deleteField() });
 }
 
 export interface Payout {
@@ -134,6 +324,25 @@ export async function setPayEmail(user: User, email: string, groupIds: string[])
     const snap = await getDoc(ref);
     if (snap.exists()) await updateDoc(ref, { payEmail: v || deleteField() });
   }));
+}
+
+/** 真名（只係局主同超級管理員睇）同生日（月-日，同圈嘅人見到，方便一齊慶祝） */
+export async function setProfileDetails(user: User, d: { firstName: string; lastName: string; birthday: string }, groupIds: string[]): Promise<void> {
+  const bday = /^\d{2}-\d{2}$/.test(d.birthday) ? d.birthday : '';
+  await setDoc(doc(fs(), 'users', user.uid), {
+    firstName: d.firstName.trim() || deleteField(), lastName: d.lastName.trim() || deleteField(),
+    birthday: bday || deleteField(), updatedAt: serverTimestamp(),
+  }, { merge: true });
+  await Promise.all(groupIds.map(async (g) => {
+    const ref = doc(fs(), 'groups', g, 'members', user.uid);
+    const snap = await getDoc(ref);
+    if (snap.exists()) await updateDoc(ref, { birthday: bday || deleteField() });
+  }));
+}
+
+/** 提咗用家補資料（之後兩個禮拜唔再提） */
+export async function markNudged(uid: string): Promise<void> {
+  await setDoc(doc(fs(), 'users', uid), { nudgedAt: Date.now() }, { merge: true });
 }
 
 /** 埋數設定（牌友圈層面，局主改） */
@@ -733,6 +942,47 @@ export async function deleteGroup(g: string): Promise<void> {
   if (code) await deleteDoc(doc(fs(), 'codes', String(code))).catch(() => undefined);
   await deleteRefs(await listRefs('groups', g, 'members'));
   await deleteRefs([{ path: `groups/${g}` }]);
+}
+
+/** 局主設定成員權限 */
+export async function setMemberPerms(g: string, uid: string, perms: Perm[]): Promise<void> {
+  await updateDoc(doc(fs(), 'groups', g, 'members', uid), { perms });
+}
+
+/** 牌友圈資料：icon、簡介、公開／私人；公開嘅會放一份去 publicGroups 俾人搜尋 */
+export async function updateGroupProfile(g: Group, p: { icon: string; description: string; visibility: 'public' | 'private' }, memberCount: number): Promise<void> {
+  const icon = p.icon.slice(0, 200000);
+  await updateDoc(doc(fs(), 'groups', g.id), { icon: icon || deleteField(), description: p.description.trim().slice(0, 200) || deleteField(), visibility: p.visibility });
+  const pub = doc(fs(), 'publicGroups', g.id);
+  if (p.visibility === 'public') {
+    await setDoc(pub, {
+      name: g.name, icon, description: p.description.trim().slice(0, 200), inviteCode: g.inviteCode, joinMode: g.joinMode ?? 'auto',
+      members: memberCount, updatedAt: serverTimestamp(),
+    });
+  } else {
+    await deleteDoc(pub).catch(() => undefined);
+  }
+}
+
+export interface PublicGroup {
+  id: string;
+  name: string;
+  icon: string;
+  description: string;
+  inviteCode: string;
+  joinMode: JoinMode;
+  members: number;
+}
+
+export async function loadPublicGroups(): Promise<PublicGroup[]> {
+  const snap = await getDocs(collection(fs(), 'publicGroups'));
+  return snap.docs.map((d) => {
+    const x = d.data();
+    return {
+      id: d.id, name: String(x.name ?? ''), icon: String(x.icon ?? ''), description: String(x.description ?? ''),
+      inviteCode: String(x.inviteCode ?? ''), joinMode: x.joinMode === 'approve' || x.joinMode === 'closed' ? x.joinMode : 'auto', members: Number(x.members ?? 0),
+    };
+  });
 }
 
 export async function removeMember(g: string, uid: string): Promise<void> {

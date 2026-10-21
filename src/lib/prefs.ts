@@ -13,12 +13,18 @@ export interface Prefs {
   skin: Skin;
 }
 
-export type Skin = 'classic' | 'teahouse' | 'neon' | 'minimal';
+export type Skin = 'classic' | 'teahouse' | 'neon' | 'minimal' | 'ocean' | 'sakura' | 'matcha' | 'midnight' | 'amber' | 'violet';
 export const SKINS: { key: Skin; name: string; note: string; colors: string[] }[] = [
-  { key: 'classic', name: '綠絨', note: '原本：綠絨布枱、象牙牌', colors: ['#1E5B49', '#F4EFDF', '#B02E26'] },
-  { key: 'teahouse', name: '茶樓', note: '暖色、紅木枱、楷書標題', colors: ['#8E2A20', '#FFF8EE', '#C9A24B'] },
-  { key: 'neon', name: '霓虹', note: '夜晚霓虹、會發光', colors: ['#241B4D', '#3CF2A4', '#FF4D8D'] },
-  { key: 'minimal', name: '簡約', note: '黑白、細邊、密啲', colors: ['#222222', '#FFFFFF', '#0A7D3E'] },
+  { key: 'classic', name: '綠絨', note: '墨綠・象牙', colors: ['#1E5B49', '#F4EFDF', '#B02E26'] },
+  { key: 'teahouse', name: '茶樓', note: '紅木・米黃', colors: ['#8E2A20', '#FFF8EE', '#C9A24B'] },
+  { key: 'neon', name: '霓虹', note: '深紫・螢光', colors: ['#241B4D', '#3CF2A4', '#FF4D8D'] },
+  { key: 'minimal', name: '簡約', note: '黑白', colors: ['#222222', '#FFFFFF', '#0A7D3E'] },
+  { key: 'ocean', name: '海洋', note: '深藍・海水綠', colors: ['#174A6B', '#E8F3F7', '#1FA39A'] },
+  { key: 'sakura', name: '櫻花', note: '粉紅・白', colors: ['#B5476B', '#FFF1F4', '#E58FA8'] },
+  { key: 'matcha', name: '抹茶', note: '橄欖綠・奶白', colors: ['#5B6B2E', '#F6F2E2', '#9CB04A'] },
+  { key: 'midnight', name: '午夜', note: '夜藍・銀', colors: ['#18223F', '#C9D3E6', '#5B8DEF'] },
+  { key: 'amber', name: '琥珀', note: '啡・金', colors: ['#6B4423', '#FBF2E0', '#D9A23A'] },
+  { key: 'violet', name: '紫晶', note: '紫・淡紫', colors: ['#4B2E83', '#F3EEFB', '#9C7BE0'] },
 ];
 
 const KEY = 'jeukbou-prefs';

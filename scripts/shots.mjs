@@ -118,7 +118,9 @@ for (const scheme of ['light', 'dark']) {
     });
     await step('special', async () => {
       await page.waitForTimeout(400);
-      await page.getByRole('button', { name: /^特別事項/ }).click();
+      await page.locator('.felt .tile').first().click();
+      await page.waitForTimeout(200);
+      await page.getByRole('button', { name: /有特別事項/ }).click();
       await page.waitForTimeout(300);
       await page.getByRole('dialog').getByRole('button', { name: /一台花/ }).click();
       await page.waitForTimeout(250);
@@ -238,7 +240,9 @@ for (const scheme of ['light', 'dark']) {
     await step('gag', async () => {
       await page.goto(`${base}/demo/t/2`, { waitUntil: 'networkidle' });
       await page.waitForTimeout(1200);
-      await page.getByRole('button', { name: /^特別事項/ }).click();
+      await page.locator('.felt .tile').first().click();
+      await page.waitForTimeout(200);
+      await page.getByRole('button', { name: /有特別事項/ }).click();
       await page.getByRole('dialog').getByRole('button', { name: /詐糊/ }).click();
       await page.getByRole('dialog').getByRole('button', { name: 'Tat', exact: true }).click();
       await page.getByRole('button', { name: /^入數，付每家/ }).click();
@@ -311,10 +315,22 @@ for (const scheme of ['light', 'dark']) {
       await page.waitForTimeout(400);
       await page.screenshot({ path: `${out}/group-player.png` });
     });
+    await step('meetups', async () => {
+      await page.goto(`${base}/demo/group`, { waitUntil: 'networkidle' });
+      await page.waitForTimeout(300);
+      await page.locator('#meetups').getByRole('radio', { name: '去' }).first().click();
+      await page.waitForTimeout(300);
+      await page.locator('#meetups').screenshot({ path: `${out}/meetups.png` });
+      await page.getByRole('button', { name: '＋ 約局' }).click();
+      await page.waitForTimeout(300);
+      await page.screenshot({ path: `${out}/meetup-new.png` });
+    });
     await step('heaven', async () => {
       await page.goto(`${base}/demo/t/1`, { waitUntil: 'networkidle' });
       await page.waitForTimeout(1200);
-      await page.getByRole('button', { name: /^特別事項/ }).click();
+      await page.locator('.felt .tile').first().click();
+      await page.waitForTimeout(200);
+      await page.getByRole('button', { name: /有特別事項/ }).click();
       await page.waitForTimeout(300);
       await page.getByRole('dialog').getByRole('button', { name: /天槓/ }).click();
       await page.waitForTimeout(500);
@@ -348,7 +364,9 @@ for (const scheme of ['light', 'dark']) {
       await page.getByRole('button', { name: /^打快/ }).click();
       await page.waitForTimeout(800);
       await page.screenshot({ path: `${out}/rounds-extended.png` });
-      await page.getByRole('button', { name: /^特別事項/ }).click();
+      await page.locator('.felt .tile').first().click();
+      await page.waitForTimeout(200);
+      await page.getByRole('button', { name: /有特別事項/ }).click();
       await page.waitForTimeout(300);
       await page.getByRole('dialog').getByRole('button', { name: /詐糊/ }).click();
       await page.getByRole('dialog').getByRole('button', { name: 'Lok', exact: true }).click();
@@ -423,6 +441,11 @@ for (const scheme of ['light', 'dark']) {
         await page.waitForTimeout(500);
         await page.screenshot({ path: `${out}/skin-${sk}-settle.png` });
       }
+      for (const sk of ['ocean', 'sakura', 'matcha', 'midnight', 'amber', 'violet']) {
+        await page.goto(`${base}/demo/t/0?skin=${sk}`, { waitUntil: 'networkidle' });
+        await page.waitForTimeout(900);
+        await page.screenshot({ path: `${out}/skin-${sk}-table.png` });
+      }
       await page.goto(`${base}/demo/skins`, { waitUntil: 'networkidle' });
       await page.waitForTimeout(300);
       await page.screenshot({ path: `${out}/skins.png` });
@@ -433,7 +456,28 @@ for (const scheme of ['light', 'dark']) {
       await page.getByRole('button', { name: /張枱一齊執位/ }).click();
       await page.waitForTimeout(300);
       await page.screenshot({ path: `${out}/regroup.png` });
-      await page.getByRole('button', { name: '關閉' }).first().click().catch(() => undefined);
+      await page.getByRole('dialog').getByRole('button', { name: '開始' }).click();
+      await page.waitForTimeout(500);
+      await page.screenshot({ path: `${out}/draw-shuffle.png` });
+      await page.waitForTimeout(1200);
+      const tiles = page.locator('.draw-tile:not(.open)');
+      for (let k = 0; k < 3; k++) { await tiles.first().click(); await page.waitForTimeout(500); }
+      await page.screenshot({ path: `${out}/draw-pick.png` });
+      await page.getByRole('button', { name: '電腦派晒' }).click();
+      await page.waitForTimeout(2500);
+      await page.screenshot({ path: `${out}/draw-done.png`, fullPage: true });
+      await page.getByRole('button', { name: /確認執位/ }).click();
+      await page.waitForTimeout(500);
+    });
+    await step('live', async () => {
+      await page.goto(`${base}/demo/live`, { waitUntil: 'networkidle' });
+      await page.waitForTimeout(800);
+      await page.screenshot({ path: `${out}/live-tv.png`, fullPage: true });
+      await page.setViewportSize({ width: 1280, height: 760 });
+      await page.evaluate(() => window.scrollTo(0, 0));
+      await page.waitForTimeout(400);
+      await page.screenshot({ path: `${out}/live-tv-desktop.png` });
+      await page.setViewportSize({ width: 390, height: 844 });
     });
     await step('admin', async () => {
       await page.goto(`${base}/demo/admin`, { waitUntil: 'networkidle' });

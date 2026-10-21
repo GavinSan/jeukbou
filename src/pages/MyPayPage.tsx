@@ -92,7 +92,7 @@ export function MyPayView({ me, items, legacy, names, emails, loading, onToggle,
               <PayRows items={items.filter((x) => x.paid)} pp={pp} showSession busyKey={busyKey} canToggle={(it) => it.dir === 'pay'} onToggle={onToggle} />
             </section>
           )}
-          <Hint>只計已埋數嘅大局（麻雀＋水＋開支合併）。喺「設定」填 Interac email，人哋找數就知轉去邊。</Hint>
+          <Hint>只計已經埋咗數嘅大局（麻雀＋水＋開支合併）。喺「設定」填 Interac email，人哋找數就知轉去邊。</Hint>
         </>
       )}
       {who && <PersonSheet ids={who.ids} pp={pp} amount={who.amount} onClose={() => setWho(null)} />}

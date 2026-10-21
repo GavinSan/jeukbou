@@ -3,7 +3,7 @@ import { rememberTable } from '../lib/nav.ts';
 import type { User } from 'firebase/auth';
 import SessionScreen from '../components/SessionScreen.tsx';
 import Incoming from '../components/Incoming.tsx';
-import { addTable, deleteSession, findTodaySession, regroupTables, setSessionNoWater } from '../lib/data.ts';
+import { applyDraw, approveDraw, autoDeal, cancelDraw, canDo, addTable, deleteSession, findTodaySession, pickTile, setSessionNoWater, startDraw, tableNameUpper } from '../lib/data.ts';
 import { Link } from '../lib/router.tsx';
 import { useSuperAdmin } from '../lib/admin.ts';
 import { go } from '../lib/router.tsx';
@@ -52,20 +52,23 @@ export default function SessionPage({ user, groupId, sessionId }: { user: User; 
       tableHref={(t) => `/g/${groupId}/s/${sessionId}/t/${t}`}
       invite={`${window.location.origin}/join/${groupId}/${group.data.inviteCode}/s/${sessionId}`}
       rulesHref={`/g/${groupId}/s/${sessionId}/rules`}
+      liveHref={session.data.closed ? undefined : `/live/${groupId}/${sessionId}`}
       settleHref={`/g/${groupId}/s/${sessionId}/settle`}
       water={session.data.closed ? undefined : { on: !session.data.noWater, onToggle: (on) => setSessionNoWater(groupId, sessionId, !on) }}
       closedNote={session.data.closed
         ? (
           <Link to={`/g/${groupId}/s/${sessionId}/pay`} className="link-card closed-card">
-            <span className="stamp small-stamp">已埋數</span>
-            <span className="grow"><b>轉賬詳情</b><small>邊個俾邊個、已轉未轉</small></span>
             {(() => {
               const ts = session.data.payout?.transfers ?? [];
-              if (!ts.length) return null;
               const done = ts.filter((t) => session.data!.paid?.[`${t.from}>${t.to}`]).length;
-              return done >= ts.length
-                ? <span className="pay-status done">已找清</span>
-                : <span className="pay-status">未找數 {done}/{ts.length}</span>;
+              const clear = done >= ts.length;
+              return (
+                <>
+                  <span className={`stamp small-stamp${clear ? ' clear' : ''}`}>{clear ? '已找清' : '計好數'}</span>
+                  <span className="grow"><b>轉賬詳情</b><small>{clear ? '全部人已經轉晒數' : '邊個俾邊個、已轉未轉'}</small></span>
+                  {!clear && <span className="pay-status">待找數 {done}/{ts.length}</span>}
+                </>
+              );
             })()}
             <span className="chev" aria-hidden="true">›</span>
           </Link>
@@ -73,18 +76,33 @@ export default function SessionPage({ user, groupId, sessionId }: { user: User; 
         : session.data.closeReq
           ? <Link to={`/g/${groupId}/s/${sessionId}/settle`} className="banner"><span className="grow">有人申請埋數，撳入去同意</span></Link>
           : null}
-      onDeleteSession={group.data.ownerId === user.uid || admin ? async () => { await deleteSession(groupId, sessionId); go(`/g/${groupId}`); } : undefined}
+      onDeleteSession={canDo(group.data, members.data.find((m) => m.uid === user.uid), user.uid, admin, 'records') ? async () => { await deleteSession(groupId, sessionId); go(`/g/${groupId}`); } : undefined}
       notice={<Incoming user={user} groupId={groupId} sessionId={sessionId} requests={requests.data} tables={tables.data} computed={computed} />}
       candidates={candidates}
       me={user.uid}
-      onRegroup={!session.data.closed && (session.data.createdBy === user.uid || group.data.ownerId === user.uid || admin) ? async (plan) => {
-        const names: Record<string, string> = {};
-        for (const t of tables.data) Object.assign(names, t.names);
-        await regroupTables(groupId, sessionId, user.uid, plan.map((p) => {
-          const c = computed[p.tableId];
-          return { tableId: p.tableId, current: c?.state.seats ?? [], seats: p.seats, names, fresh: (events[p.tableId] ?? []).length === 0 };
-        }));
-      } : undefined}
+      regroup={session.data.closed ? undefined : {
+        draw: session.data.draw ?? null,
+        canForce: session.data.createdBy === user.uid || group.data.ownerId === user.uid || admin,
+        candidates: [
+          ...members.data.filter((m) => !seated.has(m.uid)).map((m) => ({ id: m.uid, name: m.name })),
+          ...(session.data.people ?? []).filter((p) => !seated.has(p.id) && !members.data.some((m) => m.uid === p.id)),
+        ],
+        onStart: async (d) => {
+          await startDraw(groupId, sessionId, d);
+          // 電腦派：等洗牌動畫轉完先派
+          if (d.mode === 'auto' && d.status === 'picking') setTimeout(() => { autoDeal(groupId, sessionId).catch(() => undefined); }, 1400);
+        },
+        onApprove: () => {
+          const seatsOf: Record<string, string[]> = {};
+          for (const t of tables.data) { const c = computed[t.id]; if (c) seatsOf[t.id] = c.state.seats; }
+          const force = session.data!.createdBy === user.uid || group.data!.ownerId === user.uid || admin;
+          return force ? startDraw(groupId, sessionId, { ...session.data!.draw!, status: 'picking', approvals: [...new Set([...(session.data!.draw?.approvals ?? []), user.uid])] }) : approveDraw(groupId, sessionId, user.uid, seatsOf);
+        },
+        onPick: (tile, player) => pickTile(groupId, sessionId, tile, player),
+        onAuto: () => autoDeal(groupId, sessionId),
+        onCancel: () => cancelDraw(groupId, sessionId),
+        onApply: (plan, endTables) => applyDraw(groupId, sessionId, user.uid, plan, endTables, tables.data.length),
+      }}
       onClosedAdd={async () => {
         const id = await findTodaySession(groupId).catch(() => null);
         go(id && id !== sessionId ? `/g/${groupId}/s/${id}#add-table` : `/g/${groupId}/new`);
@@ -92,7 +110,7 @@ export default function SessionPage({ user, groupId, sessionId }: { user: User; 
       onAddTable={session.data.closed ? undefined : async (people) => {
         const names: Record<string, string> = {};
         for (const p of people) names[p.id] = p.name;
-        await addTable(groupId, sessionId, tables.data.length, { name: `第 ${tables.data.length + 1} 枱`, seats: people.map((p) => p.id), names });
+        await addTable(groupId, sessionId, tables.data.length, { name: tableNameUpper(tables.data.length), seats: people.map((p) => p.id), names });
       }}
     />
   );

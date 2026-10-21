@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import type { TableEvent } from './engine/table.ts';
 import { withRules } from './engine/rules.ts';
-import type { Dice, StoredEvent, TableDoc, LogEvent } from './lib/data.ts';
+import type { Dice, Draw, StoredEvent, TableDoc, LogEvent } from './lib/data.ts';
 import { computeTable, emptyPlay } from './lib/score.ts';
 import type { Computed } from './lib/score.ts';
 import { Link, match, usePath } from './lib/router.tsx';
@@ -22,12 +22,16 @@ import { DEFAULT_SETTLE } from './lib/data.ts';
 import type { ExpenseDoc, PairDoc, SettleConfig } from './lib/data.ts';
 import { sessionSummary } from './lib/totals.ts';
 import { DEFAULT_FAN_TABLE } from './lib/fanTable.ts';
-import type { JoinMode, JoinRequest } from './lib/data.ts';
+import type { JoinMode, JoinRequest, Meetup } from './lib/data.ts';
+import { MeetupsView } from './components/Meetups.tsx';
 import { AddSheet, GroupRowView, SearchAdd } from './pages/Groups.tsx';
 import { DashboardView, ResumeRow } from './pages/Home.tsx';
 import { RankView } from './pages/RankPage.tsx';
 import { MyPayView } from './pages/MyPayPage.tsx';
 import { AdminView } from './pages/AdminPage.tsx';
+import { LiveTv, tvTablesOf } from './pages/LivePage.tsx';
+import { LiveCardView } from './components/LiveHome.tsx';
+import type { ChatMsg } from './lib/live.ts';
 import type { PayItem } from './lib/pay.ts';
 import { Invite, JoinRequestsView, MemberList, memberStatsOf } from './pages/GroupPage.tsx';
 import type { MemberStat } from './pages/GroupPage.tsx';
@@ -98,6 +102,16 @@ const DEMO_HISTORY: SessionResult[] = (() => {
   return out;
 })();
 
+/** 示範：電腦派晒剩低嘅牌 */
+function autoFill(d: Draw): Draw {
+  const used = new Set(Object.values(d.picks));
+  const left = d.players.map((p) => p.id).filter((id) => !used.has(id));
+  const free = d.tiles.map((_, i) => i).filter((i) => !d.picks[String(i)]).sort(() => Math.random() - 0.5);
+  const picks = { ...d.picks };
+  left.forEach((id, k) => { if (free[k] !== undefined) picks[String(free[k])] = id; });
+  return { ...d, picks, status: 'done' };
+}
+
 const DEMO_TEAMS = [
   { id: 'd1', members: ['gavin', 'athena'], accepted: ['gavin', 'athena'], by: 'gavin' },
   { id: 'd2', members: ['robin', 'kit'], accepted: ['robin', 'kit'], by: 'robin' },
@@ -162,6 +176,11 @@ export default function Demo() {
     { id: 'e1', kind: 'expense', label: '晚餐', payer: 'gavin', amount: 186.4, sharedBy: ['gavin', 'athena', 'ivan', 'viola', 'janice', 'sang', 'clau', 'af'], by: 'demo', at: null },
     { id: 'e2', kind: 'expense', label: '飲品', payer: 'guest-vincent', amount: 23.92, sharedBy: [], all: true, note: '奶茶', names: { 'guest-vincent': 'Vincent' }, by: 'demo', at: null },
   ]);
+  const [demoDraw, setDemoDraw] = useState<Draw | null>(null);
+  const [demoChat, setDemoChat] = useState<ChatMsg[]>([
+    { id: '1', by: 'athena', name: 'Athena', text: 'Gavin 今晚好旺喎 🔥', at: Date.now() - 600000 },
+    { id: '2', by: 'ivan', name: 'Ivan', text: '下一鋪一定到我', at: Date.now() - 300000 },
+  ]);
   const [demoPaid, setDemoPaid] = useState<Record<string, { by: string; at: number }>>({});
   const [people, setPeople] = useState<{ id: string; name: string }[]>([{ id: 'guest-vincent', name: 'Vincent' }]);
   const [pairs, setPairs] = useState<PairDoc[]>([{ id: 'p1', a: 'robin', b: 'tat', by: 'robin', accepted: ['robin'] }]);
@@ -171,6 +190,14 @@ export default function Demo() {
   const [manageDemo, setManageDemo] = useState(false);
   const [pickDemo, setPickDemo] = useState<string | null>(null);
   const [joinMode, setJoinModeDemo] = useState<JoinMode>('approve');
+  const [meets, setMeets] = useState<Meetup[]>(() => {
+    const at = (days: number, h: number) => { const d = new Date(); d.setDate(d.getDate() + days); d.setHours(h, 0, 0, 0); return d.getTime(); };
+    const names = { gavin: 'Gavin', athena: 'Athena', ivan: 'Ivan', viola: 'Viola', kit: 'Kit' };
+    return [
+      { id: 'm1', by: 'athena', byName: 'Athena', at: at(2, 20), place: 'Athena 屋企', note: '打 8 圈，食完飯先', going: ['athena', 'ivan', 'viola'], maybe: ['kit'], no: [], names, createdAt: Date.now() - 3600000 },
+      { id: 'm2', by: 'gavin', byName: 'Gavin', at: at(9, 19), place: '', note: '長週末開兩枱？', going: ['gavin', 'athena', 'ivan', 'viola', 'kit'], maybe: [], no: [], names, createdAt: Date.now() - 7200000 },
+    ];
+  });
   const [reqs, setReqs] = useState<JoinRequest[]>([
     { uid: 'kit', name: 'Kit', photoURL: null, inviteCode: 'x', at: null },
     { uid: 'mandy', name: 'Mandy', photoURL: null, inviteCode: 'x', at: null },
@@ -206,6 +233,27 @@ export default function Demo() {
     );
   }
 
+  if (path === '/demo/live') {
+    const tv = tvTablesOf(tables, computed);
+    const acc = new Map<string, { id: string; name: string; v: number }>();
+    for (const t of tables) { const c = computed[t.id]; if (!c) continue; for (const id of Object.keys(c.state.settled)) { const r = acc.get(id) ?? { id, name: t.names[id] ?? '玩家', v: 0 }; r.v += (c.state.settled[id] ?? 0) + (c.pending[id] ?? 0); acc.set(id, r); } }
+    return (
+      <LiveTv
+        groupName="不打不相識"
+        icon="🀄"
+        sessionName="10月18日 屋企局"
+        tables={tv}
+        ranking={[...acc.values()].sort((a, b) => b.v - a.v)}
+        chat={demoChat}
+        music="https://www.youtube.com/watch?v=jfKfPfyJRdk"
+        me="gavin"
+        backHref="/demo"
+        onSend={async (t) => setDemoChat((l) => [...l, { id: String(l.length + 1), by: 'gavin', name: 'Gavin', text: t, at: Date.now() }])}
+        onMusic={async () => undefined}
+      />
+    );
+  }
+
   if (path === '/demo/home') {
     return (
       <>
@@ -217,6 +265,20 @@ export default function Demo() {
           mine={mySessions(DEMO_GROUPS, 'gavin')}
           loading={false}
           resume={<ResumeRow href="/demo" name="10月18日 屋企局" />}
+          live={(() => {
+            const tv = tvTablesOf(tables, computed).slice(0, 3);
+            return (
+              <LiveCardView
+                groupName="不打不相識"
+                icon="🀄"
+                sessionName="10月18日 屋企局"
+                href="/demo"
+                tvHref="/demo/live"
+                me="gavin"
+                tables={tv.map((t) => ({ id: t.id, name: t.name, round: t.round, players: [...t.players].sort((a, b) => b.v - a.v) }))}
+              />
+            );
+          })()}
           sessionHref={() => '/demo'}
           rankHref="/demo/rank"
         />
@@ -260,7 +322,7 @@ export default function Demo() {
       { id: 'b', name: '星期五雀局', ownerId: 'tony', joinMode: 'auto', joinCode: 'zz81qa', members: people.slice(1, 5).map(([uid, name]) => ({ uid, name })),
         sessions: [2, 12].map((d, i) => ({ id: `t${i}`, name: `星期五 ${i + 1}`, at: now - d * day, closed: true, legacy: false })) },
     ];
-    const users = people.map(([uid, name, email]) => ({ uid, name, email, payEmail: email, groups: uid === 'gavin' ? ['a'] : uid === 'ivan' ? ['a'] : ['a', 'b'], updatedAt: now - day }));
+    const users = people.map(([uid, name, email]) => ({ uid, name, email, payEmail: email, groups: uid === 'gavin' ? ['a'] : uid === 'ivan' ? ['a'] : ['a', 'b'], updatedAt: now - day, firstName: uid === 'tony' ? 'Tony' : '', lastName: uid === 'tony' ? 'Tsui' : '', birthday: uid === 'tony' ? '10-24' : '' }));
     return <AdminView me="gavin" groups={groups} users={users} error="" onRefresh={() => undefined} />;
   }
 
@@ -312,6 +374,20 @@ export default function Demo() {
       <main className="page">
         <TopBar back="/demo/groups" title={g.name} />
         <JoinRequestsView reqs={reqs} onApprove={async (r) => setReqs((l) => l.filter((x) => x.uid !== r.uid))} onReject={async (r) => setReqs((l) => l.filter((x) => x.uid !== r.uid))} />
+        <MeetupsView
+          list={meets}
+          me="gavin"
+          ownerOrAdmin
+          onCreate={async (m) => setMeets((l) => [...l, { id: `m${Date.now()}`, by: 'gavin', byName: 'Gavin', ...m, going: ['gavin'], maybe: [], no: [], names: { gavin: 'Gavin' }, createdAt: Date.now() }].sort((a, b) => a.at - b.at))}
+          onRsvp={async (id, st) => setMeets((l) => l.map((m) => m.id !== id ? m : {
+            ...m,
+            going: [...m.going.filter((x) => x !== 'gavin'), ...(st === 'going' ? ['gavin'] : [])],
+            maybe: [...m.maybe.filter((x) => x !== 'gavin'), ...(st === 'maybe' ? ['gavin'] : [])],
+            no: [...m.no.filter((x) => x !== 'gavin'), ...(st === 'no' ? ['gavin'] : [])],
+            names: { ...m.names, gavin: 'Gavin' },
+          }))}
+          onDelete={async (id) => setMeets((l) => l.filter((m) => m.id !== id))}
+        />
         <section className="stack">
           <div className="section-head">
             <h2>成員（{members.length}）</h2>
@@ -452,8 +528,48 @@ export default function Demo() {
       water={{ on: !noWater, onToggle: async (on) => setNoWater(!on) }}
       candidates={[{ id: 'kit', name: 'Kit' }, { id: 'jo', name: 'Jo' }]}
       me="gavin"
-      onRegroup={async (plan) => {
-        setSeatOverride((m) => ({ ...m, ...Object.fromEntries(plan.map((p) => [p.tableId, p.seats])) }));
+      regroup={{
+        draw: demoDraw,
+        canForce: true,
+        candidates: [{ id: 'kit', name: 'Kit' }, { id: 'jo', name: 'Jo' }],
+        onStart: async (d) => {
+          setDemoDraw(d);
+          if (d.mode === 'auto') setTimeout(() => setDemoDraw((x) => (x ? autoFill(x) : x)), 1400);
+        },
+        onApprove: async () => setDemoDraw((x) => (x ? { ...x, status: 'picking' } : x)),
+        onPick: async (tile, player) => {
+          let r: 'ok' | 'taken' | 'done-already' = 'ok';
+          setDemoDraw((x) => {
+            if (!x || x.picks[String(tile)]) { r = 'taken'; return x; }
+            const picks = { ...x.picks, [String(tile)]: player };
+            return { ...x, picks, status: Object.keys(picks).length >= x.tiles.length ? 'done' : 'picking' };
+          });
+          return r;
+        },
+        onAuto: async () => setDemoDraw((x) => (x ? autoFill(x) : x)),
+        onCancel: async () => setDemoDraw(null),
+        onApply: async (plan) => {
+          // 示範：新嘅幾組人放返入原本幾張枱（用換人＋換位紀錄），名全部枱通用
+          const target = tables.filter((t) => computed[t.id] && !computed[t.id]!.state.ended);
+          setExtraNames((n) => ({ ...n, ...Object.assign({}, ...tables.map((t) => t.names)), ...Object.assign({}, ...plan.map((p) => p.names)) }));
+          setEvents((prev) => {
+            const next = { ...prev };
+            plan.forEach((p, k) => {
+              const t = target[k];
+              if (!t || p.keep) return;
+              const list = [...(next[t.id] ?? [])];
+              const add = (event: LogEvent) => list.push({ seq: list.length + 1, by: 'demo', event, at: Date.now() });
+              const current = computed[t.id]?.state.seats ?? [];
+              const out = current.filter((x) => !p.seats.includes(x));
+              const inn = p.seats.filter((x) => !current.includes(x));
+              out.forEach((o, i) => add({ type: 'swap', out: o, in: inn[i] }));
+              add({ type: 'reseat', seats: p.seats });
+              next[t.id] = list;
+            });
+            return next;
+          });
+          setDemoDraw(null);
+        },
       }}
     />
   );

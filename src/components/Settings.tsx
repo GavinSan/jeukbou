@@ -9,7 +9,7 @@ import { Avatar, NameForm, Sheet, message, useConfirm } from '../ui.tsx';
 import { askNotify, notifySupported } from '../lib/notify.ts';
 import { signOut } from 'firebase/auth';
 import { auth } from '../firebase.ts';
-import { displayName, setAvatar, setPayEmail, syncMemberName } from '../lib/data.ts';
+import { displayName, setAvatar, setPayEmail, setProfileDetails, syncMemberName } from '../lib/data.ts';
 import { useProfile } from '../lib/live.ts';
 import { toAvatar } from '../lib/avatar.ts';
 
@@ -103,8 +103,50 @@ export function ProfileEditor() {
         </div>
       )}
       <PayEmailField key={profile.data.payEmail} initial={profile.data.payEmail} onSave={(v) => task(() => setPayEmail(user, v, groups))} busy={busy} />
+      <DetailsFields
+        key={`${profile.data.firstName}|${profile.data.lastName}|${profile.data.birthday}`}
+        first={profile.data.firstName}
+        last={profile.data.lastName}
+        birthday={profile.data.birthday}
+        busy={busy}
+        onSave={(d) => task(() => setProfileDetails(user, d, groups))}
+      />
       {error && <p className="error" role="alert">{error}</p>}
       {confirmUI}
+    </div>
+  );
+}
+
+/** 真名同生日：真名淨係超級管理員見到；生日（唔使年份）同圈牌友見到 */
+function DetailsFields({ first, last, birthday, busy, onSave }: {
+  first: string; last: string; birthday: string; busy: boolean; onSave: (d: { firstName: string; lastName: string; birthday: string }) => void;
+}) {
+  const [f, setF] = useState(first);
+  const [l, setL] = useState(last);
+  const [m, setM] = useState(birthday ? Number(birthday.slice(0, 2)) : 0);
+  const [d, setD] = useState(birthday ? Number(birthday.slice(3, 5)) : 0);
+  const maxDay = m ? new Date(2024, m, 0).getDate() : 31;
+  const bday = m && d ? `${String(m).padStart(2, '0')}-${String(Math.min(d, maxDay)).padStart(2, '0')}` : '';
+  const changed = f.trim() !== first || l.trim() !== last || bday !== birthday;
+  return (
+    <div className="field details-fields">
+      <span>真名同生日<small className="muted">　可以留空</small></span>
+      <div className="row">
+        <input className="input grow" value={f} onChange={(e) => setF(e.target.value.slice(0, 30))} placeholder="名（First name）" aria-label="名" autoComplete="given-name" />
+        <input className="input grow" value={l} onChange={(e) => setL(e.target.value.slice(0, 30))} placeholder="姓（Last name）" aria-label="姓" autoComplete="family-name" />
+      </div>
+      <div className="row">
+        <select className="input grow" value={m} onChange={(e) => setM(Number(e.target.value))} aria-label="生日月份">
+          <option value={0}>生日月份</option>
+          {Array.from({ length: 12 }, (_, i) => <option key={i} value={i + 1}>{i + 1} 月</option>)}
+        </select>
+        <select className="input grow" value={d} onChange={(e) => setD(Number(e.target.value))} aria-label="生日日子">
+          <option value={0}>日子</option>
+          {Array.from({ length: maxDay }, (_, i) => <option key={i} value={i + 1}>{i + 1} 日</option>)}
+        </select>
+      </div>
+      <small className="muted">真名淨係超級管理員見到（認人用）；生日唔使年份，同圈牌友會見到，方便一齊慶祝。</small>
+      {changed && <button type="button" className="btn small-btn" disabled={busy} onClick={() => onSave({ firstName: f, lastName: l, birthday: bday })}>儲存</button>}
     </div>
   );
 }
@@ -126,7 +168,7 @@ function PayEmailField({ initial, onSave, busy }: { initial: string; onSave: (v:
   );
 }
 
-/** 介面風格：四款，揀咗即刻轉（只存喺呢部機） */
+/** 介面風格：十款，揀咗即刻轉（只存喺呢部機） */
 export function SkinPicker() {
   const p = usePrefs();
   return (
