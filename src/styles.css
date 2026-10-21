@@ -1824,3 +1824,98 @@ a.badge-link:active { transform: scale(.97); }
 .more-people summary::-webkit-details-marker { display: none; }
 .more-people summary::after { content: ' ›'; }
 .more-people[open] summary::after { content: ' ⌄'; }
+
+/* 番數快捷：10 → 300 慢慢由淡變深紅（唔會去到 70 突然變） */
+.dock-quick button.grad { background: color-mix(in srgb, #C8321E var(--t), var(--surface)); border-color: color-mix(in srgb, #C8321E min(100%, calc(var(--t) + 12%)), var(--line)); color: color-mix(in srgb, #B02E26 min(100%, calc(var(--t) + 30%)), var(--ink)); }
+.dock-quick button.grad.light { color: #FFF6EE; }
+.dock-quick button.grad[aria-pressed="true"] { box-shadow: 0 0 0 2px var(--felt), 0 0 0 4px var(--surface); }
+.stamp.clear { color: var(--gain); border-color: var(--gain); }
+.acts { grid-template-columns: none !important; grid-auto-flow: column; grid-auto-columns: minmax(0, 1fr); }
+.act.icon-act { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px; min-height: 64px; padding: 8px 4px; }
+.act.icon-act svg { color: var(--felt); }
+.act.icon-act.end svg { color: var(--loss); }
+.act.icon-act span { font-size: 14px; }
+.dock-ask { margin: 0 auto !important; }
+.dock-sp-btn { display: flex; align-items: center; gap: 10px; text-align: left; width: 100%; padding: 10px 14px; }
+.dock-sp-btn b { display: block; font-size: 15px; }
+.dock-sp-btn small { display: block; color: var(--muted); font-size: 12px; font-weight: 500; margin-top: 2px; }
+
+/* 紀錄表：數字大返少少；黃色 = 拉住未俾 */
+.lg-cell .num { font-size: 20px !important; }
+.lg-cell .lg-pend { font-size: 12px !important; }
+.lg-pend-big { color: #C99A1C !important; }
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) .lg-pend-big { color: #F2C14E !important; } }
+:root[data-theme="dark"] .lg-pend-big { color: #F2C14E !important; }
+.lg-la { color: #C99A1C; }
+
+/* 換人：四個位（東南西北）可以拖人落去 */
+.swap-seats { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
+.swap-seat { display: flex; flex-direction: column; align-items: flex-start; gap: 2px; min-height: 64px; padding: 8px 12px; border-radius: 14px; border: 1.5px solid var(--line); background: var(--surface); color: var(--ink); font: inherit; text-align: left; cursor: pointer; min-width: 0; position: relative; }
+.swap-seat .ss-wind { position: absolute; right: 10px; top: 8px; width: 24px; height: 30px; border-radius: 5px; background: var(--tile); color: var(--tile-ink); font-family: var(--font-kai); font-weight: 700; display: flex; align-items: center; justify-content: center; box-shadow: 0 2px 0 var(--tile-back); }
+.swap-seat .ellipsis { max-width: calc(100% - 34px); font-size: 16px; font-weight: 600; }
+.swap-seat small { color: var(--muted); font-size: 12px; }
+.swap-seat.on { border-color: var(--loss); background: var(--loss-soft); }
+.swap-seat.over { border-color: var(--gain); border-style: dashed; background: var(--gain-soft); transform: scale(1.02); }
+.drag-chip { touch-action: none; }
+.drag-ghost { position: fixed; z-index: 100; transform: translate(-50%, -120%); pointer-events: none; padding: 6px 12px; border-radius: 10px; background: var(--felt); color: var(--felt-ink); font-weight: 700; box-shadow: 0 8px 20px rgba(0,0,0,.3); }
+.pay-email-row { display: flex; align-items: center; gap: 10px; padding: 10px 12px; border-radius: 12px; background: var(--sunk); }
+.pay-email-text { font-weight: 600; user-select: all; }
+.btn.small-btn.done { background: var(--gain); }
+
+/* 日曆 round 18 */
+.mcal-title { flex: 1; display: flex; align-items: baseline; justify-content: center; gap: 8px; flex-wrap: wrap; border: none; background: none; color: inherit; font: inherit; cursor: pointer; padding: 4px; border-radius: 10px; }
+.mcal-title:active { background: var(--sunk); }
+.mcal-title b { font-size: 16px; }
+.mcal-sub { font-size: 13px; color: var(--muted); }
+.mcal-caret { font-size: 12px; color: var(--muted); }
+.mcal-d.other { opacity: .38; }
+.mcal-pick { display: flex; flex-direction: column; gap: 10px; align-items: center; padding: 4px 0; }
+.mcal-year { display: flex; align-items: center; gap: 8px; }
+.mcal-year b { font-size: 17px; min-width: 6em; text-align: center; }
+.mcal-months { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 6px; width: 100%; }
+.mcal-m { min-height: 42px; border-radius: 10px; border: 1.5px solid var(--line); background: var(--sunk); color: var(--ink); font: inherit; cursor: pointer; }
+.mcal-m.played { border-color: color-mix(in srgb, var(--gain) 50%, var(--line)); }
+.mcal-m.on { background: var(--felt); color: var(--felt-ink); border-color: var(--felt); }
+
+/* 段位梯：每級分數範圍；自己嗰級有進度條 */
+.tier-ladder li { min-height: 56px; }
+.tier-row { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
+.tier-row-top { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; }
+.tier-row-top .num { font-weight: 500; }
+.tier-row-bar { display: flex; flex-direction: column; gap: 3px; }
+.tier-row-bar small { font-size: 12px; color: var(--gain); font-weight: 600; }
+.tier-mark-col { width: 16px; text-align: center; color: var(--gain); font-size: 13px; flex: none; }
+.tier-ladder li.todo { opacity: .7; }
+
+/* 高段位：越高越誇張 */
+.tier-tile.t5 { animation: tierPulse 2.6s ease-in-out infinite; }
+.tier-tile.t6 { animation: tierPulse 2s ease-in-out infinite; }
+.tier-tile.t7 { animation: tierPulse 1.8s ease-in-out infinite, tierFloat 3s ease-in-out infinite; }
+.tier-tile.t8 { animation: tierGlow 1.5s ease-in-out infinite, tierFloat 2.6s ease-in-out infinite; }
+.tier-tile.t9 { animation: tierGlow 1.6s ease-in-out infinite, tierFloat 2.4s ease-in-out infinite; }
+.tier-tile.lg.t9::after { animation-duration: 1.4s !important; }
+@keyframes tierPulse { 0%, 100% { box-shadow: 0 3px 0 var(--c), 0 0 0 0 color-mix(in srgb, var(--c) 0%, transparent); } 50% { box-shadow: 0 3px 0 var(--c), 0 0 16px 4px color-mix(in srgb, var(--c) 55%, transparent); } }
+@keyframes tierGlow { 0%, 100% { box-shadow: 0 3px 0 var(--c), 0 0 0 2px #D4AF37 inset, 0 0 12px 2px rgba(212, 175, 55, .5); } 50% { box-shadow: 0 3px 0 var(--c), 0 0 0 2px #FFE58A inset, 0 0 30px 10px rgba(255, 210, 80, .75); } }
+@keyframes tierFloat { 0%, 100% { transform: translateY(0) rotate(0); } 50% { transform: translateY(-3px) rotate(-2deg); } }
+@keyframes tierSpin { to { transform: rotate(360deg); } }
+@media (prefers-reduced-motion: reduce) { .tier-tile, .tier-tile::before { animation: none !important; } }
+.row-icon { width: 36px; height: 36px; flex: none; border-radius: 10px; display: flex; align-items: center; justify-content: center; background: var(--sunk); color: var(--felt); }
+
+/* --- 再多 6 款：只改枱面、牌背同重點色，其他照舊，所以光暗模式都用得 --- */
+.skin-pick { grid-template-columns: repeat(3, minmax(0, 1fr)) !important; gap: 6px !important; }
+.skin-card { padding: 8px 10px !important; gap: 2px !important; }
+.skin-card b { font-size: 14px !important; }
+.skin-card small { font-size: 11px !important; }
+.skin-sw i { width: 16px !important; height: 16px !important; border-radius: 4px !important; }
+:root[data-skin="ocean"] { --felt: #174A6B; --felt-deep: #0F3550; --felt-ink: #E3F1F7; --tile-back: #1FA39A; --tile-back-deep: #137A73; }
+:root[data-skin="ocean"] .hero { background: linear-gradient(140deg, #1C5A80, #0E3049); }
+:root[data-skin="sakura"] { --felt: #B5476B; --felt-deep: #8E3253; --felt-ink: #FFF1F4; --tile-back: #E58FA8; --tile-back-deep: #C2667F; }
+:root[data-skin="sakura"] .hero { background: linear-gradient(140deg, #C45679, #84304D); }
+:root[data-skin="matcha"] { --felt: #5B6B2E; --felt-deep: #43511F; --felt-ink: #F6F2E2; --tile-back: #9CB04A; --tile-back-deep: #758835; }
+:root[data-skin="matcha"] .hero { background: linear-gradient(140deg, #6C7E37, #3C4A1B); }
+:root[data-skin="midnight"] { --felt: #18223F; --felt-deep: #0F172D; --felt-ink: #DCE4F4; --tile-back: #5B8DEF; --tile-back-deep: #3C68C4; }
+:root[data-skin="midnight"] .hero { background: linear-gradient(140deg, #22305A, #0E152B); }
+:root[data-skin="amber"] { --felt: #6B4423; --felt-deep: #4E3018; --felt-ink: #FBF2E0; --tile-back: #D9A23A; --tile-back-deep: #A87A22; }
+:root[data-skin="amber"] .hero { background: linear-gradient(140deg, #7E522C, #452A14); }
+:root[data-skin="violet"] { --felt: #4B2E83; --felt-deep: #361F62; --felt-ink: #F3EEFB; --tile-back: #9C7BE0; --tile-back-deep: #7356B8; }
+:root[data-skin="violet"] .hero { background: linear-gradient(140deg, #5A3A9A, #2D1856); }

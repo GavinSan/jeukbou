@@ -252,7 +252,7 @@ export default function GroupPage({ user, groupId }: { user: User; groupId: stri
                     const ts = s.payout?.transfers ?? [];
                     if (!ts.length) return null;
                     const done = ts.filter((t) => s.paid?.[`${t.from}>${t.to}`]).length;
-                    return done >= ts.length ? <span className="pay-status done">已找清</span> : <span className="pay-status">未找數</span>;
+                    return done >= ts.length ? <span className="pay-status done">已找清</span> : <span className="pay-status">待找數 {done}/{ts.length}</span>;
                   })()}</span>
                   <span className="muted small">{s.createdAt ? s.createdAt.toDate().toLocaleDateString('zh-HK') : ''}</span>
                   {!manage && <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" aria-hidden="true"><path d="M9 6l6 6-6 6" /></svg>}
@@ -286,10 +286,6 @@ export default function GroupPage({ user, groupId }: { user: User; groupId: stri
         </section>
       )}
 
-      <Link to={`/g/${groupId}/rules`} className="listrow list">
-        <span className="grow">家規<span className="muted small">　底、莊、雙響、拉、抽水</span></span>
-        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" aria-hidden="true"><path d="M9 6l6 6-6 6" /></svg>
-      </Link>
 
       <section className="stack">
         <div className="section-head">

@@ -126,7 +126,7 @@ function PayEmailField({ initial, onSave, busy }: { initial: string; onSave: (v:
   );
 }
 
-/** 介面風格：四款，揀咗即刻轉（只存喺呢部機） */
+/** 介面風格：十款，揀咗即刻轉（只存喺呢部機） */
 export function SkinPicker() {
   const p = usePrefs();
   return (

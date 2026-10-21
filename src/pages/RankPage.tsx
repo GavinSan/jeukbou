@@ -54,15 +54,27 @@ export function RankView({ me, mine, groups, loading }: { me: string; mine: MySe
 
       <section className="stack">
         <h2 className="section-head">段位</h2>
-        <ol className="list ladder">
-          {TIERS.map((x) => (
-            <li key={x.name} className={x.name === t.tier.name ? 'here' : st.points >= x.min ? 'done' : ''}>
-              <TierTile tier={x} size="sm" />
-              <span className="grow">{x.name}</span>
-              <span className="muted small num">{x.min} 分</span>
-              {x.name === t.tier.name && <span className="tag new">你在這裡</span>}
-            </li>
-          ))}
+        <ol className="list ladder tier-ladder">
+          {TIERS.map((x, i) => {
+            const next = TIERS[i + 1];
+            const here = x.name === t.tier.name;
+            const done = st.points >= (next?.min ?? Infinity);
+            return (
+              <li key={x.name} className={here ? 'here' : done ? 'done' : st.points >= x.min ? 'done' : 'todo'}>
+                <TierTile tier={x} size="sm" />
+                <span className="grow tier-row">
+                  <span className="tier-row-top"><b>{x.name}</b><span className="muted small num">{next ? `${x.min}–${next.min - 1} 分` : `${x.min} 分以上`}</span></span>
+                  {here && (
+                    <span className="tier-row-bar">
+                      <Progress value={t.progress} />
+                      <small className="num">{st.points} 分{t.next ? ` · 再 ${t.toNext} 分升級` : ' · 最高段位'}</small>
+                    </span>
+                  )}
+                </span>
+                <span className="tier-mark-col" aria-hidden="true">{done ? '✓' : here ? '●' : ''}</span>
+              </li>
+            );
+          })}
         </ol>
       </section>
 
@@ -76,7 +88,7 @@ export function RankView({ me, mine, groups, loading }: { me: string; mine: MySe
       </section>
 
       <section className="stack" id="badges">
-        <h2 className="section-head">成就 {badges.filter((b) => b.got).length}/{badges.length}</h2>
+        <h2 className="section-head">成就<small className="muted head-note">已解鎖 {badges.filter((b) => b.got).length} 個・共 {badges.length} 個</small></h2>
         <BadgeCats badges={badges} stats={st} />
       </section>
 

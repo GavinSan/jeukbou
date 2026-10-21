@@ -32,10 +32,10 @@ export function PersonSheet({ ids, pp, amount, onClose }: { ids: string[]; pp: P
           <div key={id} className="pay-person">
             <b>{pp.names[id] ?? '玩家'}</b>
             {email ? (
-              <button type="button" className="btn plain pay-email" onClick={() => copy(id, email)}>
-                <span className="ellipsis">{email}</span>
-                <small>{copied === id ? '已複製' : 'Interac e-Transfer・撳一下複製'}</small>
-              </button>
+              <div className="pay-email-row">
+                <span className="grow exp-text"><span className="ellipsis pay-email-text">{email}</span><small className="muted">Interac e-Transfer</small></span>
+                <button type="button" className={`btn small-btn${copied === id ? ' done' : ''}`} onClick={() => copy(id, email)}>{copied === id ? '✓ 已複製' : '複製 email'}</button>
+              </div>
             ) : (
               <p className="muted small">未有填 Interac email（佢可以喺「設定」加）。</p>
             )}

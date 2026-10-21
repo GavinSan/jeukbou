@@ -36,53 +36,70 @@ function TierStrip({ points }: { points: number }) {
 }
 
 /** 最近 12 個星期：每日一格，贏綠輸紅，越深越多 */
-/** 打牌日曆：真係一個月嘅日曆，有打嘅日子顯示輸贏；左右轉月 */
+/** 打牌日曆：一個月嘅日曆，前後月份嘅日子淡色顯示；撳標題揀年同月 */
 function MonthCalendar({ mine, sessionHref }: { mine: MySession[]; sessionHref: (s: MySession) => string }) {
-  const [offset, setOffset] = useState(0);
-  const base = new Date();
-  base.setDate(1);
-  base.setHours(0, 0, 0, 0);
-  base.setMonth(base.getMonth() + offset);
-  const year = base.getFullYear();
-  const month = base.getMonth();
-  const days = new Date(year, month + 1, 0).getDate();
-  const lead = (base.getDay() + 6) % 7; // 星期一開始
-  const byDay = new Map<number, MySession[]>();
-  for (const s of mine) {
-    const d = new Date(s.at);
-    if (d.getFullYear() !== year || d.getMonth() !== month) continue;
-    const k = d.getDate();
-    byDay.set(k, [...(byDay.get(k) ?? []), s]);
-  }
-  const today = new Date();
-  const isToday = (d: number) => today.getFullYear() === year && today.getMonth() === month && today.getDate() === d;
-  const total = [...byDay.values()].flat().reduce((a, s) => a + s.mine, 0);
-  const first = mine.length ? new Date(Math.min(...mine.map((s) => s.at))) : today;
-  const canBack = year > first.getFullYear() || (year === first.getFullYear() && month > first.getMonth());
+  const now = new Date();
+  const [ym, setYm] = useState({ y: now.getFullYear(), m: now.getMonth() });
+  const [picking, setPicking] = useState(false);
+  const [py, setPy] = useState(ym.y);
+  const first = new Date(ym.y, ym.m, 1);
+  const lead = (first.getDay() + 6) % 7; // 星期一開始
+  const start = new Date(ym.y, ym.m, 1 - lead);
+  const cells = Math.ceil((lead + new Date(ym.y, ym.m + 1, 0).getDate()) / 7) * 7;
+  const key = (d: Date) => `${d.getFullYear()}-${d.getMonth()}-${d.getDate()}`;
+  const byDay = new Map<string, MySession[]>();
+  for (const x of mine) { const k = key(new Date(x.at)); byDay.set(k, [...(byDay.get(k) ?? []), x]); }
+  const inMonth = mine.filter((x) => { const d = new Date(x.at); return d.getFullYear() === ym.y && d.getMonth() === ym.m; });
+  const days = new Set(inMonth.map((x) => key(new Date(x.at)))).size;
+  const total = inMonth.reduce((a, x) => a + x.mine, 0);
+  const shift = (n: number) => setYm(({ y, m }) => { const d = new Date(y, m + n, 1); return { y: d.getFullYear(), m: d.getMonth() }; });
+  const playedMonths = new Set(mine.map((x) => { const d = new Date(x.at); return `${d.getFullYear()}-${d.getMonth()}`; }));
   return (
     <div className="mcal">
       <div className="mcal-head">
-        <button type="button" className="iconbtn" aria-label="上個月" disabled={!canBack} onClick={() => setOffset((o) => o - 1)}>‹</button>
-        <span className="grow center-text"><b>{year}年{month + 1}月</b><small className="muted">{byDay.size ? ` · 打咗 ${byDay.size} 日 · ` : ' · 未打過'}{byDay.size ? <span className={total > 0 ? 'gain' : total < 0 ? 'loss' : ''}>{fmt(total)}</span> : null}</small></span>
-        <button type="button" className="iconbtn" aria-label="下個月" disabled={offset >= 0} onClick={() => setOffset((o) => o + 1)}>›</button>
+        <button type="button" className="iconbtn" aria-label="上個月" onClick={() => shift(-1)}>‹</button>
+        <button type="button" className="mcal-title" aria-expanded={picking} onClick={() => { setPy(ym.y); setPicking((v) => !v); }}>
+          <b>{ym.y}年{ym.m + 1}月</b>
+          <span className="mcal-sub">{days ? <>打咗 {days} 日 · <span className={total > 0 ? 'gain' : total < 0 ? 'loss' : ''}>{fmt(total)}</span></> : '未打過'}</span>
+          <span className="mcal-caret" aria-hidden="true">{picking ? '⌃' : '⌄'}</span>
+        </button>
+        <button type="button" className="iconbtn" aria-label="下個月" onClick={() => shift(1)}>›</button>
       </div>
-      <div className="mcal-grid">
-        {['一', '二', '三', '四', '五', '六', '日'].map((w) => <span key={w} className="mcal-w">{w}</span>)}
-        {Array.from({ length: lead }, (_, i) => <span key={`b${i}`} />)}
-        {Array.from({ length: days }, (_, i) => {
-          const d = i + 1;
-          const list = byDay.get(d);
-          const v = list?.reduce((a, s) => a + s.mine, 0) ?? 0;
-          const cls = `mcal-d${list ? (v > 0 ? ' win' : v < 0 ? ' lose' : ' even') : ''}${isToday(d) ? ' today' : ''}`;
-          if (!list) return <span key={d} className={cls}><span>{d}</span></span>;
-          return (
-            <Link key={d} to={sessionHref(list[list.length - 1])} className={cls} ariaLabel={`${month + 1}月${d}日 ${fmt(v)}`}>
-              <span>{d}</span>
-              <small className="num">{fmt(v)}</small>
-            </Link>
-          );
-        })}
-      </div>
+      {picking ? (
+        <div className="mcal-pick">
+          <div className="mcal-year">
+            <button type="button" className="iconbtn" aria-label="上一年" onClick={() => setPy((y) => y - 1)}>‹</button>
+            <b>{py}年</b>
+            <button type="button" className="iconbtn" aria-label="下一年" onClick={() => setPy((y) => y + 1)}>›</button>
+          </div>
+          <div className="mcal-months">
+            {Array.from({ length: 12 }, (_, i) => (
+              <button key={i} type="button" className={`mcal-m${py === ym.y && i === ym.m ? ' on' : ''}${playedMonths.has(`${py}-${i}`) ? ' played' : ''}`} onClick={() => { setYm({ y: py, m: i }); setPicking(false); }}>{i + 1}月</button>
+            ))}
+          </div>
+          <button type="button" className="textbtn" onClick={() => { setYm({ y: now.getFullYear(), m: now.getMonth() }); setPicking(false); }}>返今個月</button>
+        </div>
+      ) : (
+        <div className="mcal-grid">
+          {['一', '二', '三', '四', '五', '六', '日'].map((w) => <span key={w} className="mcal-w">{w}</span>)}
+          {Array.from({ length: cells }, (_, i) => {
+            const d = new Date(start);
+            d.setDate(start.getDate() + i);
+            const list = byDay.get(key(d));
+            const v = list?.reduce((a, x) => a + x.mine, 0) ?? 0;
+            const other = d.getMonth() !== ym.m;
+            const today = key(d) === key(now);
+            const cls = `mcal-d${list ? (v > 0 ? ' win' : v < 0 ? ' lose' : ' even') : ''}${today ? ' today' : ''}${other ? ' other' : ''}`;
+            if (!list) return <span key={i} className={cls}><span>{d.getDate()}</span></span>;
+            return (
+              <Link key={i} to={sessionHref(list[list.length - 1])} className={cls} ariaLabel={`${d.getMonth() + 1}月${d.getDate()}日 ${fmt(v)}`}>
+                <span>{d.getDate()}</span>
+                <small className="num">{fmt(v)}</small>
+              </Link>
+            );
+          })}
+        </div>
+      )}
     </div>
   );
 }
@@ -220,14 +237,14 @@ export function DashboardView({ name, photo, joined, groupCount, mine, loading, 
                 <div className="ms ms-red"><span className="ms-mark">銃</span><b className="num"><CountUp value={st.dealIns} /></b><small>出銃</small></div>
                 <div className="ms ms-purple"><span className="ms-mark">大</span><b className="num"><CountUp value={st.bestFan} /></b><small>最大一鋪</small></div>
               </div>
-              {st.rounds > 0 && <p className="muted small">每圈平均：食 {(st.handWins / st.rounds).toFixed(1)}・摸 {(st.selfDraws / st.rounds).toFixed(1)}・銃 {(st.dealIns / st.rounds).toFixed(1)}（共 {st.rounds} 圈）</p>}
+              {st.rounds > 0 && <p className="muted small">每圈平均：食糊 {(st.handWins / st.rounds).toFixed(1)} 次・自摸 {(st.selfDraws / st.rounds).toFixed(1)} 次・出銃 {(st.dealIns / st.rounds).toFixed(1)} 次（共 {st.rounds} 圈）</p>}
             </section>
           )}
 
           <section className="stack">
             <div className="section-head">
               <h2>成就</h2>
-              <Link to={`${rankHref}#badges`} className="textbtn">全部 {got.length}/{badges.length}</Link>
+              <Link to={`${rankHref}#badges`} className="textbtn">已解鎖 {got.length} 個 ›</Link>
             </div>
             <div className="badge-row">{preview.map((b) => <BadgeTile key={b.key} b={b} href={`${rankHref}#badge-${b.cat}`} />)}</div>
           </section>

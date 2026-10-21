@@ -94,7 +94,7 @@ function Overview({ groups, users, onGo }: { groups: AdminGroup[]; users: AdminU
         {recent.sort((a, b) => b.at - a.at).slice(0, 10).map((s) => (
           <Link key={s.id} to={`/g/${s.g.id}/s/${s.id}`} className="listrow">
             <span className="grow exp-text"><span>{s.name}</span><small className="muted">{s.g.name} · {md(s.at)}</small></span>
-            <span className={`tag ${s.closed ? 'settle' : 'pending'}`}>{s.closed ? '已埋數' : '進行中'}</span>
+            <span className={`tag ${s.closed ? 'settle' : 'pending'}`}>{s.closed ? '計好數' : '進行中'}</span>
             <span className="chev" aria-hidden="true">›</span>
           </Link>
         ))}

@@ -9,7 +9,7 @@ import type { PlayStats } from './score.ts';
 import type { BoardRow } from '../components/Charts.tsx';
 
 // 已埋數嘅大局唔會再變：計過一次就記住（呢部機），下次即刻有
-const CACHE_KEY = 'jeukbou-totals-v4';
+const CACHE_KEY = 'jeukbou-totals-v5';
 type Totals = { totals: Record<string, number>; names: Record<string, string>; play?: PlayStats };
 let memo: Record<string, Totals> | null = null;
 function cacheGet(k: string) {

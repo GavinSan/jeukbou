@@ -269,51 +269,18 @@ export const sfx = {
     const t = c.currentTime;
     [2900, 3400, 3100].forEach((f, i) => ping(c, t + i * 0.06, f));
   },
-  /** 找數：似打機扣血，「嘭」一下再一路跌落去 */
+  /** 找數：清脆「叮叮」提示聲（好似收銀機／門鈴），唔再係扣血聲 */
   settle() {
     const c = ready();
     if (!c) return;
     const t = c.currentTime;
-    // 重擊：低頻 thump
-    const k = c.createOscillator();
-    k.type = 'sine';
-    k.frequency.setValueAtTime(160, t);
-    k.frequency.exponentialRampToValueAtTime(45, t + 0.18);
-    const kg = c.createGain();
-    kg.gain.setValueAtTime(0.7, t);
-    kg.gain.exponentialRampToValueAtTime(0.001, t + 0.22);
-    k.connect(kg).connect(c.destination);
-    k.start(t);
-    k.stop(t + 0.24);
-    // 碎聲
-    const n = c.createBufferSource();
-    n.buffer = noiseBuffer(c, 0.12);
-    const lp = c.createBiquadFilter();
-    lp.type = 'lowpass';
-    lp.frequency.setValueAtTime(3000, t);
-    lp.frequency.exponentialRampToValueAtTime(300, t + 0.1);
-    const ng = c.createGain();
-    ng.gain.setValueAtTime(0.35, t);
-    ng.gain.exponentialRampToValueAtTime(0.001, t + 0.11);
-    n.connect(lp).connect(ng).connect(c.destination);
-    n.start(t);
-    n.stop(t + 0.12);
-    // 8-bit 扣血：方波一級級跌
-    const sq = c.createOscillator();
-    sq.type = 'square';
-    const steps = [660, 520, 400, 300, 220, 160];
-    steps.forEach((f, i) => sq.frequency.setValueAtTime(f, t + 0.06 + i * 0.045));
-    const sf = c.createBiquadFilter();
-    sf.type = 'lowpass';
-    sf.frequency.value = 2200;
-    const sg = c.createGain();
-    sg.gain.setValueAtTime(0.0001, t + 0.05);
-    sg.gain.exponentialRampToValueAtTime(0.12, t + 0.07);
-    sg.gain.setValueAtTime(0.12, t + 0.28);
-    sg.gain.exponentialRampToValueAtTime(0.0001, t + 0.38);
-    sq.connect(sf).connect(sg).connect(c.destination);
-    sq.start(t + 0.05);
-    sq.stop(t + 0.4);
+    const bell = (at: number, f: number, g: number) => {
+      tone(c, at, f, 0.9, { type: 'sine', gain: g, attack: 0.004 });
+      tone(c, at, f * 2.76, 0.35, { type: 'sine', gain: g * 0.25, attack: 0.004 });
+      tone(c, at, f * 5.4, 0.18, { type: 'sine', gain: g * 0.08, attack: 0.002 });
+    };
+    bell(t, 1318.5, 0.22);
+    bell(t + 0.16, 1760, 0.2);
   },
   /** 一下：撳掣、流局 */
   tap() {

@@ -453,7 +453,24 @@ export default function Demo() {
       candidates={[{ id: 'kit', name: 'Kit' }, { id: 'jo', name: 'Jo' }]}
       me="gavin"
       onRegroup={async (plan) => {
-        setSeatOverride((m) => ({ ...m, ...Object.fromEntries(plan.map((p) => [p.tableId, p.seats])) }));
+        // 同真嘅一樣：開咗局嘅枱用「換人」＋「換位」紀錄，未開局嘅直接改座位；名全部枱通用
+        setExtraNames((n) => ({ ...n, ...Object.assign({}, ...tables.map((t) => t.names)) }));
+        setEvents((prev) => {
+          const next = { ...prev };
+          for (const p of plan) {
+            const list = [...(next[p.tableId] ?? [])];
+            if (!list.length) continue;
+            const add = (event: LogEvent) => list.push({ seq: list.length + 1, by: 'demo', event, at: Date.now() });
+            const current = computed[p.tableId]?.state.seats ?? [];
+            const out = current.filter((x) => !p.seats.includes(x));
+            const inn = p.seats.filter((x) => !current.includes(x));
+            out.forEach((o, i) => add({ type: 'swap', out: o, in: inn[i] }));
+            add({ type: 'reseat', seats: p.seats });
+            next[p.tableId] = list;
+          }
+          return next;
+        });
+        setSeatOverride((m) => ({ ...m, ...Object.fromEntries(plan.filter((p) => !(events[p.tableId] ?? []).length).map((p) => [p.tableId, p.seats])) }));
       }}
     />
   );

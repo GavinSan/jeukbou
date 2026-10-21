@@ -118,7 +118,9 @@ for (const scheme of ['light', 'dark']) {
     });
     await step('special', async () => {
       await page.waitForTimeout(400);
-      await page.getByRole('button', { name: /^特別事項/ }).click();
+      await page.locator('.felt .tile').first().click();
+      await page.waitForTimeout(200);
+      await page.getByRole('button', { name: /有特別事項/ }).click();
       await page.waitForTimeout(300);
       await page.getByRole('dialog').getByRole('button', { name: /一台花/ }).click();
       await page.waitForTimeout(250);
@@ -238,7 +240,9 @@ for (const scheme of ['light', 'dark']) {
     await step('gag', async () => {
       await page.goto(`${base}/demo/t/2`, { waitUntil: 'networkidle' });
       await page.waitForTimeout(1200);
-      await page.getByRole('button', { name: /^特別事項/ }).click();
+      await page.locator('.felt .tile').first().click();
+      await page.waitForTimeout(200);
+      await page.getByRole('button', { name: /有特別事項/ }).click();
       await page.getByRole('dialog').getByRole('button', { name: /詐糊/ }).click();
       await page.getByRole('dialog').getByRole('button', { name: 'Tat', exact: true }).click();
       await page.getByRole('button', { name: /^入數，付每家/ }).click();
@@ -314,7 +318,9 @@ for (const scheme of ['light', 'dark']) {
     await step('heaven', async () => {
       await page.goto(`${base}/demo/t/1`, { waitUntil: 'networkidle' });
       await page.waitForTimeout(1200);
-      await page.getByRole('button', { name: /^特別事項/ }).click();
+      await page.locator('.felt .tile').first().click();
+      await page.waitForTimeout(200);
+      await page.getByRole('button', { name: /有特別事項/ }).click();
       await page.waitForTimeout(300);
       await page.getByRole('dialog').getByRole('button', { name: /天槓/ }).click();
       await page.waitForTimeout(500);
@@ -348,7 +354,9 @@ for (const scheme of ['light', 'dark']) {
       await page.getByRole('button', { name: /^打快/ }).click();
       await page.waitForTimeout(800);
       await page.screenshot({ path: `${out}/rounds-extended.png` });
-      await page.getByRole('button', { name: /^特別事項/ }).click();
+      await page.locator('.felt .tile').first().click();
+      await page.waitForTimeout(200);
+      await page.getByRole('button', { name: /有特別事項/ }).click();
       await page.waitForTimeout(300);
       await page.getByRole('dialog').getByRole('button', { name: /詐糊/ }).click();
       await page.getByRole('dialog').getByRole('button', { name: 'Lok', exact: true }).click();
@@ -422,6 +430,11 @@ for (const scheme of ['light', 'dark']) {
         await page.goto(`${base}/demo/settle?skin=${sk}`, { waitUntil: 'networkidle' });
         await page.waitForTimeout(500);
         await page.screenshot({ path: `${out}/skin-${sk}-settle.png` });
+      }
+      for (const sk of ['ocean', 'sakura', 'matcha', 'midnight', 'amber', 'violet']) {
+        await page.goto(`${base}/demo/t/0?skin=${sk}`, { waitUntil: 'networkidle' });
+        await page.waitForTimeout(900);
+        await page.screenshot({ path: `${out}/skin-${sk}-table.png` });
       }
       await page.goto(`${base}/demo/skins`, { waitUntil: 'networkidle' });
       await page.waitForTimeout(300);

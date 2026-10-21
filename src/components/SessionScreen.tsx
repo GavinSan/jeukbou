@@ -205,6 +205,7 @@ export default function SessionScreen({ title, back, tables, computed, tableHref
               </div>
               {c && (
                 <div className="facts">
+                  {c.state.dealerTurns > 0 && <span className="fact"><b>{String(Math.round((c.state.dealerTurns / 4) * 100) / 100)}</b> 圈</span>}
                   <span className="fact"><b>{c.stats.hands}</b> 鋪</span>
                   {paceOf(c.stats.roundMs) && <span className="fact">速度 <b>{paceOf(c.stats.roundMs)}</b></span>}
                   {quickTags(c).map((q, i) => <span key={q + i} className="fact quick">{q}</span>)}

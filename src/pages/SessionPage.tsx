@@ -57,15 +57,17 @@ export default function SessionPage({ user, groupId, sessionId }: { user: User; 
       closedNote={session.data.closed
         ? (
           <Link to={`/g/${groupId}/s/${sessionId}/pay`} className="link-card closed-card">
-            <span className="stamp small-stamp">已埋數</span>
-            <span className="grow"><b>轉賬詳情</b><small>邊個俾邊個、已轉未轉</small></span>
             {(() => {
               const ts = session.data.payout?.transfers ?? [];
-              if (!ts.length) return null;
               const done = ts.filter((t) => session.data!.paid?.[`${t.from}>${t.to}`]).length;
-              return done >= ts.length
-                ? <span className="pay-status done">已找清</span>
-                : <span className="pay-status">未找數 {done}/{ts.length}</span>;
+              const clear = done >= ts.length;
+              return (
+                <>
+                  <span className={`stamp small-stamp${clear ? ' clear' : ''}`}>{clear ? '已找清' : '計好數'}</span>
+                  <span className="grow"><b>轉賬詳情</b><small>{clear ? '全部人已經轉晒數' : '邊個俾邊個、已轉未轉'}</small></span>
+                  {!clear && <span className="pay-status">待找數 {done}/{ts.length}</span>}
+                </>
+              );
             })()}
             <span className="chev" aria-hidden="true">›</span>
           </Link>
