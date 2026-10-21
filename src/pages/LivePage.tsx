@@ -96,7 +96,7 @@ export function LiveTv({ groupName, icon, sessionName, tables, ranking, chat, mu
       </header>
 
       <div className="tv-body">
-        <main className="tv-tables" style={{ '--n': Math.max(1, tables.length) } as CSSProperties}>
+        <main className={`tv-tables${tables.length >= 5 ? ' dense' : ''}`} style={{ '--cols': tables.length <= 1 ? 1 : tables.length <= 4 ? 2 : 3 } as CSSProperties}>
           {tables.map((t) => (
             <section key={t.id} className="tv-table">
               <div className="tv-table-head"><b>{t.name}</b><span>{t.round}</span></div>

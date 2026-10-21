@@ -474,6 +474,7 @@ for (const scheme of ['light', 'dark']) {
       await page.waitForTimeout(800);
       await page.screenshot({ path: `${out}/live-tv.png`, fullPage: true });
       await page.setViewportSize({ width: 1280, height: 760 });
+      await page.evaluate(() => window.scrollTo(0, 0));
       await page.waitForTimeout(400);
       await page.screenshot({ path: `${out}/live-tv-desktop.png` });
       await page.setViewportSize({ width: 390, height: 844 });
