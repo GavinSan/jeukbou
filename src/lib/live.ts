@@ -1,9 +1,9 @@
 // 即時讀取 Firestore 嘅 React hooks
 import { useEffect, useMemo, useState } from 'react';
-import { collection, doc, limit, onSnapshot, orderBy, query } from 'firebase/firestore';
+import { collection, doc, limit, onSnapshot, orderBy, query, where } from 'firebase/firestore';
 import type { DocumentData } from 'firebase/firestore';
 import { fs } from './data.ts';
-import type { Dice, ExpenseDoc, FanTableLog, Group, JoinRequest, Member, TeamDoc, PairDoc, Session, StoredEvent, SwapRequest, TableDoc } from './data.ts';
+import type { Dice, ExpenseDoc, Meetup, FanTableLog, Group, JoinRequest, Member, TeamDoc, PairDoc, Session, StoredEvent, SwapRequest, TableDoc } from './data.ts';
 
 export interface Live<T> {
   data: T;
@@ -206,6 +206,32 @@ export function useRecentSessions(g: string, n = 3): Live<Session[]> {
       (err) => setState({ data: [], loading: false, error: err.message }),
     );
   }, [g, n]);
+  return state;
+}
+
+/** 未過嘅約局（之前 3 個鐘起） */
+export function useMeetups(g: string | null): Live<Meetup[]> {
+  const [state, setState] = useState<Live<Meetup[]>>({ data: [], loading: !!g, error: null });
+  useEffect(() => {
+    if (!g) return;
+    const since = Date.now() - 3 * 3600000;
+    return onSnapshot(
+      query(collection(fs(), 'groups', g, 'meetups'), where('at', '>=', since), orderBy('at')),
+      (snap) => setState({
+        data: snap.docs.map((d) => {
+          const x = d.data();
+          const arr = (v: unknown) => (Array.isArray(v) ? v.map(String) : []);
+          return {
+            id: d.id, by: String(x.by ?? ''), byName: String(x.byName ?? ''), at: Number(x.at ?? 0), place: String(x.place ?? ''), note: String(x.note ?? ''),
+            going: arr(x.going), maybe: arr(x.maybe), no: arr(x.no), names: x.names && typeof x.names === 'object' ? Object.fromEntries(Object.entries(x.names).map(([k, v]) => [k, String(v)])) : {},
+            createdAt: Number(x.createdAt ?? 0),
+          };
+        }),
+        loading: false, error: null,
+      }),
+      (err) => setState({ data: [], loading: false, error: err.message }),
+    );
+  }, [g]);
   return state;
 }
 

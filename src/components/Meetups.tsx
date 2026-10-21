@@ -1,0 +1,105 @@
+// 約局：約將來嘅日子同時間；大家應「去／可能／唔去」，人數用鬼馬講法（三缺一、二缺二…）
+import { useEffect, useRef, useState } from 'react';
+import type { Meetup } from '../lib/data.ts';
+import { meetupMood } from '../lib/data.ts';
+import { Sheet, message, useConfirm } from '../ui.tsx';
+
+const WEEK = ['日', '一', '二', '三', '四', '五', '六'];
+export const meetupWhen = (t: number) => {
+  const d = new Date(t);
+  const time = d.toLocaleTimeString('zh-HK', { hour: 'numeric', minute: '2-digit' });
+  return `${d.getMonth() + 1}月${d.getDate()}日（${WEEK[d.getDay()]}）${time}`;
+};
+
+export function MeetupCard({ m, me, onRsvp, onDelete, canDelete }: {
+  m: Meetup; me: string; canDelete: boolean;
+  onRsvp: (status: 'going' | 'maybe' | 'no' | null) => Promise<void>; onDelete: () => Promise<void>;
+}) {
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState('');
+  const [confirmUI, ask] = useConfirm();
+  const mine = m.going.includes(me) ? 'going' : m.maybe.includes(me) ? 'maybe' : m.no.includes(me) ? 'no' : null;
+  const n = m.going.length;
+  const soon = m.at - Date.now() < 86400000;
+  const act = async (t: () => Promise<void>) => { setBusy(true); setError(''); try { await t(); } catch (err) { setError(message(err)); } finally { setBusy(false); } };
+  const nm = (id: string) => (id === me ? '你' : m.names[id] ?? '玩家');
+  return (
+    <div className={`meetup${n === 3 ? ' need-one' : n >= 4 ? ' full' : ''}`}>
+      <div className="meetup-top">
+        <span className="meetup-when"><b>{meetupWhen(m.at)}</b>{soon && <span className="tag new">就嚟</span>}</span>
+        {canDelete && <button type="button" className="textbtn loss small" onClick={() => ask({ title: '取消約局', detail: `${meetupWhen(m.at)} 嘅約局會刪除。`, action: '取消約局', run: onDelete })}>取消</button>}
+      </div>
+      {(m.place || m.note) && <p className="meetup-note">{[m.place && `📍 ${m.place}`, m.note].filter(Boolean).join('　')}</p>}
+      <div className="meetup-mood"><b className="num">{n}</b><span>{meetupMood(n)}</span></div>
+      <div className="meetup-seats" aria-hidden="true">
+        {Array.from({ length: Math.max(4, Math.ceil(n / 4) * 4) }, (_, i) => <i key={i} className={i < n ? 'on' : ''} />)}
+      </div>
+      {n > 0 && <p className="small muted">去：{m.going.map(nm).join('、')}{m.maybe.length ? `｜可能：${m.maybe.map(nm).join('、')}` : ''}</p>}
+      <div className="seg wide" role="radiogroup" aria-label="去唔去">
+        {([['going', '去'], ['maybe', '可能'], ['no', '唔去']] as const).map(([k, t]) => (
+          <button key={k} type="button" role="radio" aria-checked={mine === k} aria-pressed={mine === k} disabled={busy} onClick={() => act(() => onRsvp(mine === k ? null : k))}>{t}</button>
+        ))}
+      </div>
+      <small className="muted">{m.byName || '有人'} 約</small>
+      {error && <p className="error">{error}</p>}
+      {confirmUI}
+    </div>
+  );
+}
+
+export function MeetupSheet({ onSave, onClose }: { onSave: (m: { at: number; place: string; note: string }) => Promise<void>; onClose: () => void }) {
+  const d = new Date(Date.now() + 86400000);
+  d.setHours(20, 0, 0, 0);
+  const pad = (x: number) => String(x).padStart(2, '0');
+  const [date, setDate] = useState(`${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`);
+  const [time, setTime] = useState('20:00');
+  const [place, setPlace] = useState('');
+  const [note, setNote] = useState('');
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState('');
+  const at = new Date(`${date}T${time}`).getTime();
+  const ok = Number.isFinite(at) && at > Date.now() - 3600000;
+  return (
+    <Sheet onClose={onClose} label="約局">
+      <h2>約局</h2>
+      <div className="row">
+        <label className="field grow"><span>日子</span><input className="input" type="date" value={date} onChange={(e) => setDate(e.target.value)} /></label>
+        <label className="field grow"><span>時間</span><input className="input" type="time" value={time} onChange={(e) => setTime(e.target.value)} /></label>
+      </div>
+      <label className="field"><span>地點</span><input className="input" value={place} onChange={(e) => setPlace(e.target.value.slice(0, 60))} placeholder="例如 Gavin 屋企" /></label>
+      <label className="field"><span>備註</span><input className="input" value={note} onChange={(e) => setNote(e.target.value.slice(0, 200))} placeholder="例如 打 8 圈、食完飯先" /></label>
+      {error && <p className="error">{error}</p>}
+      <button type="button" className="btn big" disabled={busy || !ok} onClick={async () => {
+        setBusy(true); setError('');
+        try { await onSave({ at, place, note }); onClose(); } catch (err) { setError(message(err)); setBusy(false); }
+      }}>{ok ? `約 ${meetupWhen(at)}` : '揀返將來嘅時間'}</button>
+    </Sheet>
+  );
+}
+
+/** 牌友圈頁嘅約局區（純顯示，示範都用） */
+export function MeetupsView({ list, me, ownerOrAdmin, onCreate, onRsvp, onDelete }: {
+  list: Meetup[]; me: string; ownerOrAdmin: boolean;
+  onCreate: (m: { at: number; place: string; note: string }) => Promise<void>;
+  onRsvp: (id: string, status: 'going' | 'maybe' | 'no' | null) => Promise<void>;
+  onDelete: (id: string) => Promise<void>;
+}) {
+  const [open, setOpen] = useState(false);
+  const ref = useRef<HTMLElement>(null);
+  // 由通知撳入嚟（#meetups）就捲去呢度
+  useEffect(() => {
+    if (window.location.hash === '#meetups') ref.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  }, [list.length]);
+  return (
+    <section className="stack" id="meetups" ref={ref}>
+      <div className="section-head">
+        <h2>約局</h2>
+        <button type="button" className="textbtn" onClick={() => setOpen(true)}>＋ 約局</button>
+      </div>
+      {list.length ? list.map((m) => (
+        <MeetupCard key={m.id} m={m} me={me} canDelete={ownerOrAdmin || m.by === me} onRsvp={(s) => onRsvp(m.id, s)} onDelete={() => onDelete(m.id)} />
+      )) : <button type="button" className="meetup-empty" onClick={() => setOpen(true)}>未有約局。約定日子時間，等大家應「去」，夠腳就知。</button>}
+      {open && <MeetupSheet onSave={onCreate} onClose={() => setOpen(false)} />}
+    </section>
+  );
+}

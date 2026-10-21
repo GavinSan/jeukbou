@@ -158,6 +158,55 @@ export interface Draw {
   approvals: string[];
 }
 
+/** 約局：約將來嘅日子同時間，大家應去唔去 */
+export interface Meetup {
+  id: string;
+  by: string;
+  byName: string;
+  at: number;
+  place: string;
+  note: string;
+  going: string[];
+  maybe: string[];
+  no: string[];
+  names: Record<string, string>;
+  createdAt: number;
+}
+
+export async function createMeetup(g: string, user: User, m: { at: number; place: string; note: string }): Promise<void> {
+  await setDoc(doc(collection(fs(), 'groups', g, 'meetups')), {
+    by: user.uid, byName: displayName(user), at: m.at, place: m.place.trim().slice(0, 60), note: m.note.trim().slice(0, 200),
+    going: [user.uid], maybe: [], no: [], names: { [user.uid]: displayName(user) }, createdAt: Date.now(),
+  });
+}
+
+/** 應約：去／可能／唔去 */
+export async function rsvpMeetup(g: string, id: string, user: User, status: 'going' | 'maybe' | 'no' | null): Promise<void> {
+  const uid = user.uid;
+  await updateDoc(doc(fs(), 'groups', g, 'meetups', id), {
+    going: status === 'going' ? arrayUnion(uid) : arrayRemove(uid),
+    maybe: status === 'maybe' ? arrayUnion(uid) : arrayRemove(uid),
+    no: status === 'no' ? arrayUnion(uid) : arrayRemove(uid),
+    [`names.${uid}`]: displayName(user),
+  });
+}
+
+export async function deleteMeetup(g: string, id: string): Promise<void> {
+  await deleteDoc(doc(fs(), 'groups', g, 'meetups', id));
+}
+
+/** 鬼馬啲嘅人數講法 */
+export function meetupMood(n: number): string {
+  if (n <= 0) return '未有人應';
+  if (n === 1) return '一缺三，快啲搵人！';
+  if (n === 2) return '二缺二，再嗌多兩個';
+  if (n === 3) return '三缺一！仲差一個 🔥';
+  if (n === 4) return '夠腳！開枱 🀄';
+  if (n < 8) return `夠一枱，再嗌 ${8 - n} 個就開兩枱`;
+  if (n % 4 === 0) return `${n / 4} 枱都夠腳！`;
+  return `夠 ${Math.floor(n / 4)} 枱，仲多 ${n % 4} 個`;
+}
+
 /** 直播室留言 */
 export async function sendChat(g: string, s: string, user: User, text: string): Promise<void> {
   const t = text.trim().slice(0, 200);

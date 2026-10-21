@@ -2045,3 +2045,25 @@ a.btn.small-btn { text-decoration: none; }
 .tv-music.apple iframe { height: 175px; }
 .tv-tip { color: #6F8379; font-size: 12px; margin: 0; }
 .tv:fullscreen .tv-back, .tv:fullscreen .tv-tip { display: none; }
+
+/* ---------- 約局 ---------- */
+:root { --meet-hot: #C2410C; }
+:root[data-theme="dark"] { --meet-hot: #FB923C; }
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) { --meet-hot: #FB923C; } }
+.meetup { background: var(--surface); border: 1px solid var(--line); border-radius: 16px; padding: 14px; display: grid; gap: 8px; scroll-margin-top: 70px; }
+.meetup.need-one { border-color: color-mix(in srgb, var(--meet-hot) 55%, var(--line)); box-shadow: 0 0 0 3px color-mix(in srgb, var(--meet-hot) 14%, transparent); }
+.meetup.full { border-color: color-mix(in srgb, var(--gain) 50%, var(--line)); }
+.meetup-top { display: flex; align-items: center; gap: 8px; justify-content: space-between; }
+.meetup-when { display: flex; align-items: center; gap: 6px; font-size: 16px; }
+.meetup-note { margin: 0; color: var(--muted); font-size: 14px; }
+.meetup-mood { display: flex; align-items: baseline; gap: 8px; font-size: 15px; }
+.meetup-mood .num { font-size: 26px; line-height: 1; }
+.meetup.need-one .meetup-mood span { color: var(--meet-hot); font-weight: 700; animation: meetPulse 2.4s ease-in-out infinite; }
+.meetup.full .meetup-mood span { color: var(--gain); font-weight: 700; }
+@keyframes meetPulse { 50% { opacity: .55; } }
+.meetup-seats { display: flex; flex-wrap: wrap; gap: 6px; }
+.meetup-seats i { width: 22px; height: 28px; border-radius: 5px; border: 1.5px dashed var(--line); background: transparent; }
+.meetup-seats i.on { border-style: solid; border-color: color-mix(in srgb, var(--gain) 60%, var(--line)); background: linear-gradient(180deg, #fffdf6, #efe6cf); box-shadow: 0 2px 0 color-mix(in srgb, var(--gain) 55%, #0000); }
+.meetup-seats i:nth-child(4n):not(:last-child) { margin-right: 8px; }
+.meetup-empty { text-align: left; background: transparent; border: 1.5px dashed var(--line); border-radius: 14px; padding: 14px; color: var(--muted); font: inherit; cursor: pointer; }
+@media (prefers-reduced-motion: reduce) { .meetup.need-one .meetup-mood span { animation: none; } }

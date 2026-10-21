@@ -1,13 +1,14 @@
 import { useEffect, useState } from 'react';
 import type { User } from 'firebase/auth';
-import { PERMS, approveJoin, canDo, deleteGroup, deleteSession, ensureJoinCode, rejectJoin, removeMember, resetInvite, setJoinMode, setMemberPerms, updateGroupProfile, legacyMap } from '../lib/data.ts';
+import { PERMS, approveJoin, createMeetup, deleteMeetup, rsvpMeetup, canDo, deleteGroup, deleteSession, ensureJoinCode, rejectJoin, removeMember, resetInvite, setJoinMode, setMemberPerms, updateGroupProfile, legacyMap } from '../lib/data.ts';
 import type { Perm } from '../lib/data.ts';
 import { toAvatar } from '../lib/avatar.ts';
 import GroupIcon from '../components/GroupIcon.tsx';
 import type { Group, JoinMode, JoinRequest, Member } from '../lib/data.ts';
 import { useSuperAdmin } from '../lib/admin.ts';
 import { go } from '../lib/router.tsx';
-import { useGroup, useJoinRequests, useMembers, useSessions } from '../lib/live.ts';
+import { useGroup, useJoinRequests, useMeetups, useMembers, useSessions } from '../lib/live.ts';
+import { MeetupsView } from '../components/Meetups.tsx';
 import { Link } from '../lib/router.tsx';
 import { Avatar, ConfirmDelete, Hint, Loading, Sheet, TopBar, fmt, message } from '../ui.tsx';
 import { SettingsButton } from '../components/Settings.tsx';
@@ -319,6 +320,7 @@ export default function GroupPage({ user, groupId }: { user: User; groupId: stri
   const group = useGroup(groupId);
   const members = useMembers(groupId);
   const sessions = useSessions(groupId);
+  const meetups = useMeetups(groupId);
   const memberNames = Object.fromEntries(members.data.map((m) => [m.uid, m.name]));
   const history = useHistory(group.data, sessions.loading ? [] : sessions.data, memberNames, legacyMap(group.data, members.data));
   const board = { rows: boardRows(history.sessions, history.names) };
@@ -359,6 +361,15 @@ export default function GroupPage({ user, groupId }: { user: User; groupId: stri
       </section>
 
       {canApprove && <JoinRequests groupId={groupId} />}
+
+      <MeetupsView
+        list={meetups.data}
+        me={user.uid}
+        ownerOrAdmin={canManage}
+        onCreate={(m) => createMeetup(groupId, user, m)}
+        onRsvp={(id, st) => rsvpMeetup(groupId, id, user, st)}
+        onDelete={(id) => deleteMeetup(groupId, id)}
+      />
 
       {hasLegacy && !claimed && (
         <Link to={`/g/${groupId}/players`} className="banner calm">

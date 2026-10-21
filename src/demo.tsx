@@ -22,7 +22,8 @@ import { DEFAULT_SETTLE } from './lib/data.ts';
 import type { ExpenseDoc, PairDoc, SettleConfig } from './lib/data.ts';
 import { sessionSummary } from './lib/totals.ts';
 import { DEFAULT_FAN_TABLE } from './lib/fanTable.ts';
-import type { JoinMode, JoinRequest } from './lib/data.ts';
+import type { JoinMode, JoinRequest, Meetup } from './lib/data.ts';
+import { MeetupsView } from './components/Meetups.tsx';
 import { AddSheet, GroupRowView, SearchAdd } from './pages/Groups.tsx';
 import { DashboardView, ResumeRow } from './pages/Home.tsx';
 import { RankView } from './pages/RankPage.tsx';
@@ -189,6 +190,14 @@ export default function Demo() {
   const [manageDemo, setManageDemo] = useState(false);
   const [pickDemo, setPickDemo] = useState<string | null>(null);
   const [joinMode, setJoinModeDemo] = useState<JoinMode>('approve');
+  const [meets, setMeets] = useState<Meetup[]>(() => {
+    const at = (days: number, h: number) => { const d = new Date(); d.setDate(d.getDate() + days); d.setHours(h, 0, 0, 0); return d.getTime(); };
+    const names = { gavin: 'Gavin', athena: 'Athena', ivan: 'Ivan', viola: 'Viola', kit: 'Kit' };
+    return [
+      { id: 'm1', by: 'athena', byName: 'Athena', at: at(2, 20), place: 'Athena 屋企', note: '打 8 圈，食完飯先', going: ['athena', 'ivan', 'viola'], maybe: ['kit'], no: [], names, createdAt: Date.now() - 3600000 },
+      { id: 'm2', by: 'gavin', byName: 'Gavin', at: at(9, 19), place: '', note: '長週末開兩枱？', going: ['gavin', 'athena', 'ivan', 'viola', 'kit'], maybe: [], no: [], names, createdAt: Date.now() - 7200000 },
+    ];
+  });
   const [reqs, setReqs] = useState<JoinRequest[]>([
     { uid: 'kit', name: 'Kit', photoURL: null, inviteCode: 'x', at: null },
     { uid: 'mandy', name: 'Mandy', photoURL: null, inviteCode: 'x', at: null },
@@ -365,6 +374,20 @@ export default function Demo() {
       <main className="page">
         <TopBar back="/demo/groups" title={g.name} />
         <JoinRequestsView reqs={reqs} onApprove={async (r) => setReqs((l) => l.filter((x) => x.uid !== r.uid))} onReject={async (r) => setReqs((l) => l.filter((x) => x.uid !== r.uid))} />
+        <MeetupsView
+          list={meets}
+          me="gavin"
+          ownerOrAdmin
+          onCreate={async (m) => setMeets((l) => [...l, { id: `m${Date.now()}`, by: 'gavin', byName: 'Gavin', ...m, going: ['gavin'], maybe: [], no: [], names: { gavin: 'Gavin' }, createdAt: Date.now() }].sort((a, b) => a.at - b.at))}
+          onRsvp={async (id, st) => setMeets((l) => l.map((m) => m.id !== id ? m : {
+            ...m,
+            going: [...m.going.filter((x) => x !== 'gavin'), ...(st === 'going' ? ['gavin'] : [])],
+            maybe: [...m.maybe.filter((x) => x !== 'gavin'), ...(st === 'maybe' ? ['gavin'] : [])],
+            no: [...m.no.filter((x) => x !== 'gavin'), ...(st === 'no' ? ['gavin'] : [])],
+            names: { ...m.names, gavin: 'Gavin' },
+          }))}
+          onDelete={async (id) => setMeets((l) => l.filter((m) => m.id !== id))}
+        />
         <section className="stack">
           <div className="section-head">
             <h2>成員（{members.length}）</h2>

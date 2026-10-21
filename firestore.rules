@@ -113,6 +113,15 @@ service cloud.firestore {
         allow delete: if isOwner(g) || (signedIn() && request.auth.uid in resource.data.members);
       }
 
+      // 約局：成員開、應；開嗰個或者局主刪
+      match /meetups/{m} {
+        allow read: if isMember(g);
+        allow create: if isMember(g) && request.resource.data.by == request.auth.uid;
+        allow update: if isMember(g) && (resource.data.by == request.auth.uid
+          || request.resource.data.diff(resource.data).affectedKeys().hasOnly(['going', 'maybe', 'no', 'names']));
+        allow delete: if isOwner(g) || (signedIn() && resource.data.by == request.auth.uid);
+      }
+
       // 加入申請（「要批准」模式）：自己申請、自己睇、自己取消；局主睇晒同批核
       match /joinRequests/{uid} {
         allow get: if (signedIn() && request.auth.uid == uid) || can(g, 'approve');

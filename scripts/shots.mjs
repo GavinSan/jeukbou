@@ -315,6 +315,16 @@ for (const scheme of ['light', 'dark']) {
       await page.waitForTimeout(400);
       await page.screenshot({ path: `${out}/group-player.png` });
     });
+    await step('meetups', async () => {
+      await page.goto(`${base}/demo/group`, { waitUntil: 'networkidle' });
+      await page.waitForTimeout(300);
+      await page.locator('#meetups').getByRole('radio', { name: '去' }).first().click();
+      await page.waitForTimeout(300);
+      await page.locator('#meetups').screenshot({ path: `${out}/meetups.png` });
+      await page.getByRole('button', { name: '＋ 約局' }).click();
+      await page.waitForTimeout(300);
+      await page.screenshot({ path: `${out}/meetup-new.png` });
+    });
     await step('heaven', async () => {
       await page.goto(`${base}/demo/t/1`, { waitUntil: 'networkidle' });
       await page.waitForTimeout(1200);
