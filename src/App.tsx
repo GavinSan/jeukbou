@@ -26,9 +26,10 @@ const PayPage = lazyPage(() => import('./pages/PayPage.tsx'));
 const LivePage = lazyPage(() => import('./pages/LivePage.tsx'));
 import TabBar, { HOME_DEMO_TABS, appTabs } from './components/TabBar.tsx';
 import { navContext } from './lib/nav.ts';
-import { applySkin, usePrefs } from './lib/prefs.ts';
+import { applySkin, prefs, usePrefs } from './lib/prefs.ts';
 import { GroupWatchers, NoticeBar } from './components/Watch.tsx';
 import { UpdateWatcher } from './lib/update.tsx';
+import { registerPush } from './lib/push.ts';
 const Demo = lazyPage(() => import('./demo.tsx'));
 
 function Routes({ user, refresh }: { user: User; refresh: () => void }) {
@@ -78,6 +79,8 @@ export default function App() {
     return onAuthStateChanged(auth, (u) => {
       setUser(u);
       if (u) saveProfile(u).catch(() => undefined);
+      // 開咗通知嘅機：幾日更新一次推播 token
+      if (u && prefs().notify) registerPush(u.uid).catch(() => undefined);
     });
   }, []);
 

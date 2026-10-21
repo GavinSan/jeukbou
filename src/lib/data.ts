@@ -177,6 +177,8 @@ export async function createMeetup(g: string, user: User, m: { at: number; place
   await setDoc(doc(collection(fs(), 'groups', g, 'meetups')), {
     by: user.uid, byName: displayName(user), at: m.at, place: m.place.trim().slice(0, 60), note: m.note.trim().slice(0, 200),
     going: [user.uid], maybe: [], no: [], names: { [user.uid]: displayName(user) }, createdAt: Date.now(),
+    // 伺服器發通知時用嚟寫返當地時間
+    tz: Intl.DateTimeFormat().resolvedOptions().timeZone || '',
   });
 }
 

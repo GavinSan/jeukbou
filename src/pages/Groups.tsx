@@ -1,4 +1,5 @@
 // 牌友圈：搜尋、新增（用加入碼加入／開新牌友圈）、等緊批准嘅申請
+import { parseInvite } from '../lib/install.ts';
 import { useEffect, useState } from 'react';
 import type { FormEvent, ReactNode } from 'react';
 import type { User } from 'firebase/auth';
@@ -146,14 +147,22 @@ export function AddSheet({ user, photo, groups, onClose }: { user: User | null; 
               <input
                 className="code-input"
                 value={code}
-                onChange={(e) => setCode(e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 6))}
-                placeholder="6 位，例如 K7PQ2M"
+                onChange={(e) => {
+                  const link = parseInvite(e.target.value);
+                  if (link) { onClose(); go(link); return; }
+                  setCode(e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 6));
+                }}
+                onPaste={(e) => {
+                  const link = parseInvite(e.clipboardData.getData('text'));
+                  if (link) { e.preventDefault(); onClose(); go(link); }
+                }}
+                placeholder="6 位，例如 K7PQ2M，或者貼上邀請連結"
                 autoCapitalize="characters"
                 autoComplete="off"
                 spellCheck={false}
                 aria-label="加入碼"
               />
-              <small className="muted">向局主或者牌友索取，在牌友圈頁面「成員」下面可以見到。</small>
+              <small className="muted">向局主或者牌友索取，在牌友圈頁面「成員」下面可以見到；收到邀請連結都可以直接貼喺度。</small>
             </label>
           ) : (
             <label className="field">

@@ -315,6 +315,11 @@ for (const scheme of ['light', 'dark']) {
       await page.waitForTimeout(400);
       await page.screenshot({ path: `${out}/group-player.png` });
     });
+    await step('install', async () => {
+      await page.goto(`${base}/demo/install`, { waitUntil: 'networkidle' });
+      await page.waitForTimeout(300);
+      await page.screenshot({ path: `${out}/install.png`, fullPage: true });
+    });
     await step('meetups', async () => {
       await page.goto(`${base}/demo/group`, { waitUntil: 'networkidle' });
       await page.waitForTimeout(300);

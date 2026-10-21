@@ -2083,3 +2083,16 @@ a.btn.small-btn { text-decoration: none; }
   .tv-head .live-pill.big { padding: 3px 8px; font-size: 12px; }
   .tv-btn { width: 36px; height: 36px; }
 }
+
+/* ---------- 加到主畫面教學 ---------- */
+.ig { display: grid; gap: 12px; }
+.ig-steps { list-style: none; margin: 0; padding: 0; display: grid; gap: 10px; }
+.ig-steps li { display: flex; gap: 10px; align-items: flex-start; line-height: 1.6; }
+.ig-no { flex: none; width: 26px; height: 26px; border-radius: 50%; background: var(--felt); color: var(--felt-ink); display: inline-flex; align-items: center; justify-content: center; font-family: var(--font-num); font-weight: 700; font-size: 14px; margin-top: 1px; }
+.ig-ic { display: inline-block; vertical-align: -3px; margin: 0 2px; padding: 2px; box-sizing: content-box; border-radius: 6px; background: var(--sunk); color: #0A7AFF; }
+.ig-warn { margin: 0; padding: 10px 12px; border-radius: 12px; background: color-mix(in srgb, #E0A82E 16%, var(--surface)); border: 1px solid color-mix(in srgb, #E0A82E 45%, var(--line)); font-size: 14px; }
+.ig-invite { display: grid; gap: 6px; padding: 12px; border-radius: 12px; background: var(--sunk); }
+.ig-invite small { color: var(--muted); }
+.ig-why { margin: 0; padding-left: 18px; color: var(--muted); font-size: 13px; display: grid; gap: 2px; }
+.install-gate .panel h2 { margin: 0; }
+.nudge.install .nudge-icon { font-size: 22px; }
