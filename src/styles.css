@@ -1932,3 +1932,14 @@ a.btn.small-btn { text-decoration: none; }
 .bday-chip b { font-size: 14px; }
 .bday-chip small { font-size: 12px; color: var(--muted); }
 .bday-chip.week { background: color-mix(in srgb, #E58FA8 18%, var(--surface)); border-color: color-mix(in srgb, #E58FA8 50%, var(--line)); }
+
+/* 牌友圈 icon、頂部 */
+.group-icon { display: inline-flex; align-items: center; justify-content: center; flex: none; border-radius: 14px; background: var(--tile); color: var(--tile-loss); font-family: var(--font-kai); font-weight: 700; box-shadow: 0 3px 0 var(--tile-back); line-height: 1; }
+.group-icon.img { object-fit: cover; padding: 0; }
+.group-head { display: flex; align-items: center; gap: 12px; padding: 12px 14px; border-radius: 16px; background: var(--surface); }
+.group-head-tags { display: flex; align-items: center; gap: 8px; }
+.group-desc { margin: 4px 0 0; font-size: 14px; line-height: 1.4; overflow-wrap: anywhere; }
+.icon-pick { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+.icon-opt { width: 44px; height: 44px; border-radius: 12px; border: 1.5px solid var(--line); background: var(--surface); font-size: 22px; cursor: pointer; display: inline-flex; align-items: center; justify-content: center; overflow: hidden; }
+.icon-opt[aria-pressed="true"] { border-color: var(--felt); background: var(--gain-soft); }
+.icon-opt.upload img { width: 100%; height: 100%; object-fit: cover; }

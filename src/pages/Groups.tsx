@@ -2,7 +2,9 @@
 import { useEffect, useState } from 'react';
 import type { FormEvent, ReactNode } from 'react';
 import type { User } from 'firebase/auth';
-import { cancelJoinRequest, createGroup, joinGroup, lookupJoinCode, settlePending } from '../lib/data.ts';
+import { cancelJoinRequest, createGroup, joinGroup, loadPublicGroups, lookupJoinCode, settlePending } from '../lib/data.ts';
+import type { PublicGroup } from '../lib/data.ts';
+import GroupIcon from '../components/GroupIcon.tsx';
 import { useGroup, useJoinRequests, useMyJoinRequest, useMyMember, useProfile } from '../lib/live.ts';
 import { Link, go } from '../lib/router.tsx';
 import { Sheet, TopBar, message, useConfirm } from '../ui.tsx';
@@ -18,10 +20,11 @@ function OwnerBadge({ id }: { id: string }) {
   return reqs.data.length ? <span className="tag ask">{reqs.data.length} 人申請</span> : null;
 }
 
-export function GroupRowView({ href, name, fresh, badge }: { href: string; name: string; fresh?: boolean; badge?: ReactNode }) {
+export function GroupRowView({ href, name, fresh, badge, icon, description }: { href: string; name: string; fresh?: boolean; badge?: ReactNode; icon?: string; description?: string }) {
   return (
-    <Link to={href} className="listrow">
-      <span className="grow">{name}</span>
+    <Link to={href} className="listrow group-row">
+      <GroupIcon icon={icon} name={name} size={38} />
+      <span className="grow exp-text"><span className="ellipsis">{name}</span>{description && <small className="muted ellipsis">{description}</small>}</span>
       {fresh && <span className="tag new">番數表更新</span>}
       {badge}
       <Chevron />
@@ -35,14 +38,37 @@ function GroupRow({ id, q, uid }: { id: string; q: string; uid: string }) {
   if (q && !data.name.toLowerCase().includes(q.toLowerCase())) return null;
   const log = data.fanTableLog;
   const fresh = !!log?.at && log.by !== uid && log.at > seenAt(id);
-  return <GroupRowView href={`/g/${id}`} name={data.name} fresh={fresh} badge={data.ownerId === uid ? <OwnerBadge id={id} /> : null} />;
+  return <GroupRowView href={`/g/${id}`} name={data.name} icon={data.icon} description={data.description} fresh={fresh} badge={data.ownerId === uid ? <OwnerBadge id={id} /> : null} />;
+}
+
+/** 搜尋公開牌友圈（未加入嘅） */
+function PublicResults({ q, mine }: { q: string; mine: string[] }) {
+  const [all, setAll] = useState<PublicGroup[] | null>(null);
+  useEffect(() => { if (q && !all) loadPublicGroups().then(setAll).catch(() => setAll([])); }, [q, all]);
+  if (!q || !all) return null;
+  const hits = all.filter((x) => !mine.includes(x.id) && (x.name.toLowerCase().includes(q.toLowerCase()) || x.description.toLowerCase().includes(q.toLowerCase())));
+  if (!hits.length) return null;
+  return (
+    <section className="stack">
+      <h2 className="section-head">公開牌友圈</h2>
+      <div className="list">
+        {hits.map((x) => (
+          <Link key={x.id} to={`/join/${x.id}/${x.inviteCode}`} className="listrow group-row">
+            <GroupIcon icon={x.icon} name={x.name} size={38} />
+            <span className="grow exp-text"><span className="ellipsis">{x.name}</span><small className="muted ellipsis">{x.description || `${x.members} 個成員`}</small></span>
+            <span className="tag new">{x.joinMode === 'approve' ? '申請加入' : x.joinMode === 'closed' ? '暫停收人' : '加入'}</span>
+          </Link>
+        ))}
+      </div>
+    </section>
+  );
 }
 
 export function SearchAdd({ q, onQ, onAdd }: { q: string; onQ: (v: string) => void; onAdd: () => void }) {
   return (
     <div className="home-search">
       <svg className="home-search-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" aria-hidden="true"><circle cx="11" cy="11" r="7" /><path d="M20 20l-3.5-3.5" /></svg>
-      <input className="input" type="search" value={q} onChange={(e) => onQ(e.target.value)} placeholder="搜尋我的牌友圈" aria-label="搜尋我的牌友圈" />
+      <input className="input" type="search" value={q} onChange={(e) => onQ(e.target.value)} placeholder="搜尋牌友圈（包括公開嘅）" aria-label="搜尋牌友圈" />
       <button type="button" className="iconbtn add-btn" aria-label="新增" onClick={onAdd}>
         <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" aria-hidden="true"><path d="M12 5v14M5 12h14" /></svg>
       </button>
@@ -173,6 +199,7 @@ export default function GroupsPage({ user }: { user: User }) {
           )
         )}
       </section>
+      <PublicResults q={q.trim()} mine={groups} />
       {admin && (
         <section className="stack">
           <h2 className="section-head">管理</h2>

@@ -46,6 +46,29 @@ export interface Group {
   joinCode?: string;
   /** 番數表最近一次修改 */
   fanTableLog?: FanTableLog | null;
+  /** 牌友圈 icon：一個 emoji，或者細圖（data URL） */
+  icon?: string;
+  /** 簡介，例如「25 抽 1・私人局」 */
+  description?: string;
+  /** public = 人哋搜尋得到（加唔加入仍然跟加入方式）；private = 要邀請 */
+  visibility?: 'public' | 'private';
+}
+
+/** 成員權限：局主分配 */
+export type Perm = 'approve' | 'remove' | 'records' | 'rules';
+export const PERMS: { key: Perm; label: string; note: string }[] = [
+  { key: 'approve', label: '批人入', note: '批准或拒絕加入申請' },
+  { key: 'remove', label: '移除成員', note: '將人移出牌友圈' },
+  { key: 'records', label: '管紀錄', note: '刪除大局／枱、埋數後仍然可以改開支' },
+  { key: 'rules', label: '改家規', note: '改家規、番數表、水由誰保管' },
+];
+
+/** 我喺呢個牌友圈做唔做得某樣嘢（局主同超級管理員乜都得） */
+export function canDo(g: Pick<Group, 'ownerId'> | null | undefined, me: Pick<Member, 'perms'> | null | undefined, uid: string, admin: boolean, perm: Perm): boolean {
+  if (admin) return true;
+  if (!g) return false;
+  if (g.ownerId === uid) return true;
+  return !!me?.perms?.includes(perm);
 }
 
 export type JoinMode = 'auto' | 'approve' | 'closed';
@@ -75,6 +98,8 @@ export interface Member {
   payEmail?: string;
   /** 生日（MM-DD），同圈嘅人見到 */
   birthday?: string;
+  /** 局主分配嘅權限 */
+  perms?: Perm[];
 }
 
 export interface Session {
@@ -754,6 +779,47 @@ export async function deleteGroup(g: string): Promise<void> {
   if (code) await deleteDoc(doc(fs(), 'codes', String(code))).catch(() => undefined);
   await deleteRefs(await listRefs('groups', g, 'members'));
   await deleteRefs([{ path: `groups/${g}` }]);
+}
+
+/** 局主設定成員權限 */
+export async function setMemberPerms(g: string, uid: string, perms: Perm[]): Promise<void> {
+  await updateDoc(doc(fs(), 'groups', g, 'members', uid), { perms });
+}
+
+/** 牌友圈資料：icon、簡介、公開／私人；公開嘅會放一份去 publicGroups 俾人搜尋 */
+export async function updateGroupProfile(g: Group, p: { icon: string; description: string; visibility: 'public' | 'private' }, memberCount: number): Promise<void> {
+  const icon = p.icon.slice(0, 200000);
+  await updateDoc(doc(fs(), 'groups', g.id), { icon: icon || deleteField(), description: p.description.trim().slice(0, 200) || deleteField(), visibility: p.visibility });
+  const pub = doc(fs(), 'publicGroups', g.id);
+  if (p.visibility === 'public') {
+    await setDoc(pub, {
+      name: g.name, icon, description: p.description.trim().slice(0, 200), inviteCode: g.inviteCode, joinMode: g.joinMode ?? 'auto',
+      members: memberCount, updatedAt: serverTimestamp(),
+    });
+  } else {
+    await deleteDoc(pub).catch(() => undefined);
+  }
+}
+
+export interface PublicGroup {
+  id: string;
+  name: string;
+  icon: string;
+  description: string;
+  inviteCode: string;
+  joinMode: JoinMode;
+  members: number;
+}
+
+export async function loadPublicGroups(): Promise<PublicGroup[]> {
+  const snap = await getDocs(collection(fs(), 'publicGroups'));
+  return snap.docs.map((d) => {
+    const x = d.data();
+    return {
+      id: d.id, name: String(x.name ?? ''), icon: String(x.icon ?? ''), description: String(x.description ?? ''),
+      inviteCode: String(x.inviteCode ?? ''), joinMode: x.joinMode === 'approve' || x.joinMode === 'closed' ? x.joinMode : 'auto', members: Number(x.members ?? 0),
+    };
+  });
 }
 
 export async function removeMember(g: string, uid: string): Promise<void> {

@@ -1,12 +1,15 @@
 import { useEffect, useState } from 'react';
 import type { User } from 'firebase/auth';
-import { approveJoin, deleteGroup, deleteSession, ensureJoinCode, rejectJoin, removeMember, resetInvite, setJoinMode, legacyMap } from '../lib/data.ts';
+import { PERMS, approveJoin, canDo, deleteGroup, deleteSession, ensureJoinCode, rejectJoin, removeMember, resetInvite, setJoinMode, setMemberPerms, updateGroupProfile, legacyMap } from '../lib/data.ts';
+import type { Perm } from '../lib/data.ts';
+import { toAvatar } from '../lib/avatar.ts';
+import GroupIcon from '../components/GroupIcon.tsx';
 import type { Group, JoinMode, JoinRequest, Member } from '../lib/data.ts';
 import { useSuperAdmin } from '../lib/admin.ts';
 import { go } from '../lib/router.tsx';
 import { useGroup, useJoinRequests, useMembers, useSessions } from '../lib/live.ts';
 import { Link } from '../lib/router.tsx';
-import { Avatar, ConfirmDelete, Hint, Loading, TopBar, fmt, message } from '../ui.tsx';
+import { Avatar, ConfirmDelete, Hint, Loading, Sheet, TopBar, fmt, message } from '../ui.tsx';
 import { SettingsButton } from '../components/Settings.tsx';
 import { Leaderboard } from '../components/Charts.tsx';
 import { boardRows, useHistory } from '../lib/history.ts';
@@ -128,6 +131,94 @@ export function Invite({ g, canManage, onMode }: { g: Group; canManage: boolean;
   );
 }
 
+const ICONS = ['🀄', '🀅', '🎲', '🐉', '🐯', '🍵', '🏮', '🧧', '💰', '🔥', '🌸', '⭐', '🐼', '🍀', '🌙', '🎯'];
+
+/** 牌友圈頂：icon、名、簡介、公開／私人；局主撳「編輯」改 */
+function GroupHeader({ g, canEdit, memberCount }: { g: Group; canEdit: boolean; memberCount: number }) {
+  const [editing, setEditing] = useState(false);
+  return (
+    <section className="group-head">
+      <GroupIcon icon={g.icon} name={g.name} size={52} />
+      <span className="grow">
+        <span className="group-head-tags">
+          <span className={`tag ${g.visibility === 'public' ? 'new' : 'instant'}`}>{g.visibility === 'public' ? '公開' : '私人'}</span>
+          <span className="muted small">{memberCount} 個成員</span>
+        </span>
+        {g.description ? <p className="group-desc">{g.description}</p> : canEdit ? <p className="muted small">加句簡介，例如「25 抽 1・私人局」</p> : null}
+      </span>
+      {canEdit && <button type="button" className="textbtn" onClick={() => setEditing(true)}>編輯</button>}
+      {editing && <GroupProfileSheet g={g} memberCount={memberCount} onClose={() => setEditing(false)} />}
+    </section>
+  );
+}
+
+function GroupProfileSheet({ g, memberCount, onClose }: { g: Group; memberCount: number; onClose: () => void }) {
+  const [icon, setIcon] = useState(g.icon ?? '');
+  const [desc, setDesc] = useState(g.description ?? '');
+  const [vis, setVis] = useState<'public' | 'private'>(g.visibility === 'public' ? 'public' : 'private');
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState('');
+  return (
+    <Sheet onClose={onClose} label="牌友圈資料">
+      <h2>牌友圈資料</h2>
+      <div className="field">
+        <span>Icon</span>
+        <div className="icon-pick">
+          {ICONS.map((x) => <button key={x} type="button" className="icon-opt" aria-pressed={icon === x} onClick={() => setIcon(x)}>{x}</button>)}
+          <label className="icon-opt upload" title="用相">
+            {icon.startsWith('data:') ? <img src={icon} alt="" /> : '📷'}
+            <input type="file" accept="image/*" className="visually-hidden" aria-label="上載 icon 相" onChange={async (e) => { const f = e.target.files?.[0]; e.target.value = ''; if (f) { try { setIcon(await toAvatar(f)); } catch (err) { setError(message(err)); } } }} />
+          </label>
+          {icon && <button type="button" className="textbtn" onClick={() => setIcon('')}>用名</button>}
+        </div>
+      </div>
+      <label className="field">
+        <span>簡介</span>
+        <textarea className="input" rows={3} maxLength={200} value={desc} onChange={(e) => setDesc(e.target.value)} placeholder="例如：25 抽 1・逢星期五・私人局" />
+      </label>
+      <div className="field">
+        <span>邊個搵得到</span>
+        <div className="seg wide" role="radiogroup" aria-label="公開定私人">
+          <button type="button" role="radio" aria-checked={vis === 'private'} aria-pressed={vis === 'private'} onClick={() => setVis('private')}>私人</button>
+          <button type="button" role="radio" aria-checked={vis === 'public'} aria-pressed={vis === 'public'} onClick={() => setVis('public')}>公開</button>
+        </div>
+        <Hint>{vis === 'public' ? '其他人喺「牌友圈」搜尋得到；入唔入到仍然跟加入方式（自動／要批准／不收新人）。' : '要有邀請連結或者加入碼先加入到。'}</Hint>
+      </div>
+      {error && <p className="error">{error}</p>}
+      <button type="button" className="btn big" disabled={busy} onClick={async () => {
+        setBusy(true); setError('');
+        try { await updateGroupProfile(g, { icon, description: desc, visibility: vis }, memberCount); onClose(); } catch (err) { setError(message(err)); setBusy(false); }
+      }}>儲存</button>
+    </Sheet>
+  );
+}
+
+/** 局主分配成員權限 */
+function PermsSheet({ groupId, m, onClose }: { groupId: string; m: Member; onClose: () => void }) {
+  const [perms, setPerms] = useState<Perm[]>(m.perms ?? []);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState('');
+  return (
+    <Sheet onClose={onClose} label="成員權限">
+      <h2>{m.name} 嘅權限</h2>
+      <div className="list flat">
+        {PERMS.map((p) => (
+          <div key={p.key} className="rule-row">
+            <span className="grow">{p.label}<small>{p.note}</small></span>
+            <button type="button" role="switch" className="switch" aria-checked={perms.includes(p.key)} aria-label={p.label} onClick={() => setPerms((l) => (l.includes(p.key) ? l.filter((x) => x !== p.key) : [...l, p.key]))} />
+          </div>
+        ))}
+      </div>
+      <Hint>局主一定乜都做得。開大局、入數、埋數、開支所有成員都做得。</Hint>
+      {error && <p className="error">{error}</p>}
+      <button type="button" className="btn big" disabled={busy} onClick={async () => {
+        setBusy(true); setError('');
+        try { await setMemberPerms(groupId, m.uid, perms); onClose(); } catch (err) { setError(message(err)); setBusy(false); }
+      }}>儲存</button>
+    </Sheet>
+  );
+}
+
 /** 今個月生日：同一個星期嘅標出嚟，方便一齊慶祝 */
 export function Birthdays({ members }: { members: Member[] }) {
   const now = new Date();
@@ -189,9 +280,9 @@ export function memberStatsOf(sessions: { at: number; totals: Record<string, num
 }
 
 /** 成員：一行一個，有場數、段位、總數；撳入去睇佢喺呢個牌友圈嘅統計 */
-export function MemberList({ members, ownerId, stats, manage, onPick, onRemove }: {
+export function MemberList({ members, ownerId, stats, manage, onPick, onRemove, onPerms }: {
   members: Member[]; ownerId: string; stats: Record<string, MemberStat>; manage: boolean;
-  onPick: (uid: string) => void; onRemove: (m: Member) => void;
+  onPick: (uid: string) => void; onRemove?: (m: Member) => void; onPerms?: (m: Member) => void;
 }) {
   // 最近有打嘅排前，之後按雀力分
   const sorted = [...members].sort((a, b) => (stats[b.uid]?.last ?? 0) - (stats[a.uid]?.last ?? 0) || (stats[b.uid]?.points ?? 0) - (stats[a.uid]?.points ?? 0) || a.name.localeCompare(b.name));
@@ -204,14 +295,17 @@ export function MemberList({ members, ownerId, stats, manage, onPick, onRemove }
             <button type="button" className="member-main" onClick={() => onPick(m.uid)} disabled={!st?.played} aria-label={`${m.name} 統計`}>
               <Avatar name={m.name} photo={m.photoURL} size="md" />
               <span className="grow member-text">
-                <span className="ellipsis">{m.name}{m.uid === ownerId && <span className="tag instant">局主</span>}</span>
+                <span className="ellipsis">{m.name}{m.uid === ownerId ? <span className="tag instant">局主</span> : m.perms?.length ? <span className="tag stay" title={m.perms.map((p) => PERMS.find((x) => x.key === p)?.label).join('、')}>管理</span> : null}</span>
                 <small className="muted member-meta">
                   {st?.played ? <><TierChip tier={tierOf(st.points).tier} /><span className="num">{st.points} 分</span><span>{st.played} 次</span>{st.last ? <span>最近 {lastTxt(st.last)}</span> : null}</> : '未有紀錄'}
                 </small>
               </span>
               {st?.played ? <b className={`num member-total ${st.total > 0 ? 'gain' : st.total < 0 ? 'loss' : ''}`}>{fmt(st.total)}</b> : null}
             </button>
-            {manage && m.uid !== ownerId && (
+            {manage && m.uid !== ownerId && onPerms && (
+              <button type="button" className="btn plain small-btn" onClick={() => onPerms(m)}>權限{m.perms?.length ? `（${m.perms.length}）` : ''}</button>
+            )}
+            {manage && m.uid !== ownerId && onRemove && (
               <button type="button" className="btn plain small-btn remove-btn" onClick={() => onRemove(m)}>移除</button>
             )}
           </li>
@@ -234,6 +328,7 @@ export default function GroupPage({ user, groupId }: { user: User; groupId: stri
   const [pick, setPick] = useState<string | null>(null);
   const [showAllSessions, setShowAllSessions] = useState(false);
   const [confirm, setConfirm] = useState<null | { title: string; detail: string; word: string; run: () => Promise<void> }>(null);
+  const [permFor, setPermFor] = useState<Member | null>(null);
 
   if (group.error) return <main className="page"><TopBar back="/groups" /><p className="error">{group.error}</p></main>;
   if (!group.data) return <main className="page"><TopBar back="/groups" /><Loading /></main>;
@@ -245,11 +340,16 @@ export default function GroupPage({ user, groupId }: { user: User; groupId: stri
   const lmap = legacyMap(g, members.data);
   const claimed = Object.values(lmap).includes(user.uid);
   const canManage = g.ownerId === user.uid || admin;
+  const meM = members.data.find((m) => m.uid === user.uid);
+  const canApprove = canDo(g, meM, user.uid, admin, 'approve');
+  const canRemove = canDo(g, meM, user.uid, admin, 'remove');
+  const canRecords = canDo(g, meM, user.uid, admin, 'records');
   const memberStats = memberStatsOf(history.sessions, (id) => pointsFor(id, history.sessions));
 
   return (
     <main className="page">
       <TopBar back="/groups" title={g.name} right={<SettingsButton />} />
+      <GroupHeader g={g} canEdit={canManage} memberCount={members.data.length} />
 
       <section className="stack">
         <Link to={`/g/${groupId}/new`} className="btn big">
@@ -258,7 +358,7 @@ export default function GroupPage({ user, groupId }: { user: User; groupId: stri
         </Link>
       </section>
 
-      {canManage && <JoinRequests groupId={groupId} />}
+      {canApprove && <JoinRequests groupId={groupId} />}
 
       {hasLegacy && !claimed && (
         <Link to={`/g/${groupId}/players`} className="banner calm">
@@ -269,7 +369,7 @@ export default function GroupPage({ user, groupId }: { user: User; groupId: stri
       <section className="stack">
         <div className="section-head">
           <h2>大局</h2>
-          {canManage && list.length > 0 && <button type="button" className="textbtn" onClick={() => setManage((v) => !v)}>{manage ? '完成' : '管理'}</button>}
+          {canRecords && list.length > 0 && <button type="button" className="textbtn" onClick={() => setManage((v) => !v)}>{manage ? '完成' : '管理'}</button>}
         </div>
         {list.length ? (
           <div className="list">
@@ -321,7 +421,7 @@ export default function GroupPage({ user, groupId }: { user: User; groupId: stri
       <section className="stack">
         <div className="section-head">
           <h2>成員（{members.data.length}）</h2>
-          {canManage && <button type="button" className="textbtn" onClick={() => setManageMembers((v) => !v)}>{manageMembers ? '完成' : '管理'}</button>}
+          {(canManage || canRemove) && <button type="button" className="textbtn" onClick={() => setManageMembers((v) => !v)}>{manageMembers ? '完成' : '管理'}</button>}
         </div>
         <MemberList
           members={members.data}
@@ -329,8 +429,10 @@ export default function GroupPage({ user, groupId }: { user: User; groupId: stri
           stats={memberStats}
           manage={manageMembers}
           onPick={setPick}
-          onRemove={(m) => setConfirm({ title: '移除成員', detail: `${m.name} 會離開牌友圈，佢以前嘅紀錄會保留。`, word: m.name, run: () => removeMember(groupId, m.uid) })}
+          onRemove={canRemove ? (m) => setConfirm({ title: '移除成員', detail: `${m.name} 會離開牌友圈，佢以前嘅紀錄會保留。`, word: m.name, run: () => removeMember(groupId, m.uid) }) : undefined}
+          onPerms={canManage ? setPermFor : undefined}
         />
+        {permFor && <PermsSheet groupId={groupId} m={permFor} onClose={() => setPermFor(null)} />}
       </section>
 
       {canManage && (

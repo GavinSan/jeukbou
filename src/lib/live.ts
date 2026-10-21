@@ -56,6 +56,9 @@ const toGroup = (id: string, d: DocumentData): Group => ({
   joinMode: d.joinMode === 'approve' || d.joinMode === 'closed' ? d.joinMode : 'auto',
   joinCode: d.joinCode ? String(d.joinCode) : undefined,
   fanTableLog: toLog(d.fanTableLog),
+  icon: typeof d.icon === 'string' ? d.icon : undefined,
+  description: typeof d.description === 'string' ? d.description : undefined,
+  visibility: d.visibility === 'public' ? 'public' : 'private',
 });
 const millis = (v: unknown): number | null => (v && typeof (v as { toMillis?: unknown }).toMillis === 'function' ? (v as { toMillis: () => number }).toMillis() : null);
 function toLog(d: DocumentData | undefined): FanTableLog | null {
@@ -65,7 +68,7 @@ function toLog(d: DocumentData | undefined): FanTableLog | null {
 const toJoinRequest = (id: string, d: DocumentData): JoinRequest => ({
   uid: id, name: String(d.name ?? '玩家'), photoURL: d.photoURL ?? null, inviteCode: String(d.inviteCode ?? ''), at: millis(d.at),
 });
-const toMember = (id: string, d: DocumentData): Member => ({ uid: id, name: String(d.name ?? '玩家'), photoURL: d.photoURL ?? null, legacyKey: d.legacyKey ? String(d.legacyKey) : undefined, payEmail: d.payEmail ? String(d.payEmail) : undefined, birthday: typeof d.birthday === 'string' ? d.birthday : undefined });
+const toMember = (id: string, d: DocumentData): Member => ({ uid: id, name: String(d.name ?? '玩家'), photoURL: d.photoURL ?? null, legacyKey: d.legacyKey ? String(d.legacyKey) : undefined, payEmail: d.payEmail ? String(d.payEmail) : undefined, birthday: typeof d.birthday === 'string' ? d.birthday : undefined, perms: Array.isArray(d.perms) ? d.perms.map(String) as Member['perms'] : undefined });
 const toSession = (id: string, d: DocumentData): Session => ({
   id, name: String(d.name ?? ''), createdBy: String(d.createdBy ?? ''), createdAt: d.createdAt ?? null, rules: d.rules ?? undefined,
   rulesLog: Array.isArray(d.rulesLog) ? d.rulesLog.map((x: DocumentData) => ({ at: Number(x.at ?? 0), rules: x.rules ?? {} })) : undefined,

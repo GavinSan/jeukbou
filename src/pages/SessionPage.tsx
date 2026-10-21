@@ -3,7 +3,7 @@ import { rememberTable } from '../lib/nav.ts';
 import type { User } from 'firebase/auth';
 import SessionScreen from '../components/SessionScreen.tsx';
 import Incoming from '../components/Incoming.tsx';
-import { addTable, deleteSession, findTodaySession, regroupTables, setSessionNoWater } from '../lib/data.ts';
+import { canDo, addTable, deleteSession, findTodaySession, regroupTables, setSessionNoWater } from '../lib/data.ts';
 import { Link } from '../lib/router.tsx';
 import { useSuperAdmin } from '../lib/admin.ts';
 import { go } from '../lib/router.tsx';
@@ -75,7 +75,7 @@ export default function SessionPage({ user, groupId, sessionId }: { user: User; 
         : session.data.closeReq
           ? <Link to={`/g/${groupId}/s/${sessionId}/settle`} className="banner"><span className="grow">有人申請埋數，撳入去同意</span></Link>
           : null}
-      onDeleteSession={group.data.ownerId === user.uid || admin ? async () => { await deleteSession(groupId, sessionId); go(`/g/${groupId}`); } : undefined}
+      onDeleteSession={canDo(group.data, members.data.find((m) => m.uid === user.uid), user.uid, admin, 'records') ? async () => { await deleteSession(groupId, sessionId); go(`/g/${groupId}`); } : undefined}
       notice={<Incoming user={user} groupId={groupId} sessionId={sessionId} requests={requests.data} tables={tables.data} computed={computed} />}
       candidates={candidates}
       me={user.uid}

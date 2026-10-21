@@ -22,6 +22,10 @@ service cloud.firestore {
     function isOwner(g) {
       return isSuperAdmin() || (signedIn() && groupDoc(g).data.ownerId == request.auth.uid);
     }
+    // 局主分配嘅權限：approve 批人入、remove 移除成員、records 管紀錄、rules 改家規
+    function can(g, p) {
+      return isOwner(g) || (signedIn() && p in get(/databases/$(database)/documents/groups/$(g)/members/$(request.auth.uid)).data.get('perms', []));
+    }
     // 大局未埋數
     function isOpen(g, s) {
       return get(/databases/$(database)/documents/groups/$(g)/sessions/$(s)).data.get('closed', null) == null;
@@ -65,25 +69,35 @@ service cloud.firestore {
       allow delete: if signedIn() && isOwner(resource.data.g);
     }
 
+    // 公開牌友圈：登入咗嘅人都搜尋得到；局主寫
+    match /publicGroups/{g} {
+      allow read: if signedIn();
+      allow write: if isOwner(g);
+    }
+
     // 牌友圈
     match /groups/{g} {
       allow get: if isMember(g);
       allow list: if isSuperAdmin();
       allow create: if signedIn() && request.resource.data.ownerId == request.auth.uid;
-      allow update: if isOwner(g);
+      // 局主改晒；有「改家規」權限嘅成員只改得家規、番數表、埋數設定
+      allow update: if isOwner(g) || (can(g, 'rules')
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['rules', 'fanTable', 'fanTableLog', 'settle']));
       // 刪除牌友圈：局主或者超級管理員（app 會先刪晒入面嘅大局同成員）
       allow delete: if isOwner(g);
 
       // 成員：局主加（包括批准申請），或者「自動加入」模式下自己用邀請碼加入
       match /members/{uid} {
         allow read: if isMember(g) || (signedIn() && request.auth.uid == uid);
-        allow create: if photoOk(request.resource.data) && (isOwner(g) || (signedIn() && request.auth.uid == uid
+        allow create: if photoOk(request.resource.data) && (can(g, 'approve') || (signedIn() && request.auth.uid == uid
           && request.resource.data.inviteCode == groupDoc(g).data.inviteCode
           && joinMode(g) == 'auto'));
-        // 自己改自己個名同頭像，唔可以改邀請碼
-        allow update: if signedIn() && request.auth.uid == uid && photoOk(request.resource.data)
-          && request.resource.data.inviteCode == resource.data.inviteCode;
-        allow delete: if isOwner(g) || (signedIn() && request.auth.uid == uid);
+        // 自己改自己個名同頭像，唔可以改邀請碼同自己嘅權限；局主淨係改得權限
+        allow update: if (signedIn() && request.auth.uid == uid && photoOk(request.resource.data)
+          && request.resource.data.inviteCode == resource.data.inviteCode
+          && !request.resource.data.diff(resource.data).affectedKeys().hasAny(['perms']))
+          || (isOwner(g) && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['perms']));
+        allow delete: if can(g, 'remove') || (signedIn() && request.auth.uid == uid);
       }
 
       // 預設 Group（每次埋數一齊計）：成員開；入面嘅人逐個同意；入面嘅人或者局主刪
@@ -101,15 +115,15 @@ service cloud.firestore {
 
       // 加入申請（「要批准」模式）：自己申請、自己睇、自己取消；局主睇晒同批核
       match /joinRequests/{uid} {
-        allow get: if (signedIn() && request.auth.uid == uid) || isOwner(g);
-        allow list: if isOwner(g);
+        allow get: if (signedIn() && request.auth.uid == uid) || can(g, 'approve');
+        allow list: if can(g, 'approve');
         allow create: if signedIn() && request.auth.uid == uid
           && request.resource.data.inviteCode == groupDoc(g).data.inviteCode
           && joinMode(g) == 'approve'
           && photoOk(request.resource.data)
           && request.resource.data.keys().hasOnly(['name', 'photoURL', 'inviteCode', 'at']);
         allow update: if false;
-        allow delete: if isOwner(g) || (signedIn() && request.auth.uid == uid);
+        allow delete: if can(g, 'approve') || (signedIn() && request.auth.uid == uid);
       }
 
       // 大局同枱
@@ -119,11 +133,11 @@ service cloud.firestore {
         allow create: if isMember(g) && (!('legacy' in request.resource.data) || isOwner(g));
         // 家規、舊紀錄、水由誰保管：淨係局主改得
         allow update: if isMember(g)
-          && (!request.resource.data.diff(resource.data).affectedKeys().hasAny(['rules', 'rulesLog', 'legacy']) || isOwner(g))
-          && (!request.resource.data.diff(resource.data).affectedKeys().hasAny(['waterTo']) || isOwner(g))
+          && (!request.resource.data.diff(resource.data).affectedKeys().hasAny(['legacy']) || isOwner(g))
+          && (!request.resource.data.diff(resource.data).affectedKeys().hasAny(['rules', 'rulesLog', 'waterTo']) || can(g, 'rules'))
           // 已埋數：今日人物唔可以再改（局主除外）
-          && (!request.resource.data.diff(resource.data).affectedKeys().hasAny(['people', 'skipTeams']) || resource.data.get('closed', null) == null || isOwner(g));
-        allow delete: if isOwner(g);
+          && (!request.resource.data.diff(resource.data).affectedKeys().hasAny(['people', 'skipTeams']) || resource.data.get('closed', null) == null || can(g, 'records'));
+        allow delete: if can(g, 'records');
 
         // 換人請求：同局成員都睇到、發到、答到
         match /requests/{r} {
@@ -134,18 +148,18 @@ service cloud.firestore {
         // 埋數：開支同 Group，同局成員都可以加、改、刪；已埋數就鎖定（局主除外）
         match /expenses/{x} {
           allow read: if isMember(g);
-          allow create, update, delete: if isMember(g) && (isOpen(g, s) || isOwner(g));
+          allow create, update, delete: if isMember(g) && (isOpen(g, s) || can(g, 'records'));
         }
         match /pairs/{x} {
           allow read: if isMember(g);
-          allow create, update, delete: if isMember(g) && (isOpen(g, s) || isOwner(g));
+          allow create, update, delete: if isMember(g) && (isOpen(g, s) || can(g, 'records'));
         }
 
         match /tables/{t} {
           allow read, update: if isMember(g);
           // 已埋數唔可以再開枱（局主除外）
           allow create: if isMember(g) && (isOpen(g, s) || isOwner(g));
-          allow delete: if isOwner(g);
+          allow delete: if can(g, 'records');
 
           // 每一鋪：只可以加，唔可以改或者刪。
           // 文件 id = 序號；同一個序號第二個人寫會變成「改」，會被拒絕，

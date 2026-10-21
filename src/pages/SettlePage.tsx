@@ -1,7 +1,7 @@
 import { useMemo } from 'react';
 import type { User } from 'firebase/auth';
 import SettleScreen from '../components/SettleScreen.tsx';
-import { addSessionPerson, removeSessionPerson, setSkipTeam, markPaid, savePayout, acceptPair, acceptTeam, addExpense, updateExpense, approveClose, cancelClose, closeSession, deleteExpense, deletePair, isGuest, proposePair, requestClose, saveSettleConfig, setSessionWaterTo, settleConfigOf } from '../lib/data.ts';
+import { canDo, addSessionPerson, removeSessionPerson, setSkipTeam, markPaid, savePayout, acceptPair, acceptTeam, addExpense, updateExpense, approveClose, cancelClose, closeSession, deleteExpense, deletePair, isGuest, proposePair, requestClose, saveSettleConfig, setSessionWaterTo, settleConfigOf } from '../lib/data.ts';
 import { useSuperAdmin } from '../lib/admin.ts';
 import { useExpenses, useGroup, useManyEvents, useMembers, usePairs, useSession, useTables, useTeams } from '../lib/live.ts';
 import { computeTable, rulesOf, rulesTimeline } from '../lib/score.ts';
@@ -37,7 +37,9 @@ export default function SettlePage({ user, groupId, sessionId }: { user: User; g
 
   const sess = session.data;
   const hostId = sess.createdBy;
-  const isOwner = group.data.ownerId === user.uid || admin;
+  const meM = members.data.find((m) => m.uid === user.uid);
+  const isOwner = canDo(group.data, meM, user.uid, admin, 'records');
+  const canRules = canDo(group.data, meM, user.uid, admin, 'rules');
   // 埋數：只有開大局嘅人（場主）同局主撳得
   const isHost = hostId === user.uid || isOwner;
   const waterTo = sess.waterTo || hostId;
@@ -64,7 +66,7 @@ export default function SettlePage({ user, groupId, sessionId }: { user: User; g
       water={sum.water}
       unfinished={sum.unfinished}
       config={{ ...settleConfigOf(group.data), waterTo }}
-      canSetWater={isOwner && !sess.closed}
+      canSetWater={canRules && !sess.closed}
       waterOptions={waterOptions}
       onSetWaterTo={(uid) => setSessionWaterTo(groupId, sessionId, uid)}
       closing={{
@@ -84,7 +86,7 @@ export default function SettlePage({ user, groupId, sessionId }: { user: User; g
         },
         onCancel: () => cancelClose(groupId, sessionId),
       }}
-      canEdit={group.data.ownerId === user.uid}
+      canEdit={canRules}
       accounts={accounts}
       expenses={expenses.data}
       pairs={pairs.data}
