@@ -225,7 +225,7 @@ export function useMeetups(g: string | null): Live<Meetup[]> {
           return {
             id: d.id, by: String(x.by ?? ''), byName: String(x.byName ?? ''), at: Number(x.at ?? 0), place: String(x.place ?? ''), note: String(x.note ?? ''),
             going: arr(x.going), maybe: arr(x.maybe), no: arr(x.no), names: x.names && typeof x.names === 'object' ? Object.fromEntries(Object.entries(x.names).map(([k, v]) => [k, String(v)])) : {},
-            createdAt: Number(x.createdAt ?? 0),
+            createdAt: Number(x.createdAt ?? 0), tables: Math.max(1, Number(x.tables ?? 1) || 1),
           };
         }),
         loading: false, error: null,

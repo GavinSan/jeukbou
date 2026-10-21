@@ -1,7 +1,7 @@
-// 底部玻璃 tab bar（似 iOS）：首頁一組（主頁、牌友圈、段位、設定）；牌友圈入面一組（枱、大局、埋數、龍虎榜、家規）
+// 底部玻璃 tab bar（似 iOS）：首頁一組（主頁、牌友圈、找數、段位、設定）；牌友圈入面一組（主頁、牌友圈、枱、大局、埋數）
 import { useEffect } from 'react';
 import type { CSSProperties, ReactNode } from 'react';
-import { Link } from '../lib/router.tsx';
+import { Link, match } from '../lib/router.tsx';
 
 export interface Tab {
   key: string;
@@ -88,18 +88,20 @@ export function appTabs(ctx: { g?: string; s?: string; t?: string }, path: strin
       : g
         ? { key: 'table', label: '大局', href: `/g/${g}/new`, raised: true, plus: true }
         : { key: 'table', label: '枱', href: null, raised: true };
+  // 牌友圈入面：主頁、牌友圈、枱（中間）、大局、埋數。
+  // 埋數：喺大局入面就係呢個大局嘅埋數；喺牌友圈就係成個牌友圈所有大局嘅找數
+  const inSession = !!match('/g/:g/s/:s', path) || !!match('/g/:g/s/:s/:rest', path) || !!match('/g/:g/s/:s/t/:t', path);
   const tabs: Tab[] = [
-    { key: 'session', label: '大局', href: S ?? (g ? `/g/${g}` : '/') },
-    { key: 'settle', label: '埋數', href: S ? `${S}/settle` : null },
+    { key: 'home', label: '主頁', href: '/' },
+    { key: 'groups', label: '牌友圈', href: g ? `/g/${g}` : '/groups' },
     tableTab,
-    { key: 'board', label: '龍虎榜', href: g ? `/g/${g}/board` : null },
-    { key: 'rules', label: '家規', href: S ? `${S}/rules` : g ? `/g/${g}/rules` : null },
+    { key: 'session', label: '大局', href: S },
+    { key: 'settle', label: '埋數', href: inSession && S ? `${S}/settle` : g ? `/g/${g}/pay` : null },
   ];
   let active: string | null = null;
   if (/\/t\/[^/]+$/.test(path)) active = 'table';
-  else if (path.endsWith('/settle')) active = 'settle';
-  else if (path.endsWith('/board')) active = 'board';
-  else if (path.endsWith('/rules')) active = 'rules';
-  else if (/^\/g\/[^/]+(\/s\/[^/]+)?$/.test(path) || path === '/') active = 'session';
+  else if (path.endsWith('/settle') || /^\/g\/[^/]+\/pay$/.test(path) || /\/s\/[^/]+\/pay$/.test(path)) active = 'settle';
+  else if (/^\/g\/[^/]+\/s\/[^/]+(\/rules)?$/.test(path)) active = 'session';
+  else if (/^\/g\/[^/]+$/.test(path) || path.endsWith('/board') || path.endsWith('/rules') || path.endsWith('/players')) active = 'groups';
   return { tabs, active };
 }

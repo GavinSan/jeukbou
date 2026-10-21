@@ -64,7 +64,7 @@ function quickTags(c: Computed): string[] {
   return out;
 }
 
-export default function SessionScreen({ title, back, tables, computed, tableHref, invite, liveHref, onDeleteSession, water: waterCtl, closedNote, notice, candidates = [], onAddTable, me = null, onClosedAdd, regroup: rg }: SessionScreenProps) {
+export default function SessionScreen({ title, back, tables, computed, tableHref, invite, liveHref, rulesHref, onDeleteSession, water: waterCtl, closedNote, notice, candidates = [], onAddTable, me = null, onClosedAdd, regroup: rg }: SessionScreenProps) {
   const now = useNow();
   const [adding, setAdding] = useState(false);
   const [delSession, setDelSession] = useState(false);
@@ -166,9 +166,14 @@ export default function SessionScreen({ title, back, tables, computed, tableHref
       <TopBar
         back={back}
         title={<div className="stack tight"><h1>{title}</h1><span className="muted small">{tables.length} 張枱，{people} 人</span></div>}
-        right={liveHref ? <Link to={liveHref} className="iconbtn" ariaLabel="電視直播">
-          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><rect x="3" y="5" width="18" height="12" rx="2" /><path d="M8 21h8M12 17v4" /><circle cx="7" cy="9" r="1.2" fill="currentColor" stroke="none" /></svg>
-        </Link> : undefined}
+        right={(liveHref || rulesHref) ? <span className="row tight">
+          {rulesHref && <Link to={rulesHref} className="iconbtn" ariaLabel="家規">
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M5 4h11a3 3 0 0 1 3 3v13H8a3 3 0 0 1-3-3z" /><path d="M5 17a3 3 0 0 1 3-3h11" /></svg>
+          </Link>}
+          {liveHref && <Link to={liveHref} className="iconbtn" ariaLabel="電視直播">
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><rect x="3" y="5" width="18" height="12" rx="2" /><path d="M8 21h8M12 17v4" /><circle cx="7" cy="9" r="1.2" fill="currentColor" stroke="none" /></svg>
+          </Link>}
+        </span> : undefined}
       />
 
       {notice}

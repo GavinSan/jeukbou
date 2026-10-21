@@ -171,12 +171,15 @@ export interface Meetup {
   no: string[];
   names: Record<string, string>;
   createdAt: number;
+  /** 想開幾多枱（1 = 4 個人）；人多過咗照樣可以加入 */
+  tables: number;
 }
 
-export async function createMeetup(g: string, user: User, m: { at: number; place: string; note: string }): Promise<void> {
+export async function createMeetup(g: string, user: User, m: { at: number; place: string; note: string; tables?: number }): Promise<void> {
   await setDoc(doc(collection(fs(), 'groups', g, 'meetups')), {
     by: user.uid, byName: displayName(user), at: m.at, place: m.place.trim().slice(0, 60), note: m.note.trim().slice(0, 200),
     going: [user.uid], maybe: [], no: [], names: { [user.uid]: displayName(user) }, createdAt: Date.now(),
+    tables: Math.max(1, Math.min(8, Math.round(m.tables ?? 1))),
     // 伺服器發通知時用嚟寫返當地時間
     tz: Intl.DateTimeFormat().resolvedOptions().timeZone || '',
   });
@@ -197,16 +200,18 @@ export async function deleteMeetup(g: string, id: string): Promise<void> {
   await deleteDoc(doc(fs(), 'groups', g, 'meetups', id));
 }
 
-/** 鬼馬啲嘅人數講法 */
-export function meetupMood(n: number): string {
+/** 鬼馬啲嘅人數講法（可以約多過一枱） */
+export function meetupMood(n: number, tables = 1): string {
   if (n <= 0) return '未有人應';
-  if (n === 1) return '一缺三，快啲搵人！';
-  if (n === 2) return '二缺二，再嗌多兩個';
-  if (n === 3) return '三缺一！仲差一個 🔥';
-  if (n === 4) return '夠腳！開枱 🀄';
-  if (n < 8) return `夠一枱，再嗌 ${8 - n} 個就開兩枱`;
-  if (n % 4 === 0) return `${n / 4} 枱都夠腳！`;
-  return `夠 ${Math.floor(n / 4)} 枱，仲多 ${n % 4} 個`;
+  const full = Math.floor(n / 4);
+  const rem = n % 4;
+  if (full === 0) return rem === 1 ? '一缺三，快啲搵人！' : rem === 2 ? '二缺二，再嗌多兩個' : '三缺一！仲差一個 🔥';
+  if (rem === 0) {
+    if (full < tables) return `夠 ${full} 枱，想開 ${tables} 枱，再嗌 ${(tables - full) * 4} 個`;
+    return full === 1 ? '夠腳！開枱 🀄 想打多枱照加入' : `${full} 枱都夠腳！🀄`;
+  }
+  const lack = rem === 1 ? '一缺三' : rem === 2 ? '二缺二' : '三缺一 🔥';
+  return `夠 ${full} 枱・第 ${full + 1} 枱${lack}`;
 }
 
 /** 直播室留言 */
@@ -976,13 +981,14 @@ export async function setMemberPerms(g: string, uid: string, perms: Perm[]): Pro
 }
 
 /** 牌友圈資料：icon、簡介、公開／私人；公開嘅會放一份去 publicGroups 俾人搜尋 */
-export async function updateGroupProfile(g: Group, p: { icon: string; description: string; visibility: 'public' | 'private' }, memberCount: number): Promise<void> {
+export async function updateGroupProfile(g: Group, p: { name?: string; icon: string; description: string; visibility: 'public' | 'private' }, memberCount: number): Promise<void> {
   const icon = p.icon.slice(0, 200000);
-  await updateDoc(doc(fs(), 'groups', g.id), { icon: icon || deleteField(), description: p.description.trim().slice(0, 200) || deleteField(), visibility: p.visibility });
+  const name = (p.name ?? g.name).trim().slice(0, 30) || g.name;
+  await updateDoc(doc(fs(), 'groups', g.id), { name, icon: icon || deleteField(), description: p.description.trim().slice(0, 200) || deleteField(), visibility: p.visibility });
   const pub = doc(fs(), 'publicGroups', g.id);
   if (p.visibility === 'public') {
     await setDoc(pub, {
-      name: g.name, icon, description: p.description.trim().slice(0, 200), inviteCode: g.inviteCode, joinMode: g.joinMode ?? 'auto',
+      name, icon, description: p.description.trim().slice(0, 200), inviteCode: g.inviteCode, joinMode: g.joinMode ?? 'auto',
       members: memberCount, updatedAt: serverTimestamp(),
     });
   } else {

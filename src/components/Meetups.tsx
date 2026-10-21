@@ -20,19 +20,22 @@ export function MeetupCard({ m, me, onRsvp, onDelete, canDelete }: {
   const [confirmUI, ask] = useConfirm();
   const mine = m.going.includes(me) ? 'going' : m.maybe.includes(me) ? 'maybe' : m.no.includes(me) ? 'no' : null;
   const n = m.going.length;
+  const want = Math.max(1, m.tables ?? 1);
+  // 位：最少顯示想開嘅枱數，人多過咗就加多枱（照樣可以加入）
+  const slots = Math.max(want, Math.ceil((n + 1) / 4)) * 4;
   const soon = m.at - Date.now() < 86400000;
   const act = async (t: () => Promise<void>) => { setBusy(true); setError(''); try { await t(); } catch (err) { setError(message(err)); } finally { setBusy(false); } };
   const nm = (id: string) => (id === me ? '你' : m.names[id] ?? '玩家');
   return (
-    <div className={`meetup${n === 3 ? ' need-one' : n >= 4 ? ' full' : ''}`}>
+    <div className={`meetup${n % 4 === 3 ? ' need-one' : n >= want * 4 ? ' full' : ''}`}>
       <div className="meetup-top">
-        <span className="meetup-when"><b>{meetupWhen(m.at)}</b>{soon && <span className="tag new">就嚟</span>}</span>
+        <span className="meetup-when"><b>{meetupWhen(m.at)}</b>{soon && <span className="tag new">就嚟</span>}{want > 1 && <span className="tag instant">想開 {want} 枱</span>}</span>
         {canDelete && <button type="button" className="textbtn loss small" onClick={() => ask({ title: '取消約局', detail: `${meetupWhen(m.at)} 嘅約局會刪除。`, action: '取消約局', run: onDelete })}>取消</button>}
       </div>
       {(m.place || m.note) && <p className="meetup-note">{[m.place && `📍 ${m.place}`, m.note].filter(Boolean).join('　')}</p>}
-      <div className="meetup-mood"><b className="num">{n}</b><span>{meetupMood(n)}</span></div>
+      <div className="meetup-mood"><b className="num">{n}</b><span>{meetupMood(n, want)}</span></div>
       <div className="meetup-seats" aria-hidden="true">
-        {Array.from({ length: Math.max(4, Math.ceil(n / 4) * 4) }, (_, i) => <i key={i} className={i < n ? 'on' : ''} />)}
+        {Array.from({ length: slots }, (_, i) => <i key={i} className={i < n ? 'on' : ''} />)}
       </div>
       {n > 0 && <p className="small muted">去：{m.going.map(nm).join('、')}{m.maybe.length ? `｜可能：${m.maybe.map(nm).join('、')}` : ''}</p>}
       <div className="seg wide" role="radiogroup" aria-label="去唔去">
@@ -47,7 +50,7 @@ export function MeetupCard({ m, me, onRsvp, onDelete, canDelete }: {
   );
 }
 
-export function MeetupSheet({ onSave, onClose }: { onSave: (m: { at: number; place: string; note: string }) => Promise<void>; onClose: () => void }) {
+export function MeetupSheet({ onSave, onClose, existing = [] }: { onSave: (m: { at: number; place: string; note: string; tables: number }) => Promise<void>; onClose: () => void; existing?: Meetup[] }) {
   const d = new Date(Date.now() + 86400000);
   d.setHours(20, 0, 0, 0);
   const pad = (x: number) => String(x).padStart(2, '0');
@@ -55,10 +58,13 @@ export function MeetupSheet({ onSave, onClose }: { onSave: (m: { at: number; pla
   const [time, setTime] = useState('20:00');
   const [place, setPlace] = useState('');
   const [note, setNote] = useState('');
+  const [tables, setTables] = useState(1);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
   const at = new Date(`${date}T${time}`).getTime();
   const ok = Number.isFinite(at) && at > Date.now() - 3600000;
+  // 同一個時段已經有人約：建議直接加入嗰個（夠腳都可以加，會開多枱）
+  const clash = ok ? existing.find((x) => Math.abs(x.at - at) < 2 * 3600000) : undefined;
   return (
     <Sheet onClose={onClose} label="約局">
       <h2>約局</h2>
@@ -67,11 +73,19 @@ export function MeetupSheet({ onSave, onClose }: { onSave: (m: { at: number; pla
         <label className="field grow"><span>時間</span><input className="input" type="time" value={time} onChange={(e) => setTime(e.target.value)} /></label>
       </div>
       <label className="field"><span>地點</span><input className="input" value={place} onChange={(e) => setPlace(e.target.value.slice(0, 60))} placeholder="例如 Gavin 屋企" /></label>
+      <div className="field">
+        <span>想開幾多枱</span>
+        <div className="seg wide" role="radiogroup" aria-label="枱數">
+          {[1, 2, 3, 4].map((k) => <button key={k} type="button" role="radio" aria-checked={tables === k} aria-pressed={tables === k} onClick={() => setTables(k)}>{k} 枱<small className="muted">　{k * 4} 人</small></button>)}
+        </div>
+        <small className="muted">多過咗都照樣加入得，夠人就開多枱。</small>
+      </div>
+      {clash && <p className="banner calm small">{meetupWhen(clash.at)} 已經有 {clash.byName || '人'} 約咗（{clash.going.length} 人去）。可以返去直接撳「去」加入，人多會開多枱。</p>}
       <label className="field"><span>備註</span><input className="input" value={note} onChange={(e) => setNote(e.target.value.slice(0, 200))} placeholder="例如 打 8 圈、食完飯先" /></label>
       {error && <p className="error">{error}</p>}
       <button type="button" className="btn big" disabled={busy || !ok} onClick={async () => {
         setBusy(true); setError('');
-        try { await onSave({ at, place, note }); onClose(); } catch (err) { setError(message(err)); setBusy(false); }
+        try { await onSave({ at, place, note, tables }); onClose(); } catch (err) { setError(message(err)); setBusy(false); }
       }}>{ok ? `約 ${meetupWhen(at)}` : '揀返將來嘅時間'}</button>
     </Sheet>
   );
@@ -80,7 +94,7 @@ export function MeetupSheet({ onSave, onClose }: { onSave: (m: { at: number; pla
 /** 牌友圈頁嘅約局區（純顯示，示範都用） */
 export function MeetupsView({ list, me, ownerOrAdmin, onCreate, onRsvp, onDelete }: {
   list: Meetup[]; me: string; ownerOrAdmin: boolean;
-  onCreate: (m: { at: number; place: string; note: string }) => Promise<void>;
+  onCreate: (m: { at: number; place: string; note: string; tables: number }) => Promise<void>;
   onRsvp: (id: string, status: 'going' | 'maybe' | 'no' | null) => Promise<void>;
   onDelete: (id: string) => Promise<void>;
 }) {
@@ -98,8 +112,8 @@ export function MeetupsView({ list, me, ownerOrAdmin, onCreate, onRsvp, onDelete
       </div>
       {list.length ? list.map((m) => (
         <MeetupCard key={m.id} m={m} me={me} canDelete={ownerOrAdmin || m.by === me} onRsvp={(s) => onRsvp(m.id, s)} onDelete={() => onDelete(m.id)} />
-      )) : <button type="button" className="meetup-empty" onClick={() => setOpen(true)}>未有約局。約定日子時間，等大家應「去」，夠腳就知。</button>}
-      {open && <MeetupSheet onSave={onCreate} onClose={() => setOpen(false)} />}
+      )) : <button type="button" className="meetup-empty" onClick={() => setOpen(true)}>未有約局。約定日子時間，等大家應「去」，夠腳就知；人多可以開幾張枱。</button>}
+      {open && <MeetupSheet onSave={onCreate} onClose={() => setOpen(false)} existing={list} />}
     </section>
   );
 }

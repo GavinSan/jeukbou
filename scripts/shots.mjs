@@ -329,6 +329,17 @@ for (const scheme of ['light', 'dark']) {
       await page.waitForTimeout(400);
       await page.screenshot({ path: `${out}/group-player.png` });
     });
+    await step('cases', async () => {
+      await page.goto(`${base}/demo/cases`, { waitUntil: 'networkidle' });
+      await page.waitForTimeout(300);
+      await page.screenshot({ path: `${out}/demo-cases.png`, fullPage: true });
+      await page.goto(`${base}/demo/t/6`, { waitUntil: 'networkidle' });
+      await page.waitForTimeout(600);
+      await page.screenshot({ path: `${out}/table-t6.png`, fullPage: true });
+      await page.goto(`${base}/demo/t/0?view=1`, { waitUntil: 'networkidle' });
+      await page.waitForTimeout(600);
+      await page.screenshot({ path: `${out}/table-view.png` });
+    });
     await step('install', async () => {
       await page.goto(`${base}/demo/install`, { waitUntil: 'networkidle' });
       await page.waitForTimeout(300);

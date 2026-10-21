@@ -50,6 +50,11 @@ const TABLES: TableDoc[] = [
   { id: 't3', name: '第 4 枱', order: 3, seats: ['mandy', 'ben', 'wing', 'kitty'], names: { mandy: 'Mandy', ben: 'Ben', wing: 'Wing', kitty: 'Kitty' } },
   { id: 't4', name: '第 5 枱', order: 4, seats: ['pat', 'sam', 'lok', 'yan'], names: { pat: 'Pat Chan', sam: 'Samantha Wong', lok: 'Lok', yan: 'Yan' } },
 ];
+// 測試用嘅枱（唔喺示範大局入面，淨係 /demo/t/5、/demo/t/6 用）：夠三拉、雙響同特別事項
+const TEST_TABLES: TableDoc[] = [
+  { id: 't5', name: '測試：夠拉', order: 5, seats: ['gavin', 'kit', 'jo', 'vincent'], names: { gavin: 'Gavin', kit: 'Kit', jo: 'Jo', vincent: 'Vincent' } },
+  { id: 't6', name: '測試：雙響', order: 6, seats: ['gavin', 'kit', 'jo', 'vincent'], names: { gavin: 'Gavin', kit: 'Kit', jo: 'Jo', vincent: 'Vincent' } },
+];
 
 // 第 5 枱：打完四圈（每鋪下家食，莊逐個過），用嚟睇「打完圈數」
 const FULL_ROUNDS: TableEvent[] = (() => {
@@ -65,6 +70,13 @@ const SCRIPT: Record<string, TableEvent[]> = {
   t1: [self('janice', 12), eat('sang', 30, 'clau'), { type: 'draw' }],
   t2: [eat('tat', 6, 'nat'), eat('robin', 10, 'tat'), self('tat', 15), eat('ts', 40, 'robin')],
   t4: FULL_ROUNDS,
+  t5: [eat('gavin', 10, 'kit'), eat('gavin', 8, 'kit'), eat('gavin', 12, 'kit')],
+  t6: [
+    { type: 'win', winners: [{ player: 'gavin', fan: 10 }, { player: 'jo', fan: 6 }], loser: 'kit' } as TableEvent,
+    { type: 'special', player: 'vincent', label: '一台花', amount: 10, direction: 'collect' },
+    { type: 'falseWin', player: 'kit' },
+    self('jo', 20),
+  ],
 };
 
 function seed(): Record<string, StoredEvent[]> {
@@ -195,8 +207,8 @@ export default function Demo() {
     const at = (days: number, h: number) => { const d = new Date(); d.setDate(d.getDate() + days); d.setHours(h, 0, 0, 0); return d.getTime(); };
     const names = { gavin: 'Gavin', athena: 'Athena', ivan: 'Ivan', viola: 'Viola', kit: 'Kit' };
     return [
-      { id: 'm1', by: 'athena', byName: 'Athena', at: at(2, 20), place: 'Athena 屋企', note: '打 8 圈，食完飯先', going: ['athena', 'ivan', 'viola'], maybe: ['kit'], no: [], names, createdAt: Date.now() - 3600000 },
-      { id: 'm2', by: 'gavin', byName: 'Gavin', at: at(9, 19), place: '', note: '長週末開兩枱？', going: ['gavin', 'athena', 'ivan', 'viola', 'kit'], maybe: [], no: [], names, createdAt: Date.now() - 7200000 },
+      { id: 'm1', by: 'athena', byName: 'Athena', at: at(2, 20), place: 'Athena 屋企', note: '打 8 圈，食完飯先', going: ['athena', 'ivan', 'viola'], maybe: ['kit'], no: [], names, createdAt: Date.now() - 3600000, tables: 1 },
+      { id: 'm2', by: 'gavin', byName: 'Gavin', at: at(9, 19), place: '', note: '長週末開兩枱？', going: ['gavin', 'athena', 'ivan', 'viola', 'kit'], maybe: [], no: [], names, createdAt: Date.now() - 7200000, tables: 2 },
     ];
   });
   const [reqs, setReqs] = useState<JoinRequest[]>([
@@ -211,13 +223,57 @@ export default function Demo() {
     () => TABLES.map((t) => ({ ...t, seats: seatOverride[t.id] ?? t.seats, names: { ...t.names, ...extraNames }, dice: dice[t.id] ?? null })),
     [seatOverride, extraNames, dice],
   );
+  const testTables = useMemo(
+    () => TEST_TABLES.map((t) => ({ ...t, seats: seatOverride[t.id] ?? t.seats, names: { ...t.names, ...extraNames }, dice: dice[t.id] ?? null })),
+    [seatOverride, extraNames, dice],
+  );
 
   const computed = useMemo(() => {
     const out: Record<string, Computed | null> = {};
-    for (const t of tables) out[t.id] = computeTable(t, events[t.id] ?? [], rules);
+    for (const t of [...tables, ...testTables]) out[t.id] = computeTable(t, events[t.id] ?? [], rules);
     return out;
-  }, [events, rules, tables]);
+  }, [events, rules, tables, testTables]);
 
+  if (path === '/demo/cases') {
+    const C: [string, string, string][] = [
+      ['/demo/home', '主頁', '戰績、Live 卡、日曆、加主畫面提示、補資料提示'],
+      ['/demo/groups', '牌友圈列表', '搜尋、公開牌友圈、加入碼'],
+      ['/demo/group', '牌友圈頁', '約局（三缺一、兩枱）、成員、權限、邀請'],
+      ['/demo', '大局', '5 張枱、一齊執位、加枱、電視直播'],
+      ['/demo/t/0', '枱：一般', '入數、番數表、特別事項（返回）、換人、撤回、紀錄分段'],
+      ['/demo/t/1', '枱：有流局', '流局（唔使確認）、拉同枱面'],
+      ['/demo/t/2', '枱：大番數', '40 番、找數'],
+      ['/demo/t/3', '枱：未開始', '掉位、擲骰'],
+      ['/demo/t/4', '枱：打完四圈', '再打四圈、快圈、完場'],
+      ['/demo/t/5', '枱：夠三拉', '決定找唔找數'],
+      ['/demo/t/6', '枱：雙響、特別事項、詐糊、自摸', '紀錄寫實際食幾多番'],
+      ['/demo/t/0?view=1', '枱：唔喺呢張枱', '只可以睇，入唔到數、擲唔到骰'],
+      ['/demo/settle', '埋數', '開支、Group、轉賬、已轉'],
+      ['/demo/pay', '找數', '我要俾、我要收、Interac email'],
+      ['/demo/board', '龍虎榜', '走勢（所有人、highlight 自己）、排行表、數據'],
+      ['/demo/rank', '段位', '段位進度、成就'],
+      ['/demo/live', '電視直播', '大字分數、直播室、音樂'],
+      ['/demo/rules', '家規', '番數表、抽水、拉'],
+      ['/demo/install', '加主畫面教學', 'iPhone Safari、其他瀏覽器、Android'],
+      ['/demo/skins', '風格', '10 款風格'],
+      ['/demo/admin', '超級管理員', '用戶、牌友圈'],
+      ['/demo/legacy', '舊紀錄', '匯入嘅舊數'],
+    ];
+    return (
+      <main className="page">
+        <TopBar title="示範：測試清單" />
+        <p className="muted small">全部係假資料，撳嚟撳去都唔會改到真嘅數。重新載入就會還原。右上角「退出示範」返去真 app。</p>
+        <div className="list">
+          {C.map(([href, t, d]) => (
+            <Link key={href} to={href} className="listrow">
+              <span className="grow"><b>{t}</b><small className="muted" style={{ display: 'block' }}>{d}</small></span>
+              <span className="chev" aria-hidden="true">›</span>
+            </Link>
+          ))}
+        </div>
+      </main>
+    );
+  }
   if (path === '/demo/rules') {
     return (
       <main className="page">
@@ -488,7 +544,7 @@ export default function Demo() {
   }
 
   const m = match('/demo/t/:i', path);
-  const table = m ? tables[Number(m.i)] : undefined;
+  const table = m ? [...tables, ...testTables][Number(m.i)] : undefined;
 
   if (table) {
     const c = computed[table.id];
@@ -508,6 +564,7 @@ export default function Demo() {
         cash={{ perUnit: settleCfg.perUnit, currency: settleCfg.currency, rounding: settleCfg.rounding }}
         rulesHref="/demo/rules"
         fanTable={DEFAULT_FAN_TABLE}
+        canEnter={!(typeof location !== 'undefined' && new URLSearchParams(location.search).has('view'))}
         back="/demo"
         subtitle="示範"
         candidates={[{ id: 'kit', name: 'Kit' }, { id: 'mandy', name: 'Mandy' }]}

@@ -3,7 +3,7 @@ import { ErrorBoundary, lazyPage } from './lib/lazy.tsx';
 import { onAuthStateChanged } from 'firebase/auth';
 import type { User } from 'firebase/auth';
 import { auth, configError } from './firebase.ts';
-import { match, usePath } from './lib/router.tsx';
+import { go, match, usePath } from './lib/router.tsx';
 import { Loading, NameForm, TopBar, saveProfile } from './ui.tsx';
 import Login from './pages/Login.tsx';
 import Home from './pages/Home.tsx';
@@ -24,6 +24,7 @@ const SettingsPage = lazyPage(() => import('./pages/SettingsPage.tsx'));
 const MyPayPage = lazyPage(() => import('./pages/MyPayPage.tsx'));
 const PayPage = lazyPage(() => import('./pages/PayPage.tsx'));
 const LivePage = lazyPage(() => import('./pages/LivePage.tsx'));
+const GroupPayPage = lazyPage(() => import('./pages/GroupPayPage.tsx'));
 import TabBar, { HOME_DEMO_TABS, appTabs } from './components/TabBar.tsx';
 import { navContext } from './lib/nav.ts';
 import { applySkin, prefs, usePrefs } from './lib/prefs.ts';
@@ -50,6 +51,7 @@ function Routes({ user, refresh }: { user: User; refresh: () => void }) {
   if ((m = match('/g/:g/s/:s/settle', path))) return <SettlePage user={user} groupId={m.g} sessionId={m.s} />;
   if ((m = match('/g/:g/s/:s/rules', path))) return <RulesPage user={user} groupId={m.g} sessionId={m.s} />;
   if ((m = match('/g/:g/s/:s', path))) return <SessionPage key={m.s} user={user} groupId={m.g} sessionId={m.s} />;
+  if ((m = match('/g/:g/pay', path))) return <GroupPayPage user={user} groupId={m.g} />;
   if ((m = match('/g/:g/import', path))) return <ImportPage user={user} groupId={m.g} />;
   if ((m = match('/g/:g/players', path))) return <PlayersPage user={user} groupId={m.g} />;
   if ((m = match('/g/:g/board', path))) return <BoardPage user={user} groupId={m.g} />;
@@ -86,15 +88,20 @@ export default function App() {
 
   if (path === '/demo' || path.startsWith('/demo/')) {
     const demoTabs = [
+      { key: 'home', label: '主頁', href: '/demo/home' },
+      { key: 'groups', label: '牌友圈', href: '/demo/group' },
+      { key: 'table', label: '枱', href: '/demo/t/0', raised: true },
       { key: 'session', label: '大局', href: '/demo' },
       { key: 'settle', label: '埋數', href: '/demo/settle' },
-      { key: 'table', label: '枱', href: '/demo/t/0', raised: true },
-      { key: 'board', label: '龍虎榜', href: '/demo/board' },
-      { key: 'rules', label: '家規', href: '/demo/rules' },
     ];
-    const active = path.startsWith('/demo/t/') ? 'table' : path === '/demo/settle' ? 'settle' : path === '/demo/board' ? 'board' : path === '/demo/rules' ? 'rules' : 'session';
+    const active = path.startsWith('/demo/t/') ? 'table' : path === '/demo/settle' ? 'settle' : path === '/demo/board' || path === '/demo/group' ? 'groups' : 'session';
     return (
       <>
+        {/* 示範模式：隨時退出返真 app；左邊撳返測試清單 */}
+        <div className="demo-bar" role="navigation" aria-label="示範模式">
+          <a href="/demo/cases" className="demo-pill" onClick={(e) => { e.preventDefault(); go('/demo/cases'); }}>示範・清單</a>
+          <a href="/" className="demo-pill exit" onClick={(e) => { e.preventDefault(); go('/'); }}>退出示範</a>
+        </div>
         <Suspense fallback={<main className="page narrow"><Loading /></main>}><Demo /></Suspense>
         {path === '/demo/admin' || path === '/demo/live' ? null : path === '/demo/home' || path === '/demo/rank' || path === '/demo/groups' || path === '/demo/pay' || path === '/demo/skins'
           ? <TabBar tabs={HOME_DEMO_TABS} active={path === '/demo/rank' ? 'rank' : path === '/demo/groups' ? 'groups' : path === '/demo/pay' ? 'pay' : path === '/demo/skins' ? 'settings' : 'home'} />

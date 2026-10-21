@@ -2,7 +2,7 @@
 import { useSyncExternalStore } from 'react';
 
 export interface Prefs {
-  /** 顯示說明文字 */
+  /** 顯示說明文字（預設閂 = 簡潔） */
   hints: boolean;
   sound: boolean;
   /** 震機 */
@@ -28,7 +28,7 @@ export const SKINS: { key: Skin; name: string; note: string; colors: string[] }[
 ];
 
 const KEY = 'jeukbou-prefs';
-const DEFAULTS: Prefs = { hints: true, sound: true, vibe: true, notify: false, skin: 'classic' };
+const DEFAULTS: Prefs = { hints: false, sound: true, vibe: true, notify: false, skin: 'classic' };
 const listeners = new Set<() => void>();
 
 function load(): Prefs {
@@ -36,7 +36,14 @@ function load(): Prefs {
     const raw = localStorage.getItem(KEY);
     const old = localStorage.getItem('jeukbou-sound');
     const base = { ...DEFAULTS, ...(old === 'off' ? { sound: false } : {}) };
-    return raw ? { ...base, ...JSON.parse(raw) } : base;
+    const out: Prefs = raw ? { ...base, ...JSON.parse(raw) } : base;
+    // 提示文字改咗預設閂（簡潔）：舊用家都閂一次，想睇再去設定開
+    if (localStorage.getItem('jeukbou-hints-v2') !== '1') {
+      out.hints = false;
+      localStorage.setItem('jeukbou-hints-v2', '1');
+      localStorage.setItem(KEY, JSON.stringify(out));
+    }
+    return out;
   } catch {
     return DEFAULTS;
   }
