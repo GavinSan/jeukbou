@@ -2156,3 +2156,4 @@ a.btn.small-btn { text-decoration: none; }
 .picker .pick > span:first-child { white-space: nowrap; }
 .picker .pick.multi { flex-basis: 100%; white-space: normal; }
 .picker .pick.multi > span:first-child { white-space: normal; }
+.lg-fan { color: var(--muted); font-size: 12px; margin-left: 2px; }

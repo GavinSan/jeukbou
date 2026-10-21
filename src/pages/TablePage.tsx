@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import type { User } from 'firebase/auth';
 import TableScreen from '../components/TableScreen.tsx';
 import Incoming from '../components/Incoming.tsx';
-import { canDo, appendEvent, applySwap, cancelSwap, declineSettle, requestSwap, reseat, rollDice, fanTableOf, settleConfigOf, deleteTable, isGuest } from '../lib/data.ts';
+import { canDo, appendEvent, applySwap, cancelSwap, declineSettle, requestSwap, reseat, rollDice, fanTableOf, settleConfigOf, deleteTable, isGuest, backfillLiveUsers } from '../lib/data.ts';
 import { useSuperAdmin } from '../lib/admin.ts';
 import { go } from '../lib/router.tsx';
 import { useEvents, useGroup, useManyEvents, useMembers, useRequests, useSession, useTables } from '../lib/live.ts';
@@ -35,6 +35,12 @@ export default function TablePage({ user, groupId, sessionId, tableId }: { user:
   const back = `/g/${groupId}/s/${sessionId}`;
   const table = tables.data.find((t) => t.id === tableId);
   const c = table ? computed[tableId] : null;
+  // 舊枱未有「而家坐喺度嘅人」：坐喺度嘅人一開就補返（資料庫規則用嚟限制邊個可以入數）
+  const needBackfill = !!table && !!c && !own.loading && table.liveUsers === undefined && !c.state.ended && c.state.seats.includes(user.uid);
+  useEffect(() => {
+    if (needBackfill && c) backfillLiveUsers(groupId, sessionId, tableId, c.state.seats).catch(() => undefined);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [needBackfill]);
 
   if (tables.error || group.error) return <main className="page"><TopBar back={back} /><p className="error">{tables.error ?? group.error}</p></main>;
   if (!table || !c || own.loading) {
@@ -108,8 +114,9 @@ export default function TablePage({ user, groupId, sessionId, tableId }: { user:
         const outName = table.names[out] ?? '玩家';
         // 訪客冇帳戶：即刻換（喺其他枱就兩邊對調）
         if (guest || isGuest(incoming.id)) {
+          // 對調：先改對面枱（規則要我仲坐喺呢張枱先准），再改呢張
+          if (incoming.table) await applySwap(groupId, sessionId, incoming.table.id, user.uid, incoming.id, out, outName, { pair: tableId });
           await applySwap(groupId, sessionId, tableId, user.uid, out, incoming.id, incoming.name);
-          if (incoming.table) await applySwap(groupId, sessionId, incoming.table.id, user.uid, incoming.id, out, outName);
           return 'done';
         }
         const dup = requests.data.some((r) => r.status === 'pending' && r.in === incoming.id);
