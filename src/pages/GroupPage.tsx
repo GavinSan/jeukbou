@@ -298,7 +298,7 @@ export function MemberList({ members, ownerId, stats, manage, onPick, onRemove, 
               <span className="grow member-text">
                 <span className="ellipsis">{m.name}{m.uid === ownerId ? <span className="tag instant">局主</span> : m.perms?.length ? <span className="tag stay" title={m.perms.map((p) => PERMS.find((x) => x.key === p)?.label).join('、')}>管理</span> : null}</span>
                 <small className="muted member-meta">
-                  {st?.played ? <><TierChip tier={tierOf(st.points).tier} /><span className="num">{st.points} 分</span><span>{st.played} 次</span>{st.last ? <span>最近 {lastTxt(st.last)}</span> : null}</> : '未有紀錄'}
+                  {st?.played ? <><TierChip tier={tierOf(st.points).tier} /><span className="num">{st.points} 分</span><span>・打咗 {st.played} 次</span>{st.last ? <span>・{lastTxt(st.last)}</span> : null}</> : '未有紀錄'}
                 </small>
               </span>
               {st?.played ? <b className={`num member-total ${st.total > 0 ? 'gain' : st.total < 0 ? 'loss' : ''}`}>{fmt(st.total)}</b> : null}
