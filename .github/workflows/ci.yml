@@ -37,4 +37,10 @@ jobs:
       - run: npm install --no-audit --no-fund
       - run: npm install --no-save --no-audit --no-fund @firebase/rules-unit-testing@4
       - name: 資料庫規則測試（模擬器）
-        run: npx --yes firebase-tools@13 emulators:exec --only firestore --project jeukbou-rules-test "node --test scripts/rules.test.mjs"
+        run: |
+          set +e
+          npx --yes firebase-tools@13 emulators:exec --only firestore --project jeukbou-rules-test "node --test --test-reporter=tap scripts/rules.test.mjs > rules.tap"
+          code=$?
+          echo "::notice title=rules::$(grep -E '^# (tests|pass|fail) ' rules.tap | tr '\n' ' ')"
+          grep -E '^not ok' rules.tap | sed 's/^/::error title=rules::/'
+          exit $code
