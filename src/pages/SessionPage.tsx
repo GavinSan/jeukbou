@@ -52,6 +52,7 @@ export default function SessionPage({ user, groupId, sessionId }: { user: User; 
       tableHref={(t) => `/g/${groupId}/s/${sessionId}/t/${t}`}
       invite={`${window.location.origin}/join/${groupId}/${group.data.inviteCode}/s/${sessionId}`}
       rulesHref={`/g/${groupId}/s/${sessionId}/rules`}
+      liveHref={session.data.closed ? undefined : `/live/${groupId}/${sessionId}`}
       settleHref={`/g/${groupId}/s/${sessionId}/settle`}
       water={session.data.closed ? undefined : { on: !session.data.noWater, onToggle: (on) => setSessionNoWater(groupId, sessionId, !on) }}
       closedNote={session.data.closed

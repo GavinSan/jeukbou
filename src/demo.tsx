@@ -28,6 +28,9 @@ import { DashboardView, ResumeRow } from './pages/Home.tsx';
 import { RankView } from './pages/RankPage.tsx';
 import { MyPayView } from './pages/MyPayPage.tsx';
 import { AdminView } from './pages/AdminPage.tsx';
+import { LiveTv, tvTablesOf } from './pages/LivePage.tsx';
+import { LiveCardView } from './components/LiveHome.tsx';
+import type { ChatMsg } from './lib/live.ts';
 import type { PayItem } from './lib/pay.ts';
 import { Invite, JoinRequestsView, MemberList, memberStatsOf } from './pages/GroupPage.tsx';
 import type { MemberStat } from './pages/GroupPage.tsx';
@@ -173,6 +176,10 @@ export default function Demo() {
     { id: 'e2', kind: 'expense', label: '飲品', payer: 'guest-vincent', amount: 23.92, sharedBy: [], all: true, note: '奶茶', names: { 'guest-vincent': 'Vincent' }, by: 'demo', at: null },
   ]);
   const [demoDraw, setDemoDraw] = useState<Draw | null>(null);
+  const [demoChat, setDemoChat] = useState<ChatMsg[]>([
+    { id: '1', by: 'athena', name: 'Athena', text: 'Gavin 今晚好旺喎 🔥', at: Date.now() - 600000 },
+    { id: '2', by: 'ivan', name: 'Ivan', text: '下一鋪一定到我', at: Date.now() - 300000 },
+  ]);
   const [demoPaid, setDemoPaid] = useState<Record<string, { by: string; at: number }>>({});
   const [people, setPeople] = useState<{ id: string; name: string }[]>([{ id: 'guest-vincent', name: 'Vincent' }]);
   const [pairs, setPairs] = useState<PairDoc[]>([{ id: 'p1', a: 'robin', b: 'tat', by: 'robin', accepted: ['robin'] }]);
@@ -217,6 +224,27 @@ export default function Demo() {
     );
   }
 
+  if (path === '/demo/live') {
+    const tv = tvTablesOf(tables, computed);
+    const acc = new Map<string, { id: string; name: string; v: number }>();
+    for (const t of tables) { const c = computed[t.id]; if (!c) continue; for (const id of Object.keys(c.state.settled)) { const r = acc.get(id) ?? { id, name: t.names[id] ?? '玩家', v: 0 }; r.v += (c.state.settled[id] ?? 0) + (c.pending[id] ?? 0); acc.set(id, r); } }
+    return (
+      <LiveTv
+        groupName="不打不相識"
+        icon="🀄"
+        sessionName="10月18日 屋企局"
+        tables={tv}
+        ranking={[...acc.values()].sort((a, b) => b.v - a.v)}
+        chat={demoChat}
+        music="https://www.youtube.com/watch?v=jfKfPfyJRdk"
+        me="gavin"
+        backHref="/demo"
+        onSend={async (t) => setDemoChat((l) => [...l, { id: String(l.length + 1), by: 'gavin', name: 'Gavin', text: t, at: Date.now() }])}
+        onMusic={async () => undefined}
+      />
+    );
+  }
+
   if (path === '/demo/home') {
     return (
       <>
@@ -228,6 +256,20 @@ export default function Demo() {
           mine={mySessions(DEMO_GROUPS, 'gavin')}
           loading={false}
           resume={<ResumeRow href="/demo" name="10月18日 屋企局" />}
+          live={(() => {
+            const tv = tvTablesOf(tables, computed).slice(0, 3);
+            return (
+              <LiveCardView
+                groupName="不打不相識"
+                icon="🀄"
+                sessionName="10月18日 屋企局"
+                href="/demo"
+                tvHref="/demo/live"
+                me="gavin"
+                tables={tv.map((t) => ({ id: t.id, name: t.name, round: t.round, players: [...t.players].sort((a, b) => b.v - a.v) }))}
+              />
+            );
+          })()}
           sessionHref={() => '/demo'}
           rankHref="/demo/rank"
         />

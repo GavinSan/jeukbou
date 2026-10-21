@@ -139,6 +139,15 @@ service cloud.firestore {
           && (!request.resource.data.diff(resource.data).affectedKeys().hasAny(['people', 'skipTeams']) || resource.data.get('closed', null) == null || can(g, 'records'));
         allow delete: if can(g, 'records');
 
+        // 直播室留言：同圈成員睇同留；自己或者局主刪
+        match /chat/{c} {
+          allow read: if isMember(g);
+          allow create: if isMember(g) && request.resource.data.by == request.auth.uid
+            && request.resource.data.text is string && request.resource.data.text.size() <= 200;
+          allow update: if false;
+          allow delete: if isOwner(g) || (signedIn() && resource.data.by == request.auth.uid);
+        }
+
         // 換人請求：同局成員都睇到、發到、答到
         match /requests/{r} {
           allow read, create, update: if isMember(g);

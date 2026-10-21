@@ -132,6 +132,8 @@ export interface Session {
   skipTeams?: string[];
   /** 幾張枱一齊執位（抽牌） */
   draw?: Draw | null;
+  /** 電視直播播緊嘅音樂（YouTube／Spotify／Apple Music 連結） */
+  music?: string;
 }
 
 /** 一齊執位：X 張枱 = X × 4 隻牌（壹貳參肆…），同一隻字 = 同一張枱 */
@@ -154,6 +156,17 @@ export interface Draw {
   /** propose = 等其他枱同意；picking = 揀緊；done = 揀晒 */
   status: 'propose' | 'picking' | 'done';
   approvals: string[];
+}
+
+/** 直播室留言 */
+export async function sendChat(g: string, s: string, user: User, text: string): Promise<void> {
+  const t = text.trim().slice(0, 200);
+  if (!t) return;
+  await setDoc(doc(collection(fs(), 'groups', g, 'sessions', s, 'chat')), { by: user.uid, name: displayName(user), text: t, at: serverTimestamp() });
+}
+
+export async function setSessionMusic(g: string, s: string, url: string): Promise<void> {
+  await updateDoc(doc(fs(), 'groups', g, 'sessions', s), { music: url.trim() || deleteField() });
 }
 
 export const UPPER_NUM = ['壹', '貳', '參', '肆', '伍', '陸', '柒', '捌', '玖', '拾'];

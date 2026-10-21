@@ -1,6 +1,6 @@
 // 即時讀取 Firestore 嘅 React hooks
 import { useEffect, useMemo, useState } from 'react';
-import { collection, doc, onSnapshot, orderBy, query } from 'firebase/firestore';
+import { collection, doc, limit, onSnapshot, orderBy, query } from 'firebase/firestore';
 import type { DocumentData } from 'firebase/firestore';
 import { fs } from './data.ts';
 import type { Dice, ExpenseDoc, FanTableLog, Group, JoinRequest, Member, TeamDoc, PairDoc, Session, StoredEvent, SwapRequest, TableDoc } from './data.ts';
@@ -87,6 +87,7 @@ const toSession = (id: string, d: DocumentData): Session => ({
     status: d.draw.status === 'propose' || d.draw.status === 'done' ? d.draw.status : 'picking',
     approvals: Array.isArray(d.draw.approvals) ? d.draw.approvals.map(String) : [],
   } : null,
+  music: typeof d.music === 'string' ? d.music : undefined,
   people: Array.isArray(d.people) ? d.people.filter((x: DocumentData) => x && x.id).map((x: DocumentData) => ({ id: String(x.id), name: String(x.name ?? '玩家') })) : [],
   closeReq: d.closeReq ? { by: String(d.closeReq.by ?? ''), approvals: Array.isArray(d.closeReq.approvals) ? d.closeReq.approvals.map(String) : [] } : null,
 });
@@ -193,6 +194,43 @@ export function useManyEvents(g: string, s: string, tableIds: string[]): Record<
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [g, s, key]);
   return useMemo(() => all, [all]);
+}
+
+/** 最近幾個大局（主頁 Live 用） */
+export function useRecentSessions(g: string, n = 3): Live<Session[]> {
+  const [state, setState] = useState<Live<Session[]>>({ data: [], loading: true, error: null });
+  useEffect(() => {
+    return onSnapshot(
+      query(collection(fs(), 'groups', g, 'sessions'), orderBy('createdAt', 'desc'), limit(n)),
+      (snap) => setState({ data: snap.docs.map((d) => toSession(d.id, d.data())), loading: false, error: null }),
+      (err) => setState({ data: [], loading: false, error: err.message }),
+    );
+  }, [g, n]);
+  return state;
+}
+
+export interface ChatMsg {
+  id: string;
+  by: string;
+  name: string;
+  text: string;
+  at: number | null;
+}
+
+/** 直播室留言（最新 60 條） */
+export function useChat(g: string, s: string): Live<ChatMsg[]> {
+  const [state, setState] = useState<Live<ChatMsg[]>>({ data: [], loading: true, error: null });
+  useEffect(() => {
+    return onSnapshot(
+      query(collection(fs(), 'groups', g, 'sessions', s, 'chat'), orderBy('at', 'desc'), limit(60)),
+      (snap) => setState({
+        data: snap.docs.map((d) => { const x = d.data(); return { id: d.id, by: String(x.by ?? ''), name: String(x.name ?? '玩家'), text: String(x.text ?? ''), at: x.at && typeof x.at.toMillis === 'function' ? x.at.toMillis() : null }; }).reverse(),
+        loading: false, error: null,
+      }),
+      (err) => setState({ data: [], loading: false, error: err.message }),
+    );
+  }, [g, s]);
+  return state;
 }
 
 // 一次過讀（唔即時跟）嘅地方用

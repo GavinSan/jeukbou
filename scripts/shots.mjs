@@ -459,6 +459,15 @@ for (const scheme of ['light', 'dark']) {
       await page.getByRole('button', { name: /確認執位/ }).click();
       await page.waitForTimeout(500);
     });
+    await step('live', async () => {
+      await page.goto(`${base}/demo/live`, { waitUntil: 'networkidle' });
+      await page.waitForTimeout(800);
+      await page.screenshot({ path: `${out}/live-tv.png`, fullPage: true });
+      await page.setViewportSize({ width: 1280, height: 760 });
+      await page.waitForTimeout(400);
+      await page.screenshot({ path: `${out}/live-tv-desktop.png` });
+      await page.setViewportSize({ width: 390, height: 844 });
+    });
     await step('admin', async () => {
       await page.goto(`${base}/demo/admin`, { waitUntil: 'networkidle' });
       await page.waitForTimeout(500);

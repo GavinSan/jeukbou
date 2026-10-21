@@ -24,6 +24,8 @@ export interface SessionScreenProps {
   invite: string | null;
   rulesHref?: string;
   settleHref?: string;
+  /** 電視直播 */
+  liveHref?: string;
   /** 局主／管理員：刪除成個大局 */
   onDeleteSession?: () => Promise<void>;
   /** 呢局抽唔抽水（打牌嘅人揀） */
@@ -62,7 +64,7 @@ function quickTags(c: Computed): string[] {
   return out;
 }
 
-export default function SessionScreen({ title, back, tables, computed, tableHref, invite, rulesHref, onDeleteSession, water: waterCtl, closedNote, notice, candidates = [], onAddTable, me = null, onClosedAdd, regroup: rg }: SessionScreenProps) {
+export default function SessionScreen({ title, back, tables, computed, tableHref, invite, liveHref, onDeleteSession, water: waterCtl, closedNote, notice, candidates = [], onAddTable, me = null, onClosedAdd, regroup: rg }: SessionScreenProps) {
   const now = useNow();
   const [adding, setAdding] = useState(false);
   const [delSession, setDelSession] = useState(false);
@@ -164,8 +166,8 @@ export default function SessionScreen({ title, back, tables, computed, tableHref
       <TopBar
         back={back}
         title={<div className="stack tight"><h1>{title}</h1><span className="muted small">{tables.length} 張枱，{people} 人</span></div>}
-        right={rulesHref ? <Link to={rulesHref} className="iconbtn" ariaLabel="家規">
-          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" aria-hidden="true"><path d="M6 4h12v16H6z" /><path d="M9 9h6M9 13h6M9 17h3" /></svg>
+        right={liveHref ? <Link to={liveHref} className="iconbtn" ariaLabel="電視直播">
+          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><rect x="3" y="5" width="18" height="12" rx="2" /><path d="M8 21h8M12 17v4" /><circle cx="7" cy="9" r="1.2" fill="currentColor" stroke="none" /></svg>
         </Link> : undefined}
       />
 

@@ -23,6 +23,7 @@ const RankPage = lazyPage(() => import('./pages/RankPage.tsx'));
 const SettingsPage = lazyPage(() => import('./pages/SettingsPage.tsx'));
 const MyPayPage = lazyPage(() => import('./pages/MyPayPage.tsx'));
 const PayPage = lazyPage(() => import('./pages/PayPage.tsx'));
+const LivePage = lazyPage(() => import('./pages/LivePage.tsx'));
 import TabBar, { HOME_DEMO_TABS, appTabs } from './components/TabBar.tsx';
 import { navContext } from './lib/nav.ts';
 import { applySkin, usePrefs } from './lib/prefs.ts';
@@ -42,6 +43,7 @@ function Routes({ user, refresh }: { user: User; refresh: () => void }) {
   if ((m = match('/join/:g/:code/s/:s', path))) return <Join user={user} groupId={m.g} code={m.code} sessionId={m.s} />;
   if ((m = match('/join/:g/:code', path))) return <Join user={user} groupId={m.g} code={m.code} />;
   if ((m = match('/g/:g/new', path))) return <NewSession user={user} groupId={m.g} />;
+  if ((m = match('/live/:g/:s', path))) return <LivePage user={user} groupId={m.g} sessionId={m.s} />;
   if ((m = match('/g/:g/s/:s/t/:t', path))) return <TablePage user={user} groupId={m.g} sessionId={m.s} tableId={m.t} />;
   if ((m = match('/g/:g/s/:s/pay', path))) return <PayPage user={user} groupId={m.g} sessionId={m.s} />;
   if ((m = match('/g/:g/s/:s/settle', path))) return <SettlePage user={user} groupId={m.g} sessionId={m.s} />;
@@ -91,7 +93,7 @@ export default function App() {
     return (
       <>
         <Suspense fallback={<main className="page narrow"><Loading /></main>}><Demo /></Suspense>
-        {path === '/demo/admin' ? null : path === '/demo/home' || path === '/demo/rank' || path === '/demo/groups' || path === '/demo/pay' || path === '/demo/skins'
+        {path === '/demo/admin' || path === '/demo/live' ? null : path === '/demo/home' || path === '/demo/rank' || path === '/demo/groups' || path === '/demo/pay' || path === '/demo/skins'
           ? <TabBar tabs={HOME_DEMO_TABS} active={path === '/demo/rank' ? 'rank' : path === '/demo/groups' ? 'groups' : path === '/demo/pay' ? 'pay' : path === '/demo/skins' ? 'settings' : 'home'} />
           : <TabBar tabs={demoTabs} active={active} />}
       </>
@@ -124,7 +126,7 @@ export default function App() {
     <>
       <ErrorBoundary key={path}><Suspense fallback={<main className="page narrow"><Loading /></main>}><Routes user={user} refresh={refresh} /></Suspense></ErrorBoundary>
       {/* 加入頁唔使底部 tab */}
-      {!path.startsWith('/join/') && path !== '/admin' && <TabBar tabs={nav.tabs} active={nav.active} />}
+      {!path.startsWith('/join/') && !path.startsWith('/live/') && path !== '/admin' && <TabBar tabs={nav.tabs} active={nav.active} />}
       <GroupWatchers uid={user.uid} />
       <NoticeBar />
       <UpdateWatcher />

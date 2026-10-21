@@ -1,5 +1,5 @@
 // 首頁：自己嘅戰績（段位、雀力分、場數、勝率、走勢、最近幾場、成就）
-import { useState } from 'react';
+import { useCallback, useState } from 'react';
 import type { ReactNode } from 'react';
 import type { User } from 'firebase/auth';
 import { displayName, markNudged } from '../lib/data.ts';
@@ -9,6 +9,7 @@ import { Avatar, TopBar, fmt } from '../ui.tsx';
 import { navContext } from '../lib/nav.ts';
 import { TIERS, badgesOf, sessionPoints, statsOf, tierOf, useMyHistory } from '../lib/stats.ts';
 import type { MySession } from '../lib/stats.ts';
+import LiveNow from '../components/LiveHome.tsx';
 import { BadgeTile, CountUp, Progress, Ring, TierTile } from '../components/Tier.tsx';
 import { TrendChart } from '../components/Charts.tsx';
 
@@ -144,8 +145,8 @@ export function ResumeRow({ href, name }: { href: string; name: string }) {
   );
 }
 
-export function DashboardView({ name, photo, joined, groupCount, mine, loading, resume, nudge, sessionHref, rankHref = '/rank' }: {
-  name: string; photo: string | null; joined: string; groupCount: number; mine: MySession[]; loading: boolean; resume?: ReactNode; nudge?: ReactNode;
+export function DashboardView({ name, photo, joined, groupCount, mine, loading, resume, nudge, live, sessionHref, rankHref = '/rank' }: {
+  name: string; photo: string | null; joined: string; groupCount: number; mine: MySession[]; loading: boolean; resume?: ReactNode; nudge?: ReactNode; live?: ReactNode;
   sessionHref: (s: MySession) => string;
   rankHref?: string;
 }) {
@@ -184,6 +185,7 @@ export function DashboardView({ name, photo, joined, groupCount, mine, loading, 
         </div>
       </section>
 
+      {live}
       {nudge}
       {resume}
 
@@ -317,6 +319,7 @@ export default function Home({ user }: { user: User; refresh?: () => void }) {
   const groups = profile.data.groups;
   const history = useMyHistory(profile.loading ? null : user.uid, groups);
   const last = navContext('/');
+  const onLive = useCallback(() => undefined, []);
   return (
     <DashboardView
       name={displayName(user)}
@@ -327,6 +330,7 @@ export default function Home({ user }: { user: User; refresh?: () => void }) {
       loading={profile.loading || history.loading}
       resume={last.g && last.s ? <Resume g={last.g} s={last.s} t={last.t} /> : null}
       nudge={<ProfileNudge uid={user.uid} profile={profile.loading ? null : profile.data} />}
+      live={<LiveNow groupIds={groups} me={user.uid} onLive={onLive} />}
       sessionHref={(s) => `/g/${s.gid}/s/${s.sid}`}
     />
   );
