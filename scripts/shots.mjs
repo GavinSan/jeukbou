@@ -63,7 +63,7 @@ for (const scheme of ['light', 'dark']) {
     });
     await step('edit', async () => {
       await page.waitForTimeout(1000);
-      await page.getByRole('button', { name: /Gavin 食 Ivan（15 番）/ }).click();
+      await page.getByRole('button', { name: /Gavin 食 Ivan .*牌 15 番/ }).click();
       await page.waitForTimeout(400);
       await page.getByRole('dialog').getByRole('button', { name: '加一番' }).click();
       await page.getByRole('dialog').getByRole('button', { name: '加一番' }).click();
