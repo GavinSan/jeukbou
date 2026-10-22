@@ -269,6 +269,8 @@ export function describe(event: TableEvent, name: (id: string) => string): strin
       return `${name(event.out)} 換 ${name(event.in)}`;
     case 'end':
       return '完場';
+    case 'reopen':
+      return '重開（之前拉住嘅數完場時已找）';
     case 'extend':
       return (event.rounds ?? 1) >= 4 ? '再打四圈' : '打多一個快圈';
     case 'reseat':

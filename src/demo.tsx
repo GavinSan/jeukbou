@@ -14,11 +14,13 @@ import RulesEditor from './components/RulesEditor.tsx';
 import { TopBar } from './ui.tsx';
 import BoardView from './components/BoardView.tsx';
 import LegacySession from './components/LegacySession.tsx';
+import { PlayersView } from './pages/PlayersPage.tsx';
 import type { SessionResult } from './lib/history.ts';
 import SettleScreen, { SettleConfigForm } from './components/SettleScreen.tsx';
 import HouseRules from './components/HouseRules.tsx';
 import { FanTableView } from './components/FanTable.tsx';
-import { DEFAULT_SETTLE, drawNext } from './lib/data.ts';
+import { DEFAULT_SETTLE, drawNext, paidState } from './lib/data.ts';
+import type { PaidMark } from './lib/data.ts';
 import type { ExpenseDoc, PairDoc, PullPush, SettleConfig } from './lib/data.ts';
 import { sessionSummary } from './lib/totals.ts';
 import { DEFAULT_FAN_TABLE } from './lib/fanTable.ts';
@@ -201,14 +203,14 @@ const OTHER_LIVE: Record<string, { name: string; icon: string; session: string; 
   return {
     b: {
       name: '星期五雀局', icon: '🎲', session: '10月22日 星期五局',
-      tables: [{ id: 'b1', name: '第壹枱', round: '南圈西位 第 7 鋪', dealer: 'tony', players: [P('tony', 'Tony', 86, '東'), P('kingsang', 'King Sang', -12, '南'), P('janice', 'Janice', -30, '西'), P('ivan', 'Ivan', -44, '北')], streak: 2, last: 'Tony 自摸 13番' }],
+      tables: [{ id: 'b1', name: '第壹枱', round: '南圈西位 第 7 鋪', dealer: 'tony', players: [P('janice', 'Janice', -30, '東'), P('ivan', 'Ivan', -44, '南'), P('tony', 'Tony', 86, '西'), P('kingsang', 'King Sang', -12, '北')], streak: 2, last: 'Tony 自摸 13番' }],
       chat: [{ id: 'b1', by: 'tony', name: 'Tony', text: '今晚手風順 😎', at: Date.now() - 240000 }],
     },
     c: {
       name: '公司麻雀會', icon: '🏢', session: '10月22日 午飯局',
       tables: [
-        { id: 'c1', name: '第壹枱', round: '東圈北位 第 4 鋪', dealer: 'may', players: [P('may', 'May', 25, '東'), P('ken', 'Ken', 10, '南'), P('joe', 'Joe', -5, '西'), P('ann', 'Ann', -30, '北')], last: 'May 食 Ann 20番' },
-        { id: 'c2', name: '第貳枱', round: '東圈南位 第 2 鋪', dealer: 'leo', players: [P('leo', 'Leo', 16, '東'), P('sue', 'Sue', 0, '南'), P('bob', 'Bob', -8, '西'), P('kay', 'Kay', -8, '北')], last: 'Leo 自摸 8番' },
+        { id: 'c1', name: '第壹枱', round: '東圈北位 第 4 鋪', dealer: 'may', players: [P('ken', 'Ken', 10, '東'), P('joe', 'Joe', -5, '南'), P('ann', 'Ann', -30, '西'), P('may', 'May', 25, '北')], last: 'May 食 Ann 20番' },
+        { id: 'c2', name: '第貳枱', round: '東圈南位 第 2 鋪', dealer: 'leo', players: [P('kay', 'Kay', -8, '東'), P('leo', 'Leo', 16, '南'), P('sue', 'Sue', 0, '西'), P('bob', 'Bob', -8, '北')], last: 'Leo 自摸 8番' },
       ],
       chat: [{ id: 'c1', by: 'ken', name: 'Ken', text: '仲有十分鐘就要返工 😂', at: Date.now() - 120000 }],
     },
@@ -247,8 +249,11 @@ export default function Demo() {
   const [demoMusic, setDemoMusic] = useState<Record<string, string>>({});
   const [groupSheet, setGroupSheet] = useState(false);
   const [demoPull, setDemoPull] = useState<PullPush>('table');
+  const [payMarks, setPayMarks] = useState<Record<string, PaidMark | null>>({ 's3-gavin>kingsang': { by: 'gavin', at: Date.now(), ok: false } });
   const [demoBlocked, setDemoBlocked] = useState<Record<string, number>>({});
-  const [demoPaid, setDemoPaid] = useState<Record<string, { by: string; at: number }>>({});
+  const [demoPaid, setDemoPaid] = useState<Record<string, PaidMark>>({});
+  const [legacyAlias, setLegacyAlias] = useState<Record<string, string>>({});
+  const [legacyMine, setLegacyMine] = useState('gavin-s');
   const [people, setPeople] = useState<{ id: string; name: string }[]>([{ id: 'guest-vincent', name: 'Vincent' }]);
   const [pairs, setPairs] = useState<PairDoc[]>([{ id: 'p1', a: 'robin', b: 'tat', by: 'robin', accepted: ['robin'] }]);
   // 首頁示範
@@ -303,7 +308,7 @@ export default function Demo() {
       ['/demo/t/6', '枱：雙響、特別事項、詐糊、自摸', '紀錄寫實際食幾多番'],
       ['/demo/t/7', '枱：拉 3 家 3 次', '三個「找唔找」提示一齊出'],
       ['/demo/t/8', '枱：拉 3 家 6 次', '第 3 拉唔找，第 6 拉再問三家；夠拉會彈示範通知'],
-      ['/demo/t/9', '枱：已完場', '重開（撤回完場，拉住嘅數返晒嚟）'],
+      ['/demo/t/9', '枱：已完場', '重開：繼續之前拉住嘅數，或者由零開始'],
       ['/demo/t/0?view=1', '枱：唔喺呢張枱', '只可以睇，入唔到數、擲唔到骰'],
       ['/demo/settle', '埋數', '開支、Group、轉賬、已轉'],
       ['/demo/pay', '找數', '同一班人合埋一張卡（撳開分人分日）、催找數'],
@@ -312,9 +317,10 @@ export default function Demo() {
       ['/demo/live', '電視直播', '一版睇晒全部枱、東南西北、冧莊、直播室（撳名禁言）、音樂、轉台'],
       ['/demo/rules', '家規', '番數表、抽水、拉'],
       ['/demo/install', '加主畫面教學', 'iPhone Safari、其他瀏覽器、Android'],
-      ['/demo/skins', '風格', '11 款風格（3 款 👑 豪華）'],
+      ['/demo/skins', '風格', '12 款風格，各有光暗同質感（3 款 👑 豪華）'],
       ['/demo/admin', '超級管理員', '用戶、牌友圈、發通知'],
       ['/demo/legacy', '舊紀錄', '匯入嘅舊數'],
+      ['/demo/players', '對應玩家', '舊紀錄名配對成員、一鍵配對'],
     ];
     return (
       <main className="page">
@@ -407,10 +413,16 @@ export default function Demo() {
   }
 
   if (path === '/demo/pay') {
-    const mk = (sid: string, sname: string, from: string, to: string, amount: number, paid = false): PayItem => ({
-      gid: 'a', gname: '不打不相識', sid, sname, at: Date.now() - Number(sid.slice(1)) * 86400000, from, to, amount, key: `${from}>${to}`, paid,
-      dir: from.split(' + ').includes('gavin') ? 'pay' : to.split(' + ').includes('gavin') ? 'get' : 'other', currency: 'CAD',
-    });
+    // 示範：要收錢嘅人確認（俾錢嘅人撳「已轉」會變「等確認」）
+    const mk = (sid: string, sname: string, from: string, to: string, amount: number, paid = false): PayItem => {
+      const m = payMarks[`${sid}-${from}>${to}`];
+      const st = m === undefined ? (paid ? 'done' : 'none') : paidState(m);
+      return {
+        gid: 'a', gname: '不打不相識', sid, sname, at: Date.now() - Number(sid.slice(1)) * 86400000, from, to, amount, key: `${from}>${to}`,
+        paid: st === 'done', pending: st === 'pending', confirm: true,
+        dir: from.split(' + ').includes('gavin') ? 'pay' : to.split(' + ').includes('gavin') ? 'get' : 'other', currency: 'CAD',
+      };
+    };
     const items = [
       mk('s1', '10月19日 屋企局', 'gavin + athena', 'tony', 28.83),
       mk('s1', '10月19日 屋企局', 'janice', 'gavin', 7),
@@ -428,7 +440,7 @@ export default function Demo() {
         names={{ gavin: 'Gavin', athena: 'Athena', tony: 'Tony Tsui', janice: 'Janice Yeung', kingsang: 'King Sang Li', ivan: 'Ivan' }}
         emails={{ tony: 'tony.tsui@example.com', kingsang: 'ksl@example.com' }}
         loading={false}
-        onToggle={() => undefined}
+        onToggle={(it, on) => setPayMarks((m) => ({ ...m, [`${it.sid}-${it.key}`]: on ? { by: 'gavin', at: Date.now(), ...(it.confirm && it.dir === 'pay' ? { ok: false } : {}) } : null }))}
         onRemind={async () => { await new Promise((r) => setTimeout(r, 600)); return '✓ 已催（示範）'; }}
       />
     );
@@ -545,11 +557,25 @@ export default function Demo() {
     );
   }
 
-  if (path === '/demo/legacy') {
-    const g = { id: 'demo', name: '不打不相識', ownerId: 'gavin', inviteCode: '', legacyNames: { 'janice': 'JANICE', 'sang-h': 'SANG H.', 'athena-c': 'ATHENA C.', 'tsui-shing': 'TSUI SHING', 'af': 'AF', 'viola': 'VIOLA', 'gavin-s': 'GAVIN S.', 'claudia-c': 'CLAUDIA C.', 'alpine-m': 'ALPINE M.' } };
+  if (path === '/demo/legacy' || path === '/demo/players') {
+    const g = { id: 'demo', name: '不打不相識', ownerId: 'gavin', inviteCode: '', aliases: legacyAlias, legacyNames: { 'janice': 'JANICE', 'janice-w': 'Janice W', 'sang-h': 'SANG H.', 'athena-c': 'ATHENA C.', 'tsui-shing': 'TSUI SHING', 'af': 'AF', 'viola': 'VIOLA', 'gavin-s': 'GAVIN S.', 'claudia-c': 'CLAUDIA C.', 'alpine-m': 'ALPINE M.' } };
+    const mem = [
+      { uid: 'gavin', name: 'Gavin', photoURL: null, legacyKey: legacyMine || undefined },
+      { uid: 'athena', name: 'Athena', photoURL: null, legacyKey: 'athena-c' },
+      { uid: 'janice', name: 'Janice', photoURL: null }, { uid: 'viola', name: 'Viola', photoURL: null }, { uid: 'claudia', name: 'Claudia Chan', photoURL: null }, { uid: 'kingsang', name: 'King Sang', photoURL: null },
+    ];
+    if (path === '/demo/players') {
+      return (
+        <PlayersView
+          g={g} members={mem} me="gavin" owner back="/demo/legacy"
+          onClaim={async (k) => setLegacyMine(k)}
+          onAlias={async (k, uid) => setLegacyAlias((a) => { const n = { ...a }; if (uid) n[k] = uid; else delete n[k]; return n; })}
+          onAliases={async (m) => setLegacyAlias((a) => ({ ...a, ...m }))}
+        />
+      );
+    }
     const sess = { id: 'l1', name: '1月2日 舊紀錄', createdBy: 'gavin', legacy: { totals: { 'janice': 39, 'sang-h': 267, 'athena-c': -334, 'tsui-shing': 198, 'af': 459, 'viola': 7, 'gavin-s': -111, 'claudia-c': -415, 'alpine-m': -242 }, water: 132, paid: true } };
-    const mem = [{ uid: 'gavin', name: 'Gavin', photoURL: null, legacyKey: 'gavin-s' }, { uid: 'athena', name: 'Athena', photoURL: null, legacyKey: 'athena-c' }];
-    return <LegacySession group={g} session={sess} members={mem} back="/demo" me="gavin" />;
+    return <LegacySession group={g} session={sess} members={mem} back="/demo" me="gavin" playersHref="/demo/players" />;
   }
 
   if (path === '/demo/board') {
@@ -610,7 +636,7 @@ export default function Demo() {
           return { id: t.id, name: t.name, fan };
         })}
         paid={demoPaid}
-        onMarkPaid={async (key, on) => setDemoPaid((m) => { const n = { ...m }; if (on) n[key] = { by: 'gavin', at: Date.now() }; else delete n[key]; return n; })}
+        onMarkPaid={async (key, on, pending) => setDemoPaid((m) => { const n = { ...m }; if (on) n[key] = { by: 'gavin', at: Date.now(), ...(pending ? { ok: false } : {}) }; else delete n[key]; return n; })}
       />
     );
   }
@@ -637,7 +663,7 @@ export default function Demo() {
           const endStep = c.state.ended ? [...c.steps].reverse().find((st) => st.event.type === 'end') : undefined;
           if (!endStep) return undefined;
           const busy = c.state.seats.filter((id) => tables.some((t) => t.id !== table.id && computed[t.id] && !computed[t.id]!.state.ended && computed[t.id]!.state.seats.includes(id)));
-          return { blocked: busy.length ? `${busy.map((id) => table.names[id] ?? '玩家').join('、')} 已經喺第二張枱打緊，重開唔到。` : null, run: () => push({ type: 'undo', target: endStep.seq }) };
+          return { blocked: busy.length ? `${busy.map((id) => table.names[id] ?? '玩家').join('、')} 已經喺第二張枱打緊，重開唔到。` : null, run: (mode: 'continue' | 'fresh') => push(mode === 'continue' ? { type: 'undo', target: endStep.seq } : { type: 'reopen' }) };
         })()}
         onPullAlert={demoPull === 'off' ? undefined : (lines) => {
           // 示範：扮收到推播，幾秒後自己收埋

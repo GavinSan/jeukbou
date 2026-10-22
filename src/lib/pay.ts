@@ -1,7 +1,7 @@
 // 找數：由每個已埋數大局嘅轉賬快照，計出「我要俾邊個幾多」「邊個要俾我」，同邊幾筆未轉
 import { useEffect, useState } from 'react';
 import { collection, doc, getDoc, getDocs } from 'firebase/firestore';
-import { fs, legacyMap, payKey, savePayout, settleConfigOf } from './data.ts';
+import { fs, legacyMap, paidState, payKey, savePayout, settleConfigOf } from './data.ts';
 import { computePayout, loadTeams } from './settleLoad.ts';
 import { PAYOUT_VERSION } from './settle.ts';
 import type { Group, Member, Session } from './data.ts';
@@ -17,7 +17,12 @@ export interface PayItem {
   to: string;
   amount: number;
   key: string;
+  /** 搞掂（收錢嘅人確認咗，或者唔使確認） */
   paid: boolean;
+  /** 俾錢嘅人話轉咗，等收錢嘅人確認 */
+  pending: boolean;
+  /** 牌友圈要收錢嘅人確認 */
+  confirm: boolean;
   /** 我係俾錢定收錢 */
   dir: 'pay' | 'get' | 'other';
   currency: string;
@@ -44,11 +49,13 @@ export interface PayData {
 const has = (key: string, uid: string) => key.split(' + ').includes(uid);
 
 /** 一個大局嘅轉賬（畀轉賬頁用） */
-export function itemsOf(g: Pick<Group, 'id' | 'name'>, s: Session, uid: string): PayItem[] {
+export function itemsOf(g: Pick<Group, 'id' | 'name' | 'settle'>, s: Session, uid: string): PayItem[] {
   if (!s.payout) return [];
+  const confirm = !!(g.settle as { confirmPay?: boolean } | undefined)?.confirmPay;
   return s.payout.transfers.map((t) => ({
     gid: g.id, gname: g.name, sid: s.id, sname: s.name, at: s.createdAt?.toMillis() ?? s.payout!.at,
-    from: t.from, to: t.to, amount: t.amount, key: payKey(t), paid: !!s.paid?.[payKey(t)],
+    from: t.from, to: t.to, amount: t.amount, key: payKey(t),
+    paid: paidState(s.paid?.[payKey(t)]) === 'done', pending: paidState(s.paid?.[payKey(t)]) === 'pending', confirm,
     dir: has(t.from, uid) ? 'pay' : has(t.to, uid) ? 'get' : 'other', currency: s.payout!.currency,
   }));
 }

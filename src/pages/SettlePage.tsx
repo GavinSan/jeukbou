@@ -93,7 +93,7 @@ export default function SettlePage({ user, groupId, sessionId }: { user: User; g
       teams={teams.data}
       payout={sess.payout ?? null}
       paid={sess.paid ?? {}}
-      onMarkPaid={(key, on) => markPaid(groupId, sessionId, key, user.uid, on)}
+      onMarkPaid={(key, on, pending) => markPaid(groupId, sessionId, key, user.uid, on, pending)}
       onSavePayout={(po) => savePayout(groupId, sessionId, po)}
       payHref={`/g/${groupId}/s/${sessionId}/pay`}
       onAcceptTeam={async (id) => {

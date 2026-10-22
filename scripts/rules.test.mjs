@@ -144,3 +144,15 @@ test('直播室：每 2 秒最多一句（要同時寫 chatLast）；場主、�
   await assertSucceeds(updateDoc(sess('owner'), { 'chatBlock.b': deleteField() }));
   await assertSucceeds(say('b', '解禁啦'));
 });
+
+test('找數要確認：俾錢嘅人淨係標到「等確認」，收錢嘅人先確認到', async () => {
+  await env.withSecurityRulesDisabled(async (ctx) => {
+    await updateDoc(doc(ctx.firestore(), 'groups', G), { settle: { confirmPay: true } });
+  });
+  const s = (uid) => doc(as(uid), 'groups', G, 'sessions', S);
+  await assertFails(updateDoc(s('a'), { 'paid.a>b': { by: 'a', at: 1 }, lastPaid: 'a>b' }));
+  await assertSucceeds(updateDoc(s('a'), { 'paid.a>b': { by: 'a', at: 1, ok: false }, lastPaid: 'a>b' }));
+  await assertSucceeds(updateDoc(s('b'), { 'paid.a>b': { by: 'b', at: 2 }, lastPaid: 'a>b' }));
+  await assertSucceeds(updateDoc(s('c'), { 'paid.d>c': { by: 'c', at: 3 }, lastPaid: 'd>c' }));
+  await assertSucceeds(updateDoc(s('host'), { 'paid.a>d': { by: 'host', at: 4 }, lastPaid: 'a>d' }));
+});

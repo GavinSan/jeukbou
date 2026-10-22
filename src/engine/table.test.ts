@@ -345,3 +345,27 @@ test('打完圈數：再打四圈；中途換位，坐東位做莊，拉照拉',
   assert.deepEqual(s.chains, before);
   assert.throws(() => applyEvent(s, { type: 'reseat', seats: ['Viola', 'Ivan', 'Gavin', 'Kit'] }, rules));
 });
+
+test('中途換位：莊位跟返圈數（東圈第二個莊 = 南位）', () => {
+  const rules = withRules({ rounds: 0, water: { enabled: false } });
+  let s = createTable(SEATS);
+  s = applyEvent(s, eat('Athena', 5, 'Gavin'), rules).state;
+  assert.equal(s.dealerSeat, 1);
+  s = applyEvent(s, { type: 'reseat', seats: ['Viola', 'Ivan', 'Gavin', 'Athena'] }, rules).state;
+  assert.equal(s.dealerSeat, 1);
+  assert.equal(s.seats[s.dealerSeat], 'Ivan');
+});
+
+test('完場之後重開：可以繼續入數；未完場唔准重開', () => {
+  const rules = withRules({ rounds: 0, water: { enabled: false } });
+  let s = createTable(SEATS);
+  assert.throws(() => applyEvent(s, { type: 'reopen' }, rules));
+  s = applyEvent(s, selfDraw('Gavin', 10), rules).state;
+  s = applyEvent(s, { type: 'end' }, rules).state;
+  assert.ok(s.ended);
+  assert.throws(() => applyEvent(s, selfDraw('Ivan', 5), rules));
+  s = applyEvent(s, { type: 'reopen' }, rules).state;
+  assert.ok(!s.ended);
+  s = applyEvent(s, selfDraw('Ivan', 5), rules).state;
+  assert.ok(isBalanced(s));
+});

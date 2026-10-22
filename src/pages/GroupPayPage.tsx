@@ -28,7 +28,8 @@ export default function GroupPayPage({ user, groupId }: { user: User; groupId: s
   if (!g) return <main className="page"><TopBar back={`/g/${groupId}`} /><Loading /></main>;
 
   const pp = { me: user.uid, names: data.names, emails: data.emails };
-  const open = data.items.filter((x) => !x.paid);
+  // 同自己有關嘅排最頂
+  const open = data.items.filter((x) => !x.paid).sort((a, b) => Number(b.dir !== 'other') - Number(a.dir !== 'other'));
   const paid = data.items.filter((x) => x.paid);
   const sum = (l: PayItem[]) => l.reduce((a, x) => a + x.amount, 0);
   const toPay = open.filter((x) => x.dir === 'pay');
@@ -54,7 +55,7 @@ export default function GroupPayPage({ user, groupId }: { user: User; groupId: s
 
   async function toggle(it: PayItem, on: boolean) {
     setBusy(it.key); setError('');
-    try { await markPaid(it.gid, it.sid, it.key, user.uid, on); setTick((t) => t + 1); } catch (err) { setError(message(err)); } finally { setBusy(''); }
+    try { await markPaid(it.gid, it.sid, it.key, user.uid, on, on && it.confirm && it.dir === 'pay'); setTick((t) => t + 1); } catch (err) { setError(message(err)); } finally { setBusy(''); }
   }
 
   const row = (s: (typeof list)[number], note: string, cls = '') => (

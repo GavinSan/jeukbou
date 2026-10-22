@@ -132,13 +132,14 @@ export function tvTablesOf(tables: { id: string; name: string; names: Record<str
     const last = c.steps[c.steps.length - 1];
     return [{
       id: t.id, name: t.name, round: roundLabel(c), dealer: c.info.dealer ?? null, streak: c.state.streak,
-      players: c.state.seats.map((id, i) => ({ id, name: name(id), v: (c.state.settled[id] ?? 0) + (c.pending[id] ?? 0), wind: WINDS[(i - c.state.dealerSeat + 4) % 4] })),
+      // 座位：東南西北（第一個位 = 東位）；「東圈南位」嘅莊就係坐南位嗰個
+      players: c.state.seats.map((id, i) => ({ id, name: name(id), v: (c.state.settled[id] ?? 0) + (c.pending[id] ?? 0), wind: WINDS[i] })),
       last: last ? describe(last.event, name) : '未開始',
     }];
   });
 }
 
-/** 枱上四家：跟東南西北排（莊永遠喺第一） */
+/** 枱上四家：跟座位東南西北排 */
 export const bySeat = <T extends { wind: string }>(ps: T[]) => [...ps].sort((a, b) => WINDS.indexOf(a.wind) - WINDS.indexOf(b.wind));
 
 /** 幾多張枱 → 幾行幾列（全部枱一樣大，一版睇晒） */
@@ -206,6 +207,22 @@ export function LiveTv({ groupName, icon, sessionName, tables, ranking, chat, mu
   const { cols, rows } = gridOf(tables.length);
   const muted = blockedUntil > now;
   const coolLeft = Math.max(0, Math.ceil((cool.until - now) / 1000));
+  // 最近播過嘅歌（只記喺呢部機），一撳再播
+  const [recent, setRecent] = useState<{ url: string; label: string }[]>(() => { try { return JSON.parse(localStorage.getItem('jeukbou-music-recent') ?? '[]'); } catch { return []; } });
+  async function play(url: string) {
+    setError('');
+    const u = url.trim();
+    if (u && !embedOf(u)) { setError('認唔到呢條連結'); return; }
+    try {
+      await onMusic?.(u);
+      if (!u) return;
+      const e = embedOf(u);
+      const label = e?.kind === 'youtube' ? `YouTube ${e.yt?.list ? '清單' : e.yt?.id ?? ''}` : e?.kind === 'spotify' ? 'Spotify' : 'Apple Music';
+      const next = [{ url: u, label: `${label}・${new Date().toLocaleDateString('zh-HK', { month: 'numeric', day: 'numeric' })}` }, ...recent.filter((r) => r.url !== u)].slice(0, 6);
+      setRecent(next);
+      try { localStorage.setItem('jeukbou-music-recent', JSON.stringify(next)); } catch { /* 唔緊要 */ }
+    } catch (err) { setError(message(err)); }
+  }
   const chans = channels.length ? channels : current ? [{ key: current, label: `${groupName}・${sessionName}`, href: '' }] : [];
 
   async function full() {
@@ -263,13 +280,20 @@ export function LiveTv({ groupName, icon, sessionName, tables, ranking, chat, mu
               <b>音樂</b>
               <div className="row">
                 <input className="input grow" value={musicUrl} onChange={(e) => setMusicUrl(e.target.value)} placeholder="貼 YouTube／Spotify／Apple Music 連結" aria-label="音樂連結" />
-                {onMusic && <button type="button" className="btn small-btn" onClick={async () => {
-                  setError('');
-                  if (musicUrl.trim() && !embedOf(musicUrl)) { setError('認唔到呢條連結'); return; }
-                  try { await onMusic(musicUrl); } catch (err) { setError(message(err)); }
-                }}>播</button>}
+                {onMusic && typeof navigator !== 'undefined' && navigator.clipboard?.readText && (
+                  <button type="button" className="btn plain small-btn" onClick={async () => {
+                    try { const t = (await navigator.clipboard.readText()).trim(); if (t) { setMusicUrl(t); await play(t); } } catch { setError('讀唔到剪貼簿，請長撳輸入格貼上'); }
+                  }}>📋 貼上</button>
+                )}
+                {onMusic && <button type="button" className="btn small-btn" onClick={() => play(musicUrl)}>播</button>}
               </div>
-              <small className="muted">YouTube 最穩陣（唔使登入）。Spotify／Apple Music 嵌入：要呢個瀏覽器本身登入咗先播到全首，否則得 30 秒試聽；電視瀏覽器多數登入唔到，咁就用手機 Spotify Connect 播去喇叭。</small>
+              {recent.length > 0 && (
+                <div className="tv-recent">
+                  <small className="muted">最近播過</small>
+                  {recent.map((r) => <button key={r.url} type="button" className="tv-channel" onClick={() => play(r.url)}>{r.label}</button>)}
+                </div>
+              )}
+              <small className="muted">唔使喺電視打字：用手機開同一個 Live、撳 ♫ 貼連結，電視會自動跟住播。YouTube 最穩陣；Spotify／Apple Music 要嗰部機登入咗先播到全首。</small>
             </section>
           )}
           {emb && (
@@ -320,7 +344,7 @@ export function LiveTv({ groupName, icon, sessionName, tables, ranking, chat, mu
                 stick.current = true;
                 try { await onSend(t); } catch (err) { setError(/permission|denied|權限/i.test(message(err)) ? '講得太快，等兩秒再講' : message(err)); setText(t); }
               }}>
-                <input className="input grow" value={text} disabled={coolLeft > 0} onChange={(e) => setText(e.target.value.slice(0, 200))} onFocus={() => setChatOpen(true)} placeholder={coolLeft > 0 ? `講得好快喎，${coolLeft} 秒後再講` : '留言…'} aria-label="留言" />
+                <input className="input grow" value={text} disabled={coolLeft > 0} onChange={(e) => setText(e.target.value.slice(0, 200))} onFocus={() => setChatOpen(true)} placeholder={coolLeft > 0 ? `講得太快（${coolLeft}秒）` : '留言…'} aria-label="留言" />
                 <button type="submit" className="btn small-btn" disabled={!text.trim() || coolLeft > 0}>送出</button>
               </form>
             ))}

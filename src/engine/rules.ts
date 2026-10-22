@@ -41,6 +41,8 @@ export interface Rules {
   rounds: number;
   /** 換位嗰陣邊啲拉要即時找數：player = 淨係換位嗰個人有份嘅；table = 成張枱 */
   swapSettle: 'player' | 'table';
+  /** 幾時可以換位：any = 隨時；round = 每打完一圈；four = 打完四圈（預設圈數）先換 */
+  reseat: 'any' | 'round' | 'four';
   /** 特別事項每家幾多（kongForgot / heavenForgot = 唔記得開罰幾多） */
   specials: SpecialAmounts;
 }
@@ -70,6 +72,7 @@ export const DEFAULT_RULES: Rules = {
   falseWinPenalty: 60,
   rounds: 4,
   swapSettle: 'player',
+  reseat: 'round',
   specials: DEFAULT_SPECIALS,
 };
 
@@ -84,6 +87,7 @@ export function withRules(patch: {
   falseWinPenalty?: number;
   rounds?: number;
   swapSettle?: Rules['swapSettle'];
+  reseat?: Rules['reseat'];
   specials?: Partial<SpecialAmounts>;
 }): Rules {
   const d = DEFAULT_RULES;
@@ -98,6 +102,7 @@ export function withRules(patch: {
     falseWinPenalty: patch.falseWinPenalty ?? d.falseWinPenalty,
     rounds: patch.rounds ?? d.rounds,
     swapSettle: patch.swapSettle ?? d.swapSettle,
+    reseat: patch.reseat ?? d.reseat,
     specials: { ...d.specials, ...patch.specials },
   };
 }

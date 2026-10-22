@@ -106,7 +106,7 @@ export default function MyPayPage({ user }: { user: User }) {
         onRemind={remindText}
         onToggle={async (it, on) => {
           setBusy(it.key); setError('');
-          try { await markPaid(it.gid, it.sid, it.key, user.uid, on); setTick((t) => t + 1); } catch (err) { setError(message(err)); } finally { setBusy(''); }
+          try { await markPaid(it.gid, it.sid, it.key, user.uid, on, on && it.confirm && it.dir === 'pay'); setTick((t) => t + 1); } catch (err) { setError(message(err)); } finally { setBusy(''); }
         }}
       />
       {error && <p className="error page">{error}</p>}

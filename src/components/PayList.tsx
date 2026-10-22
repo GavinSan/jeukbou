@@ -92,13 +92,17 @@ export function PayRows({ items, pp, showSession, busyKey, onToggle, canToggle =
                   {reminded[`${it.sid}-${it.key}`] ? (reminded[`${it.sid}-${it.key}`] === '…' ? '催緊…' : reminded[`${it.sid}-${it.key}`]) : '💸 催找數'}
                 </button>
               )}
-              {onToggle && canToggle(it) ? (
-                <button type="button" className={`tf-paid${it.paid ? ' on' : ''}`} aria-pressed={it.paid} disabled={busyKey === it.key} onClick={() => onToggle(it, !it.paid)}>
-                  {it.paid ? '✓ 已轉' : '標記已轉'}
-                </button>
-              ) : (
-                <span className={`tf-paid static${it.paid ? ' on' : ''}`}>{it.paid ? '✓ 已轉' : '未轉'}</span>
-              )}
+              {(() => {
+                // 狀態：未轉 → （要確認嘅話）等確認 → 搞掂。收錢嘅人可以直接撳「已收到」
+                const recv = it.dir === 'get';
+                const label = it.paid ? (recv ? '✓ 已收' : '✓ 已轉') : it.pending ? (recv || it.dir === 'other' ? '確認收到' : '等對方確認') : recv ? '已收到' : '標記已轉';
+                const on = !(it.paid || (it.pending && it.dir === 'pay'));
+                return onToggle && canToggle(it) ? (
+                  <button type="button" className={`tf-paid${it.paid ? ' on' : ''}${it.pending ? ' pending' : ''}`} aria-pressed={it.paid} disabled={busyKey === it.key} onClick={() => onToggle(it, on)}>{label}</button>
+                ) : (
+                  <span className={`tf-paid static${it.paid ? ' on' : ''}${it.pending ? ' pending' : ''}`}>{it.paid ? '✓ 已轉' : it.pending ? '等確認' : '未轉'}</span>
+                );
+              })()}
             </li>
           );
         })}
@@ -135,7 +139,9 @@ export function DebtCards({ items, pp, onRemind, canRemind = () => false, onPers
     c.to.set(it.to, r);
     cards.set(it.from, c);
   }
-  const list = [...cards.values()].sort((a, b) => b.total - a.total);
+  // 同自己有關（自己要俾，或者俾自己）嘅卡排最頂，之後大數先
+  const involved = (c: { from: string; to: Map<string, unknown> }) => !!pp.me && (c.from.split(' + ').includes(pp.me) || [...c.to.keys()].some((k) => k.split(' + ').includes(pp.me!)));
+  const list = [...cards.values()].sort((a, b) => Number(involved(b)) - Number(involved(a)) || b.total - a.total);
   if (!list.length) return null;
   return (
     <div className="debt-cards">
