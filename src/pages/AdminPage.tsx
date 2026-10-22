@@ -41,12 +41,13 @@ function PushComposer({ groups, onSend }: { groups: AdminGroup[]; onSend: Broadc
       <label className="field"><span>標題</span><input className="input" value={title} maxLength={60} onChange={(e) => setTitle(e.target.value)} placeholder="例如 新功能：催找數 💸" /></label>
       <label className="field"><span>內容</span><textarea className="input" rows={3} maxLength={200} value={body} onChange={(e) => setBody(e.target.value)} placeholder="例如 而家可以一撳催晒欠你錢嘅人" /></label>
       <button type="button" className="btn big" disabled={busy || !title.trim()} onClick={() => ask({
-        title: '發通知', detail: `發俾${who}：「${title.trim()}」`, action: '發出',
+        title: '發通知', detail: `發俾${who}：「📢 管理員：${title.trim()}」`, action: '發出',
         run: async () => {
           setBusy(true); setNote('');
           try { const r = await onSend({ title: title.trim(), body: body.trim(), target }); setNote(`已發出：${r.people} 人、${r.ok} 部機收到`); setTitle(''); setBody(''); } catch (err) { setNote(message(err)); } finally { setBusy(false); }
         },
       })}>發出</button>
+      <small className="muted">標題前面會自動加「📢 管理員：」。iPhone 通知底下嘅「from 雀簿」係 iPhone 自己加嘅 app 名，改唔到。</small>
       {note && <p className="muted small" role="status">{note}</p>}
       {confirmUI}
     </section>

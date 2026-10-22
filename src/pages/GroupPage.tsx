@@ -460,7 +460,12 @@ export default function GroupPage({ user, groupId }: { user: User; groupId: stri
         onCreate={(m) => createMeetup(groupId, user, m)}
         onRsvp={(id, st) => rsvpMeetup(groupId, id, user, st)}
         onDelete={(id) => deleteMeetup(groupId, id)}
-        onPing={async (id) => { const r = await pingMeetup(groupId, id); return r.people ? `已經通知 ${r.people} 個未應嘅人` : '全部人都應咗，冇人要問'; }}
+        onPing={async (id) => {
+          const r = await pingMeetup(groupId, id);
+          if (!r.people) return '全部人都應咗（去或者唔去），冇人要問';
+          if (!r.ok) return `${r.people} 個未應嘅人都未開通知，佢哋收唔到（要喺佢哋部機「設定 → 通知」開咗先）`;
+          return `已經通知 ${r.people} 個未應嘅人（${r.ok} 部機收到）`;
+        }}
       />
 
       {hasLegacy && !claimed && (

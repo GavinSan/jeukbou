@@ -318,7 +318,8 @@ export const adminBroadcast = onCall(CALL, async (req) => {
     uids = (await members(target)).map((m) => m.uid);
     url = `/g/${target}`;
   }
-  const ok = await send(uids, { title, body, url, tag: `admin:${Date.now()}` });
+  // 標題前面寫明係管理員發嘅
+  const ok = await send(uids, { title: `📢 管理員：${title}`, body, url, tag: `admin:${Date.now()}` });
   logger.info('broadcast', { target, people: uids.length, ok });
   return { people: uids.length, ok };
 });
@@ -418,7 +419,9 @@ async function pingOnce(req) {
     title: `「${name}」有冇人打？${lack ? `仲差 ${lack} 個` : '夠腳，仲可以開多枱'} 🀄`,
     body: `${when(Number(m.at), m.tz)}${m.place ? `・${m.place}` : ''}：${n ? `${going.map((u) => m.names?.[u] ?? '玩家').join('、')} 已經去` : '未有人應'}。${caller} 問緊，撳入嚟應去唔去！`,
     url: `/g/${g}#meetups`,
-    tag: `${g}:meetup:${id}`,
+    // 每次問都用新 tag：同一個約局之前嘅通知仲喺度，都會再彈出嚟（唔會靜靜雞取代咗）
+    tag: `${g}:meetup:${id}:ping:${Date.now()}`,
   });
+  logger.info('meetupPing', { g, id, people: uids.length, ok });
   return { people: uids.length, ok };
 }
