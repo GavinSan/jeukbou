@@ -7,6 +7,10 @@ on:
       hours:
         description: 睇最近幾多個鐘嘅記錄
         default: '8'
+      repair:
+        description: 修復：取消「一日就刪映像檔」嘅清理設定，同刪走壞咗嘅 build cache（之後再部署 functions）
+        type: boolean
+        default: false
 
 permissions:
   contents: read
@@ -19,6 +23,16 @@ jobs:
         with:
           credentials_json: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
       - uses: google-github-actions/setup-gcloud@v2
+      - name: 修復映像檔設定
+        if: ${{ inputs.repair }}
+        run: |
+          gcloud config set project jeukbou-app >/dev/null
+          for loc in northamerica-northeast2 us-central1; do
+            echo "=== $loc"
+            gcloud artifacts repositories delete-cleanup-policies gcf-artifacts --location "$loc" --policynames firebase-functions-cleanup --quiet || true
+            gcloud artifacts docker images delete "${loc}-docker.pkg.dev/jeukbou-app/gcf-artifacts/cache" --delete-tags --quiet || true
+            gcloud artifacts repositories describe gcf-artifacts --location "$loc" --format="yaml(cleanupPolicies)" || true
+          done
       - name: Cloud Run 服務狀態
         run: |
           gcloud config set project jeukbou-app >/dev/null
