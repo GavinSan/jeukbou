@@ -15,7 +15,7 @@ setGlobalOptions({ region: REGION, maxInstances: 5, memory: '256MiB' });
 
 const db = getFirestore();
 // app 直接 call 嘅 function：明確設定「任何人都 call 得」（入面自己檢查登入同權限），
-// 唔靠第一次建立時自動設定，新加嘅 function 先唔會 call 唔到（2026-10 重新部署一次確保生效）
+// 唔靠第一次建立時自動設定，新加嘅 function 先唔會 call 唔到
 const CALL = { invoker: 'public' };
 const DEAD = new Set(['messaging/registration-token-not-registered', 'messaging/invalid-registration-token', 'messaging/invalid-argument']);
 const WEEK = ['日', '一', '二', '三', '四', '五', '六'];
