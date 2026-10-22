@@ -48,7 +48,12 @@ for (const scheme of ['light', 'dark']) {
         }
         await page.waitForTimeout(200);
         await page.screenshot({ path: `${out}/picker.png` });
-        await page.getByRole('button', { name: /^用 \d+ 番$/ }).click({ timeout: 4000 });
+        // 影相計番（示範假結果）
+        const png = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==', 'base64');
+        await page.locator('.scan-btn input').setInputFiles({ name: 'hand.png', mimeType: 'image/png', buffer: png });
+        await page.waitForTimeout(1800);
+        await page.getByRole('dialog', { name: '番數表' }).screenshot({ path: `${out}/picker-scan.png` });
+        await page.getByRole('button', { name: /^用 \d+ 番$/ }).first().click({ timeout: 4000 });
         await page.waitForTimeout(200);
       } catch (e) {
         errors.push(`picker: ${e.message.split('\n')[0]}`);

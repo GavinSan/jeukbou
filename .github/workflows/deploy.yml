@@ -6,6 +6,7 @@ name: Deploy
 #   Secrets   → FIREBASE_SERVICE_ACCOUNT（服務帳戶 JSON；唔好放落 repo 任何地方）
 # 推播（可選）：Variables → FIREBASE_VAPID_KEY（Cloud Messaging 網頁推播金鑰）
 #               Variables → ENABLE_PUSH = true（轉咗 Blaze 同畀咗服務帳戶權限之後先開，會部署 Cloud Functions）
+# 影相計番（可選）：Secrets → ANTHROPIC_API_KEY（Claude Console 嘅 API key）
 on:
   push:
     branches: [main]
@@ -39,6 +40,7 @@ jobs:
           FIREBASE_SERVICE_ACCOUNT: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
           SUPER_ADMIN_EMAIL: ${{ secrets.SUPER_ADMIN_EMAIL }}
           ENABLE_PUSH: ${{ vars.ENABLE_PUSH }}
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
         run: |
           if [ -z "$FIREBASE_SERVICE_ACCOUNT" ]; then
             echo "::error::搵唔到 FIREBASE_SERVICE_ACCOUNT secret。去 Settings → Secrets and variables → Actions → Secrets 加返，名要一模一樣。"
@@ -69,7 +71,14 @@ jobs:
               eur3) region=europe-west1 ;;
               *) region="$loc" ;;
             esac
-            printf 'PUSH_REGION=%s\n' "$region" > functions/.env
+            # Functions 嘅設定（唔入 repo）：地區、超級管理員（影相計番權限）、Claude API key
+            umask 077
+            {
+              printf 'PUSH_REGION=%s\n' "$region"
+              [ -n "$SUPER_ADMIN_EMAIL" ] && printf 'SUPER_ADMIN_EMAIL=%s\n' "$(printf '%s' "$SUPER_ADMIN_EMAIL" | tr -cd 'A-Za-z0-9._%+@-')"
+              [ -n "$ANTHROPIC_API_KEY" ] && printf 'ANTHROPIC_API_KEY=%s\n' "$(printf '%s' "$ANTHROPIC_API_KEY" | tr -cd 'A-Za-z0-9_-')"
+            } > functions/.env
+            [ -n "$ANTHROPIC_API_KEY" ] && echo "::notice title=functions::已設定 Claude API key（影相計番）" || echo "::notice title=functions::未設定 ANTHROPIC_API_KEY，影相計番用唔到"
             echo "::notice title=functions::Firestore 位置 ${loc:-未知}，Functions 地區 ${region}"
             targets="$targets functions"
           else

@@ -1,4 +1,5 @@
 // 番數表：睇（可搜尋、撳開解說）、局主編輯、入番數時撳牌型加番
+import type { ScanResult } from '../lib/scan.ts';
 import { useEffect, useMemo, useState } from 'react';
 import { DEFAULT_FAN_TABLE, diffFanTable, glossaryOf, optionsOf } from '../lib/fanTable.ts';
 import type { FanTableLog } from '../lib/data.ts';
@@ -235,9 +236,22 @@ export interface Picked {
 }
 
 /** 入番數時：撳牌型加埋，撳「用 N 番」 */
-export function FanPicker({ table, onUse, onClose }: { table: FanTable; onUse: (fan: number, picked: Picked[]) => void; onClose: () => void }) {
+export function FanPicker({ table, onUse, onClose, scan }: {
+  table: FanTable; onUse: (fan: number, picked: Picked[]) => void; onClose: () => void;
+  /** 影相計番（試驗；淨係超級管理員有） */
+  scan?: (file: File) => Promise<ScanResult>;
+}) {
   const [q, setQ] = useState('');
   const [picked, setPicked] = useState<Picked[]>([]);
+  const [scanning, setScanning] = useState(false);
+  const [scanErr, setScanErr] = useState('');
+  const [result, setResult] = useState<ScanResult | null>(null);
+  async function onFile(f: File | undefined) {
+    if (!f || !scan) return;
+    setScanning(true); setScanErr(''); setResult(null);
+    try { setResult(await scan(f)); } catch (err) { setScanErr(err instanceof Error ? err.message : '影相計番失敗'); } finally { setScanning(false); }
+  }
+  const scanPicked = (r: ScanResult): Picked[] => r.patterns.map((p, i) => ({ key: `scan-${i}`, name: `${p.name}${p.option ? `（${p.option}）` : ''}`, fan: Number(p.fan) || 0 }));
   const total = picked.reduce((a, p) => a + p.fan, 0);
   const sections = useMemo(() => table.sections.filter((s) => s.kind === 'pick'), [table]);
   const query = q.trim();
@@ -263,6 +277,28 @@ export function FanPicker({ table, onUse, onClose }: { table: FanTable; onUse: (
           {picked.map((p) => (
             <button key={p.key} type="button" className="pill on" onClick={() => setPicked((l) => l.filter((x) => x !== p))}>{p.name} {p.fan} ✕</button>
           ))}
+        </div>
+      )}
+      {scan && (
+        <div className="scan-box">
+          <label className={`btn plain scan-btn${scanning ? ' busy' : ''}`}>
+            {scanning ? '認緊牌…' : '📷 影相計番（試驗）'}
+            <input type="file" accept="image/*" capture="environment" className="visually-hidden" disabled={scanning} onChange={(e) => { onFile(e.target.files?.[0]); e.target.value = ''; }} />
+          </label>
+          {scanErr && <p className="error small">{scanErr}</p>}
+          {result && (
+            <div className={`scan-result ${result.confidence ?? ''}`}>
+              <div className="scan-tiles">{[...result.tiles, ...(result.flowers ?? [])].map((t, i) => <span key={i} className="scan-tile">{t}</span>)}</div>
+              <ul className="scan-pats">
+                {result.patterns.map((p, i) => <li key={i}><span className="grow">{p.name}{p.option ? `（${p.option}）` : ''}{p.why ? <small className="muted">　{p.why}</small> : null}</span><b className="num">{p.fan}</b></li>)}
+              </ul>
+              <div className="scan-foot">
+                <span className="grow small muted">{result.confidence === 'low' ? '⚠️ 睇得唔係好清，請核對' : result.confidence === 'medium' ? '大致認到，請核對' : '認到'}{result.notes ? `・${result.notes}` : ''}{result.used ? `・今日 ${result.used}/${result.limit}` : ''}</span>
+                <button type="button" className="btn plain small-btn" onClick={() => setPicked(scanPicked(result))}>照揀</button>
+                <button type="button" className="btn small-btn" onClick={() => onUse(result.total, scanPicked(result))}>用 {result.total} 番</button>
+              </div>
+            </div>
+          )}
         </div>
       )}
       <input className="input" type="search" value={q} onChange={(e) => setQ(e.target.value)} placeholder="搜尋牌型" aria-label="搜尋牌型" />

@@ -2186,3 +2186,16 @@ a.btn.small-btn { text-decoration: none; }
 .demo-bar { display: flex; justify-content: space-between; align-items: center; gap: 6px; padding: max(6px, env(safe-area-inset-top)) 12px 6px; background: repeating-linear-gradient(135deg, color-mix(in srgb, #E0A82E 22%, var(--page)) 0 10px, color-mix(in srgb, #E0A82E 12%, var(--page)) 10px 20px); }
 .demo-pill { font-size: 12px; font-weight: 700; padding: 6px 10px; border-radius: 999px; background: color-mix(in srgb, var(--surface) 92%, transparent); color: var(--ink); border: 1px solid var(--line); text-decoration: none; box-shadow: 0 2px 8px rgba(0, 0, 0, .12); backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px); }
 .demo-pill.exit { background: var(--loss); color: #fff; border-color: transparent; }
+
+/* 影相計番（試驗） */
+.scan-box { display: grid; gap: 8px; }
+.scan-btn { width: 100%; justify-content: center; cursor: pointer; }
+.scan-btn.busy { opacity: .7; animation: meetPulse 1.4s ease-in-out infinite; }
+.scan-result { border: 1.5px solid var(--line); border-radius: 12px; padding: 10px; display: grid; gap: 8px; background: var(--surface); }
+.scan-result.low { border-color: color-mix(in srgb, #E0A82E 60%, var(--line)); }
+.scan-tiles { display: flex; flex-wrap: wrap; gap: 4px; }
+.scan-tile { font-family: var(--font-kai); font-size: 13px; padding: 4px 6px; border-radius: 6px; background: var(--tile); color: var(--tile-ink); box-shadow: 0 2px 0 var(--tile-back); }
+.scan-pats { list-style: none; margin: 0; padding: 0; display: grid; gap: 4px; font-size: 14px; }
+.scan-pats li { display: flex; gap: 8px; align-items: baseline; }
+.scan-pats .num { color: var(--tile-loss); }
+.scan-foot { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }

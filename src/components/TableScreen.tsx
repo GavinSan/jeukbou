@@ -10,6 +10,7 @@ import { ago, describe, trendOf } from '../lib/score.ts';
 import { TrendChart } from './Charts.tsx';
 import Celebrate from './Celebrate.tsx';
 import { FanPicker } from './FanTable.tsx';
+import type { ScanResult } from '../lib/scan.ts';
 import type { FanTable } from '../lib/fanTable.ts';
 import { money } from './SettleScreen.tsx';
 import { sfx, unlock } from '../lib/sound.ts';
@@ -71,6 +72,8 @@ export interface TableScreenProps {
   onCancelSwap?: (id: string) => Promise<void>;
   onReseat?: (seats: string[]) => Promise<void>;
   onDice?: () => Promise<void>;
+  /** 影相計番（試驗；淨係超級管理員） */
+  onScan?: (file: File) => Promise<ScanResult>;
   /** 局主／管理員：刪除呢張枱 */
   onDeleteTable?: () => Promise<void>;
   /** 牌友圈番數表：入番數時可以撳牌型加 */
@@ -958,6 +961,7 @@ export default function TableScreen(props: TableScreenProps) {
         <Sheet onClose={() => setPicking(false)} label="番數表">
           <FanPicker
             table={props.fanTable}
+            scan={props.onScan}
             onClose={() => setPicking(false)}
             onUse={(fan, picked) => { setFan(entry.current, fan); setPickedNote(picked.map((p) => p.name).join('、')); setPicking(false); sfx.tap(); }}
           />
