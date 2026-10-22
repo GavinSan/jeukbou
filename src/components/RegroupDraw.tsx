@@ -30,8 +30,11 @@ function SwipeRow({ name, note, onRemove }: { name: string; note?: string; onRem
   const [dx, setDx] = useState(0);
   const [drag, setDrag] = useState(false);
   const start = useRef<{ x: number; y: number; base: number; w: number; locked: boolean | null } | null>(null);
+  // 掃完放手，瀏覽器仲會補一下 click：唔好當係「撳一下收返」
+  const swiped = useRef(false);
   const REVEAL = 88;
   function down(e: RPointerEvent<HTMLDivElement>) {
+    swiped.current = false;
     start.current = { x: e.clientX, y: e.clientY, base: dx, w: e.currentTarget.offsetWidth, locked: null };
   }
   function move(e: RPointerEvent<HTMLDivElement>) {
@@ -50,6 +53,7 @@ function SwipeRow({ name, note, onRemove }: { name: string; note?: string; onRem
     start.current = null;
     setDrag(false);
     if (!st?.locked) return;
+    swiped.current = true;
     if (-dx > st.w * 0.6) { setDx(-st.w); buzz('tap'); setTimeout(onRemove, 160); return; }
     setDx(-dx > REVEAL / 2 ? -REVEAL : 0);
   }
@@ -63,7 +67,7 @@ function SwipeRow({ name, note, onRemove }: { name: string; note?: string; onRem
         onPointerMove={move}
         onPointerUp={up}
         onPointerCancel={up}
-        onClick={() => { if (dx) setDx(0); }}
+        onClick={() => { if (swiped.current) { swiped.current = false; return; } if (dx) setDx(0); }}
       >
         <span className="swipe-av" aria-hidden="true">{name.slice(0, 1)}</span>
         <span className="grow ellipsis">{name}</span>
@@ -79,7 +83,12 @@ export function DrawSetup({ tables, candidates, ranking, me, canForce, onStart, 
   tables: DrawTable[]; candidates: Person[]; ranking: string[]; me: string; canForce: boolean;
   onStart: (d: Draw) => Promise<void>; onClose: () => void;
 }) {
-  const initial = useMemo(() => tables.flatMap((t) => t.seats.map((id) => ({ id, name: t.names[id] ?? '玩家' }))), [tables]);
+  // 同一個人唔好出兩次（例如枱資料未同步好）：重複就只留第一個
+  const initial = useMemo(() => {
+    const out: Person[] = [];
+    for (const t of tables) for (const id of t.seats) if (!out.some((p) => p.id === id)) out.push({ id, name: t.names[id] ?? '玩家' });
+    return out;
+  }, [tables]);
   const tableOf = useMemo(() => Object.fromEntries(tables.flatMap((t) => t.seats.map((id) => [id, t.name]))), [tables]);
   const [roster, setRoster] = useState<Person[]>(initial);
   // 減咗嘅人（包括訪客）記住，等佢可以加返
@@ -239,7 +248,7 @@ export function DrawBoard({ draw, me, tables, canForce, onApprove, onPick, onAut
               <small className="muted">高分先揀；冇電話可以喺呢部機幫佢揀。</small>
             </div>
           )}
-          <div className={`draw-grid${shuffling && draw.status === 'picking' && !pickedBy.size ? ' shuffling' : ''}`} style={{ '--cols': Math.min(8, Math.max(4, Math.ceil(Math.sqrt(draw.tiles.length * 1.4)))) } as CSSProperties}>
+          <div className={`draw-grid${shuffling && draw.status === 'picking' && !pickedBy.size ? ' shuffling' : ''}`} style={{ '--cols': Math.min(8, Math.max(5, Math.ceil(Math.sqrt(draw.tiles.length * 2.4)))) } as CSSProperties}>
             {draw.tiles.map((t, i) => {
               const who = pickedBy.get(i);
               const open = who !== undefined;
@@ -256,9 +265,8 @@ export function DrawBoard({ draw, me, tables, canForce, onApprove, onPick, onAut
                 >
                   <span className="dt-inner">
                     <span className="dt-back" aria-hidden="true" />
-                    <span className="dt-face"><b>{UPPER_NUM[t]}</b></span>
+                    <span className="dt-face"><b>{UPPER_NUM[t]}</b>{open && <small className="dt-who">{nameOf(who!)}</small>}</span>
                   </span>
-                  <small className="dt-who">{open ? nameOf(who!) : ' '}</small>
                 </button>
               );
             })}

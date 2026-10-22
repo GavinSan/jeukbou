@@ -3,6 +3,7 @@
   "short_name": "雀簿",
   "start_url": "/",
   "display": "standalone",
+  "orientation": "portrait",
   "background_color": "#E8EDEA",
   "theme_color": "#1E5B49",
   "lang": "zh-HK",

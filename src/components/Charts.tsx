@@ -36,7 +36,8 @@ function useWidth<T extends HTMLElement>(): [RefObject<T>, number] {
 }
 
 /** 走勢：x = 第幾鋪，y = 累計（找咗 + 枱面）。
- *  四個人或以下：每人一個顏色；人多：其他人灰色幼線，自己（或者撳中嘅人）粗線上色。 */
+ *  每人一個顏色（最多 8 色，跟人唔跟名次：自己排第一，其他人按 id）；超過 8 個人嘅就灰色。
+ *  人多：自己（或者撳中嘅人）粗線，其他人幼線。 */
 export function TrendChart({ series, labels, me }: { series: Series[]; labels: string[]; me?: string | null }) {
   const [ref, width] = useWidth<HTMLDivElement>();
   const [hover, setHover] = useState<number | null>(null);
@@ -54,7 +55,17 @@ export function TrendChart({ series, labels, me }: { series: Series[]; labels: s
   const ordered = useMemo(() => [...series].sort((a, b) => (b.values.at(-1) ?? 0) - (a.values.at(-1) ?? 0)), [series]);
   const many = series.length > 4;
   const focus = picked ?? (me && series.some((s) => s.id === me) ? me : null);
-  const colorOf = (s: Series) => (many ? (s.id === focus ? 'var(--s2)' : 'var(--muted)') : `var(--s${series.indexOf(s) + 1})`);
+  // 顏色跟人：時間範圍變咗、名次變咗都唔會換色
+  const slot = useMemo(() => {
+    const ids = series.map((s) => s.id);
+    const order = many ? [...ids].sort((a, b) => Number(b === me) - Number(a === me) || a.localeCompare(b)) : ids;
+    return new Map(order.map((id, i) => [id, i]));
+  }, [series, many, me]);
+  const colorOf = (s: Series) => {
+    const i = slot.get(s.id) ?? 99;
+    if (i < 8) return `var(--s${i + 1})`;
+    return many && s.id === focus ? 'var(--ink)' : 'var(--muted)';
+  };
   const strong = (s: Series) => (many ? s.id === focus : s.id === me);
   // 畫嘅次序：粗線最後畫，喺最上面
   const drawn = [...series].sort((a, b) => Number(strong(a)) - Number(strong(b)));
@@ -88,7 +99,7 @@ export function TrendChart({ series, labels, me }: { series: Series[]; labels: s
             : <span key={s.id} className={cls}>{inner}</span>;
         })}
       </div>
-      {many && <small className="muted viz-hint">撳個名，佢條線會變粗上色</small>}
+      {many && <small className="muted viz-hint">撳個名，佢條線會變粗</small>}
       <div ref={ref} className="viz-plot">
         <svg width={width} height={H} role="img" aria-label={`走勢圖，共 ${n} 鋪`}>
           {ticks.map((t) => (
@@ -105,8 +116,8 @@ export function TrendChart({ series, labels, me }: { series: Series[]; labels: s
               points={s.values.map((v, i) => `${x(i)},${y(v)}`).join(' ')}
               fill="none"
               stroke={colorOf(s)}
-              strokeOpacity={many && !strong(s) ? 0.35 : 1}
-              strokeWidth={strong(s) ? (many ? 3 : 2.5) : many ? 1.4 : 2}
+              strokeOpacity={many && !strong(s) ? 0.6 : 1}
+              strokeWidth={strong(s) ? (many ? 3.2 : 2.5) : many ? 1.5 : 2}
               strokeLinejoin="round"
               strokeLinecap="round"
             />

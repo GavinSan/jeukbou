@@ -84,6 +84,51 @@ export interface TableScreenProps {
   cash?: { perUnit: number; currency: string; rounding?: 'up' | 'round' | 'none' };
   /** 唔喺呢張枱（又唔係場主／局主）：只可以睇 */
   canEnter?: boolean;
+  /** 紀錄表欄位次序：上一張枱最後嘅欄（執位之後同一班人坐返同一欄） */
+  colOrder?: string[];
+}
+
+/** 紀錄表起始欄：自己排第一（之後跟座位次序），上一張枱有嘅人坐返佢之前嗰欄 */
+export function ledgerStart(seats: string[], me: string | null, prefer?: string[]): string[] {
+  const r = me && seats.includes(me) ? seats.indexOf(me) : 0;
+  const rotated = [...seats.slice(r), ...seats.slice(0, r)];
+  if (!prefer?.length) return rotated;
+  const out: (string | undefined)[] = Array.from({ length: seats.length }, () => undefined);
+  for (const id of rotated) {
+    const k = prefer.indexOf(id);
+    if (k >= 0 && k < out.length && out[k] === undefined) out[k] = id;
+  }
+  const rest = rotated.filter((id) => !out.includes(id));
+  return out.map((id) => id ?? rest.shift()!);
+}
+
+/** 紀錄表分段：每段固定四個人；換人之後開新一段（新入嚟嘅人坐返走咗嗰個嘅欄），
+ *  每段有自己凍結嘅表頭，碌落去舊嗰段就見返舊嗰四個人 */
+export function ledgerSegments(seats: string[], steps: Computed['steps'], me: string | null, prefer?: string[]) {
+  const cols: string[][] = [];
+  const totals: { settled: Record<string, number>; pending: Record<string, number> }[] = [];
+  const segOf: Record<number, number> = {};
+  let cur = ledgerStart(seats, me, prefer);
+  let key = [...cur].sort().join('|');
+  cols.push(cur);
+  for (const st of steps) {
+    const after = st.result.state.seats;
+    const k = [...after].sort().join('|');
+    if (k !== key) {
+      const ins = after.filter((id) => !cur.includes(id));
+      cur = [...cur.map((id) => (after.includes(id) ? id : ins.shift() ?? id)), ...ins];
+      key = k;
+      cols.push(cur);
+    }
+    segOf[st.seq] = cols.length - 1;
+    const pending: Record<string, number> = {};
+    for (const ch of st.result.state.chains) {
+      pending[ch.puller] = (pending[ch.puller] ?? 0) + ch.owed;
+      pending[ch.pulled] = (pending[ch.pulled] ?? 0) - ch.owed;
+    }
+    totals[cols.length - 1] = { settled: { ...st.result.state.settled }, pending };
+  }
+  return { cols, totals, segOf };
 }
 
 const totalOf = (c: Computed, id: string) => (c.state.settled[id] ?? 0) + (c.pending[id] ?? 0);
@@ -450,54 +495,27 @@ export default function TableScreen(props: TableScreenProps) {
     }
     if (!pairs.length) return describe(e, name);
     const z = e.dealer === 'one' ? '・莊當 1 番' : e.dealer === 'none' ? '・不計莊' : '';
+    // 淨係寫實際食咗幾多（牌本身幾番唔使再寫）
     const per = e.winners.map((x) => {
       const vals = pairs.filter((q) => q.w === x.player).map((q) => q.v);
       const total = vals.reduce((a, b) => a + b, 0);
       if (e.loser === null) {
         const same = vals.length > 0 && vals.every((v) => v === vals[0]);
-        return { id: x.player, fan: x.fan, text: same ? `每家 ${vals[0]} 番` : `共 ${total} 番`, plain: same && vals[0] === x.fan };
+        return { id: x.player, text: same ? `每家 ${vals[0]} 番` : `共 ${total} 番` };
       }
-      return { id: x.player, fan: x.fan, text: `${total} 番`, plain: total === x.fan };
+      return { id: x.player, text: `${total} 番` };
     });
-    const fanNote = per.every((x) => x.plain) ? '' : `牌 ${per.map((x) => x.fan).join(' / ')} 番`;
     const who = per.map((x) => name(x.id)).join('、');
     const amount = per.length === 1 ? per[0].text : per.map((x) => `${name(x.id)} ${x.text}`).join('、');
     const tag = per.length === 2 ? '雙響：' : per.length === 3 ? '三響：' : '';
     return (
       <>
         {e.loser === null ? `${who} 自摸 ${amount}` : per.length === 1 ? `${who} 食 ${name(e.loser)} ${amount}` : `${who} 食 ${name(e.loser)}（${tag}${amount}）`}
-        {(fanNote || z) && <small className="lg-fan">（{[fanNote, z.replace('・', '')].filter(Boolean).join('・')}）</small>}
+        {z && <small className="lg-fan">（{z.replace('・', '')}）</small>}
       </>
     );
   };
-  // 紀錄表分段：每段固定四個人；換人之後開新一段（新入嚟嘅人坐返走咗嗰個嘅欄），
-  // 每段有自己凍結嘅表頭，碌落去舊嗰段就見返舊嗰四個人
-  const segs = useMemo(() => {
-    const cols: string[][] = [];
-    const totals: { settled: Record<string, number>; pending: Record<string, number> }[] = [];
-    const segOf: Record<number, number> = {};
-    let cur = [...table.seats];
-    let key = [...cur].sort().join('|');
-    cols.push(cur);
-    for (const st of c.steps) {
-      const after = st.result.state.seats;
-      const k = [...after].sort().join('|');
-      if (k !== key) {
-        const ins = after.filter((id) => !cur.includes(id));
-        cur = [...cur.map((id) => (after.includes(id) ? id : ins.shift() ?? id)), ...ins];
-        key = k;
-        cols.push(cur);
-      }
-      segOf[st.seq] = cols.length - 1;
-      const pending: Record<string, number> = {};
-      for (const ch of st.result.state.chains) {
-        pending[ch.puller] = (pending[ch.puller] ?? 0) + ch.owed;
-        pending[ch.pulled] = (pending[ch.pulled] ?? 0) - ch.owed;
-      }
-      totals[cols.length - 1] = { settled: { ...st.result.state.settled }, pending };
-    }
-    return { cols, totals, segOf };
-  }, [table.seats, c.steps]);
+  const segs = useMemo(() => ledgerSegments(table.seats, c.steps, me, props.colOrder), [table.seats, c.steps, me, props.colOrder]);
   const cols = segs.cols[segs.cols.length - 1];
   // 顯示緊嘅紀錄（新到舊）按段分組
   const ledgerGroups = useMemo(() => {

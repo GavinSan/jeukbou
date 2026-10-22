@@ -68,6 +68,9 @@ export default function App() {
   const path = usePath();
   const { skin } = usePrefs();
   useEffect(() => { applySkin(skin); }, [skin]);
+  // 電視直播可以打橫，其他頁手機打橫就叫人轉返直向
+  const tv = path.startsWith('/live/') || path === '/demo/live';
+  useEffect(() => { document.body.classList.toggle('tv-mode', tv); }, [tv]);
 
   // 大局頁記低我坐邊張枱之後，tab 要更新
   useEffect(() => {

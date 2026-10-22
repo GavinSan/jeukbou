@@ -11,6 +11,7 @@ import type { Computed } from '../lib/score.ts';
 import { describe } from '../lib/score.ts';
 import { Link } from '../lib/router.tsx';
 import { Loading, fmt, message, useNow } from '../ui.tsx';
+import { usePrefs } from '../lib/prefs.ts';
 import GroupIcon from '../components/GroupIcon.tsx';
 
 /** 將分享連結變成可以嵌入嘅播放器網址；唔認得就 null */
@@ -18,12 +19,17 @@ export function embedOf(raw: string): { src: string; kind: 'youtube' | 'spotify'
   let u: URL;
   try { u = new URL(raw.trim()); } catch { return null; }
   const host = u.hostname.replace(/^www\./, '');
-  if (host === 'youtu.be') return { src: `https://www.youtube.com/embed/${u.pathname.slice(1)}?autoplay=1`, kind: 'youtube' };
-  if (host === 'youtube.com' || host === 'm.youtube.com' || host === 'music.youtube.com') {
-    const v = u.searchParams.get('v');
+  // YouTube：playsinline 等 iPhone 唔會彈全螢幕；rel=0 播完唔好跳去其他頻道
+  const yt = (id: string, list: string | null) => `https://www.youtube.com/embed/${id}?autoplay=1&playsinline=1&rel=0${list ? `&list=${list}` : ''}`;
+  if (host === 'youtu.be') {
+    const id = u.pathname.slice(1).split('/')[0];
+    return id ? { src: yt(id, u.searchParams.get('list')), kind: 'youtube' } : null;
+  }
+  if (host === 'youtube.com' || host === 'm.youtube.com' || host === 'music.youtube.com' || host === 'youtube-nocookie.com') {
+    const v = u.searchParams.get('v') ?? /^\/(?:shorts|live|embed)\/([\w-]{6,})/.exec(u.pathname)?.[1];
     const list = u.searchParams.get('list');
-    if (v) return { src: `https://www.youtube.com/embed/${v}?autoplay=1${list ? `&list=${list}` : ''}`, kind: 'youtube' };
-    if (list) return { src: `https://www.youtube.com/embed/videoseries?list=${list}&autoplay=1`, kind: 'youtube' };
+    if (v && v !== 'videoseries') return { src: yt(v, list), kind: 'youtube' };
+    if (list) return { src: `https://www.youtube.com/embed/videoseries?list=${list}&autoplay=1&playsinline=1`, kind: 'youtube' };
     return null;
   }
   if (host === 'open.spotify.com') {
@@ -71,8 +77,15 @@ export function LiveTv({ groupName, icon, sessionName, tables, ranking, chat, mu
   const [musicUrl, setMusicUrl] = useState(music ?? '');
   const [error, setError] = useState('');
   const root = useRef<HTMLDivElement>(null);
-  const chatEnd = useRef<HTMLDivElement>(null);
-  useEffect(() => { chatEnd.current?.scrollIntoView({ block: 'end' }); }, [chat.length]);
+  const chatList = useRef<HTMLDivElement>(null);
+  const { hints } = usePrefs();
+  // 新留言喺最底，舊嘅自己向上推；淨係碌留言框，唔好成頁跳落去。
+  // 如果你碌咗上去睇舊留言，就唔好扯你返落嚟
+  const stick = useRef(true);
+  useEffect(() => {
+    const el = chatList.current;
+    if (el && stick.current) el.scrollTop = el.scrollHeight;
+  }, [chat.length]);
   const emb = music ? embedOf(music) : null;
   const clock = new Date(now).toLocaleTimeString('zh-HK', { hour: '2-digit', minute: '2-digit' });
 
@@ -127,12 +140,13 @@ export function LiveTv({ groupName, icon, sessionName, tables, ranking, chat, mu
                   try { await onMusic(musicUrl); } catch (err) { setError(message(err)); }
                 }}>播</button>}
               </div>
-              <small className="muted">Spotify 要部機登入咗 Premium 先播到全首；YouTube 唔使登入。</small>
+              <small className="muted">YouTube 唔使登入；如果見到「Video unavailable」即係版權方唔俾喺其他網站播，揀過另一條（例如 Lyric video 或者播放清單）。Spotify：要喺呢個瀏覽器登入咗 Spotify Premium 先播到全首，否則只有 30 秒試聽。</small>
             </section>
           )}
           {emb && (
             <section className={`tv-music ${emb.kind}`}>
-              <iframe title="音樂" src={emb.src} allow="autoplay; encrypted-media; fullscreen; clipboard-write; picture-in-picture" loading="lazy" />
+              <iframe key={emb.src} title="音樂" src={emb.src} allow="autoplay; encrypted-media; fullscreen; clipboard-write; picture-in-picture" referrerPolicy="strict-origin-when-cross-origin" />
+              <small className="tv-music-foot">冇聲？撳一下播放器個 ▶︎（好多瀏覽器唔俾自動播有聲）・<a href={music} target="_blank" rel="noreferrer">喺{emb.kind === 'youtube' ? ' YouTube' : emb.kind === 'spotify' ? ' Spotify' : ' Apple Music'} 開</a>{onMusic && <> ・<button type="button" className="textbtn small" onClick={() => onMusic('').catch(() => undefined)}>停</button></>}</small>
             </section>
           )}
 
@@ -147,18 +161,18 @@ export function LiveTv({ groupName, icon, sessionName, tables, ranking, chat, mu
 
           <section className="tv-panel tv-chat">
             <b>直播室</b>
-            <div className="tv-chat-list">
+            <div className="tv-chat-list" ref={chatList} onScroll={(e) => { const el = e.currentTarget; stick.current = el.scrollHeight - el.scrollTop - el.clientHeight < 40; }}>
               {chat.map((m) => (
-                <p key={m.id} className={m.by === me ? 'mine' : ''}><b>{m.name}</b>{m.text}</p>
+                <p key={m.id} className={`selectable${m.by === me ? ' mine' : ''}`}><b>{m.name}</b>{m.text}</p>
               ))}
               {!chat.length && <p className="muted">未有留言，講兩句啦。</p>}
-              <div ref={chatEnd} />
             </div>
             {onSend && (
               <form className="row" onSubmit={async (e) => {
                 e.preventDefault();
                 const t = text;
                 setText('');
+                stick.current = true;
                 try { await onSend(t); } catch (err) { setError(message(err)); setText(t); }
               }}>
                 <input className="input grow" value={text} onChange={(e) => setText(e.target.value.slice(0, 200))} placeholder="留言…" aria-label="留言" />
@@ -167,7 +181,7 @@ export function LiveTv({ groupName, icon, sessionName, tables, ranking, chat, mu
             )}
           </section>
           {error && <p className="error">{error}</p>}
-          <p className="tv-tip">用 AirPlay／Chromecast「螢幕鏡像」，或者電腦接 HDMI 撳 ⛶ 全螢幕。</p>
+          {hints && <p className="tv-tip">用 AirPlay／Chromecast「螢幕鏡像」，或者電腦接 HDMI 撳 ⛶ 全螢幕。</p>}
         </aside>
       </div>
     </div>

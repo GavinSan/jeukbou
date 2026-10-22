@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import type { User } from 'firebase/auth';
-import TableScreen from '../components/TableScreen.tsx';
+import TableScreen, { ledgerSegments } from '../components/TableScreen.tsx';
 import Incoming from '../components/Incoming.tsx';
 import { canDo, appendEvent, applySwap, cancelSwap, declineSettle, requestSwap, reseat, rollDice, fanTableOf, settleConfigOf, deleteTable, isGuest, backfillLiveUsers } from '../lib/data.ts';
 import { useSuperAdmin } from '../lib/admin.ts';
@@ -35,6 +35,17 @@ export default function TablePage({ user, groupId, sessionId, tableId }: { user:
   const back = `/g/${groupId}/s/${sessionId}`;
   const table = tables.data.find((t) => t.id === tableId);
   const c = table ? computed[tableId] : null;
+  // 執位之後：上一張我打過嘅枱（同一個大局）最後嘅欄位次序，同一班人坐返同一欄
+  const colOrder = useMemo(() => {
+    if (!table) return undefined;
+    const prev = tables.data
+      .filter((t) => t.id !== tableId && t.order < table.order && computed[t.id]?.state.ended && user.uid in (computed[t.id]?.state.settled ?? {}))
+      .sort((a, b) => b.order - a.order)[0];
+    const pc = prev ? computed[prev.id] : null;
+    if (!prev || !pc) return undefined;
+    const cols = ledgerSegments(prev.seats, pc.steps, user.uid).cols;
+    return cols[cols.length - 1];
+  }, [table, tables.data, tableId, computed, user.uid]);
   // 舊枱未有「而家坐喺度嘅人」：坐喺度嘅人一開就補返（資料庫規則用嚟限制邊個可以入數）
   const needBackfill = !!table && !!c && !own.loading && table.liveUsers === undefined && !c.state.ended && c.state.seats.includes(user.uid);
   useEffect(() => {
@@ -93,6 +104,7 @@ export default function TablePage({ user, groupId, sessionId, tableId }: { user:
     <TableScreen
       table={table}
       canEnter={canEnter}
+      colOrder={colOrder}
       computed={c}
       rules={rules}
       fanTable={fanTableOf(group.data)}

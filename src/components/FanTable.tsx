@@ -42,7 +42,18 @@ export function FanTableView({ table, canEdit, onSave, log }: {
 }) {
   const [q, setQ] = useState('');
   const [open, setOpen] = useState<string | null>(null);
-  const [shut, setShut] = useState<Set<number>>(() => new Set([-1, ...table.sections.map((_, i) => i)]));
+  // 最近（兩星期內）有人改過：有改嘅分類自動打開、改咗嗰項標「新」
+  const recent = !!log?.at && Date.now() - log.at < 14 * 86400000 && log.changes.length > 0;
+  const changed = useMemo(() => {
+    const out = new Set<string>();
+    if (!recent) return out;
+    for (const sec of table.sections) for (const it of sec.items) {
+      const n = it.name.trim();
+      if (n && log!.changes.some((c) => c.startsWith(`新增 ${n} `) || c.startsWith(`${n} `))) out.add(n);
+    }
+    return out;
+  }, [recent, log, table]);
+  const [shut, setShut] = useState<Set<number>>(() => new Set([-1, ...table.sections.map((_, i) => i).filter((i) => !table.sections[i].items.some((it) => changed.has(it.name.trim())))]));
   const [editing, setEditing] = useState<FanTable | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
@@ -95,6 +106,12 @@ export function FanTableView({ table, canEdit, onSave, log }: {
           </button>
         )}
       </div>
+      {recent && !query && (
+        <div className="ft-news" role="status">
+          <b>{log!.byName || '局主'} 最近改咗（{fmtDate(log!.at)}）</b>
+          <ul>{log!.changes.map((c, i) => <li key={i}>{c}</li>)}</ul>
+        </div>
+      )}
       {table.sections.map((sec, si) => {
         const items = sec.items.filter((it) => matches(it, query));
         if (!items.length) return null;
@@ -114,10 +131,10 @@ export function FanTableView({ table, canEdit, onSave, log }: {
                   const desc = glossaryOf(it.name);
                   const isOpen = open === key;
                   return (
-                    <li key={key}>
+                    <li key={key} className={changed.has(it.name.trim()) ? 'changed' : undefined}>
                       <button type="button" className="ft-item" aria-expanded={desc ? isOpen : undefined} disabled={!desc} onClick={() => setOpen(isOpen ? null : key)}>
                         <span className="ft-left">
-                          <span className="ft-name">{it.name}{desc && <i className="ft-info" aria-hidden="true">i</i>}</span>
+                          <span className="ft-name">{it.name}{desc && <i className="ft-info" aria-hidden="true">i</i>}{changed.has(it.name.trim()) && <i className="ft-new-tag">新</i>}</span>
                           {it.note && <small className="ft-note">{it.note}</small>}
                         </span>
                         <Values value={it.value} />
