@@ -3,7 +3,7 @@
 import { readFileSync } from 'node:fs';
 import { after, before, beforeEach, test } from 'node:test';
 import { assertFails, assertSucceeds, initializeTestEnvironment } from '@firebase/rules-unit-testing';
-import { deleteField, doc, setDoc, updateDoc } from 'firebase/firestore';
+import { deleteDoc, deleteField, doc, setDoc, updateDoc } from 'firebase/firestore';
 
 let env;
 const G = 'g1';
@@ -110,4 +110,18 @@ test('已轉：俾錢、收錢嘅人改到自己份；第三者唔得；場主�
   await assertFails(updateDoc(s('e'), { 'paid.a>b': { by: 'e', at: 1 } }));
   await assertSucceeds(updateDoc(s('host'), { 'paid.a>b': { by: 'host', at: 1 }, lastPaid: 'a>b' }));
   await assertSucceeds(updateDoc(s('owner'), { 'paid.c>d': { by: 'owner', at: 1 }, lastPaid: 'c>d' }));
+});
+
+test('取消約局：開局嗰個仲去就佢取消；佢唔去咗就由最早應「去」嗰個接手', async () => {
+  const m = (uid, id) => doc(as(uid), 'groups', G, 'meetups', id);
+  await env.withSecurityRulesDisabled(async (ctx) => {
+    const db = ctx.firestore();
+    await setDoc(doc(db, 'groups', G, 'meetups', 'm1'), { by: 'a', going: ['a', 'b', 'c'], maybe: [], no: [] });
+    await setDoc(doc(db, 'groups', G, 'meetups', 'm2'), { by: 'a', going: ['b', 'c'], maybe: [], no: ['a'] });
+  });
+  await assertFails(deleteDoc(m('b', 'm1')));
+  await assertSucceeds(deleteDoc(m('a', 'm1')));
+  await assertFails(deleteDoc(m('a', 'm2')));
+  await assertFails(deleteDoc(m('c', 'm2')));
+  await assertSucceeds(deleteDoc(m('b', 'm2')));
 });

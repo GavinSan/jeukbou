@@ -121,13 +121,16 @@ service cloud.firestore {
         allow delete: if isOwner(g) || (signedIn() && request.auth.uid in resource.data.members);
       }
 
-      // 約局：成員開、應；開嗰個或者局主刪
+      // 約局：成員開、應；約局嘅局主（開嗰個；佢唔去就由最早應「去」嗰個接手）或者牌友圈局主刪
       match /meetups/{m} {
+        function meetHost(d) {
+          return (d.by in d.going || d.going.size() == 0) ? d.by : d.going[0];
+        }
         allow read: if isMember(g);
         allow create: if isMember(g) && request.resource.data.by == request.auth.uid;
         allow update: if isMember(g) && (resource.data.by == request.auth.uid
           || request.resource.data.diff(resource.data).affectedKeys().hasOnly(['going', 'maybe', 'no', 'names']));
-        allow delete: if isOwner(g) || (signedIn() && resource.data.by == request.auth.uid);
+        allow delete: if isOwner(g) || (signedIn() && meetHost(resource.data) == request.auth.uid);
       }
 
       // 加入申請（「要批准」模式）：自己申請、自己睇、自己取消；局主睇晒同批核

@@ -68,7 +68,8 @@ for (const scheme of ['light', 'dark']) {
     });
     await step('edit', async () => {
       await page.waitForTimeout(1000);
-      await page.getByRole('button', { name: /Gavin 食 Ivan .*牌 15 番/ }).click();
+      // 第二新嗰鋪（15 番嗰鋪）
+      await page.getByRole('button', { name: /Gavin 食 Ivan/ }).nth(1).click();
       await page.waitForTimeout(400);
       await page.getByRole('dialog').getByRole('button', { name: '加一番' }).click();
       await page.getByRole('dialog').getByRole('button', { name: '加一番' }).click();

@@ -1,7 +1,7 @@
 // 約局：約將來嘅日子同時間；大家應「去／可能／唔去」，人數用鬼馬講法（三缺一、二缺二…）
 import { useEffect, useRef, useState } from 'react';
 import type { Meetup } from '../lib/data.ts';
-import { meetupMood } from '../lib/data.ts';
+import { meetupHost, meetupMood } from '../lib/data.ts';
 import { Sheet, message, useConfirm } from '../ui.tsx';
 
 const WEEK = ['日', '一', '二', '三', '四', '五', '六'];
@@ -26,6 +26,7 @@ export function MeetupCard({ m, me, onRsvp, onDelete, canDelete }: {
   const soon = m.at - Date.now() < 86400000;
   const act = async (t: () => Promise<void>) => { setBusy(true); setError(''); try { await t(); } catch (err) { setError(message(err)); } finally { setBusy(false); } };
   const nm = (id: string) => (id === me ? '你' : m.names[id] ?? '玩家');
+  const host = meetupHost(m);
   return (
     <div className={`meetup${n % 4 === 3 ? ' need-one' : n >= want * 4 ? ' full' : ''}`}>
       <div className="meetup-top">
@@ -43,7 +44,7 @@ export function MeetupCard({ m, me, onRsvp, onDelete, canDelete }: {
           <button key={k} type="button" role="radio" aria-checked={mine === k} aria-pressed={mine === k} disabled={busy} onClick={() => act(() => onRsvp(mine === k ? null : k))}>{t}</button>
         ))}
       </div>
-      <small className="muted">{m.byName || '有人'} 約</small>
+      <small className="muted"><span className="meetup-host">局主：{nm(host)}</span>{host !== m.by && `（${m.byName || '開局嗰個'} 唔去咗，由${host === me ? '你' : '佢'}接手）`}</small>
       {error && <p className="error">{error}</p>}
       {confirmUI}
     </div>
@@ -111,7 +112,7 @@ export function MeetupsView({ list, me, ownerOrAdmin, onCreate, onRsvp, onDelete
         <button type="button" className="textbtn" onClick={() => setOpen(true)}>＋ 約局</button>
       </div>
       {list.length ? list.map((m) => (
-        <MeetupCard key={m.id} m={m} me={me} canDelete={ownerOrAdmin || m.by === me} onRsvp={(s) => onRsvp(m.id, s)} onDelete={() => onDelete(m.id)} />
+        <MeetupCard key={m.id} m={m} me={me} canDelete={ownerOrAdmin || meetupHost(m) === me} onRsvp={(s) => onRsvp(m.id, s)} onDelete={() => onDelete(m.id)} />
       )) : <button type="button" className="meetup-empty" onClick={() => setOpen(true)}>未有約局。約定日子時間，等大家應「去」，夠腳就知；人多可以開幾張枱。</button>}
       {open && <MeetupSheet onSave={onCreate} onClose={() => setOpen(false)} existing={list} />}
     </section>

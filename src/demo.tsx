@@ -54,6 +54,10 @@ const TABLES: TableDoc[] = [
 const TEST_TABLES: TableDoc[] = [
   { id: 't5', name: '測試：夠拉', order: 5, seats: ['gavin', 'kit', 'jo', 'vincent'], names: { gavin: 'Gavin', kit: 'Kit', jo: 'Jo', vincent: 'Vincent' } },
   { id: 't6', name: '測試：雙響', order: 6, seats: ['gavin', 'kit', 'jo', 'vincent'], names: { gavin: 'Gavin', kit: 'Kit', jo: 'Jo', vincent: 'Vincent' } },
+  // 同時拉三家：三條拉一齊夠數，睇三個「找唔找」提示一齊出
+  { id: 't7', name: '測試：拉 3 家 3 次', order: 7, seats: ['gavin', 'kit', 'jo', 'vincent'], names: { gavin: 'Gavin', kit: 'Kit', jo: 'Jo', vincent: 'Vincent' } },
+  // 第 3 拉三家都揀咗「不找」，再拉到第 6 拉
+  { id: 't8', name: '測試：拉 3 家 6 次', order: 8, seats: ['gavin', 'kit', 'jo', 'vincent'], names: { gavin: 'Gavin', kit: 'Kit', jo: 'Jo', vincent: 'Vincent' }, declined: ['gavin>kit#3', 'gavin>jo#3', 'gavin>vincent#3'] },
 ];
 
 // 第 5 枱：打完四圈（每鋪下家食，莊逐個過），用嚟睇「打完圈數」
@@ -77,7 +81,22 @@ const SCRIPT: Record<string, TableEvent[]> = {
     { type: 'falseWin', player: 'kit' },
     self('jo', 20),
   ],
+  // 自摸 = 同時拉三家
+  t7: [self('gavin', 5), self('gavin', 8), self('gavin', 6)],
+  t8: [self('gavin', 5), self('gavin', 8), self('gavin', 6), self('gavin', 3), self('gavin', 10), self('gavin', 4)],
 };
+
+// 示範番數表：清一色改咗、加咗天胡（通知撳入去會自動打開有改嘅分類）
+const DEMO_FAN_TABLE = (() => {
+  const t = structuredClone(DEFAULT_FAN_TABLE);
+  const sec = t.sections.find((x) => x.items.some((it) => it.name === '清一色'));
+  if (sec) {
+    sec.items = sec.items.map((it) => (it.name === '清一色' ? { ...it, value: '100' } : it));
+    sec.items.push({ name: '天胡', value: '200' });
+  }
+  return t;
+})();
+const DEMO_FAN_LOG = { at: Date.now() - 3600000, by: 'gavin', byName: 'Gavin', changes: ['清一色 80 → 100', '新增 天胡 200'] };
 
 function seed(): Record<string, StoredEvent[]> {
   const out: Record<string, StoredEvent[]> = {};
@@ -183,6 +202,8 @@ export default function Demo() {
   const [events, setEvents] = useState<Record<string, StoredEvent[]>>(seed);
   const [dice, setDice] = useState<Record<string, Dice>>({});
   const [seatOverride, setSeatOverride] = useState<Record<string, string[]>>({});
+  // 一齊執位多咗組人（例如 24 人 5 張枱）：開新枱
+  const [addedTables, setAddedTables] = useState<TableDoc[]>([]);
   const [extraNames, setExtraNames] = useState<Record<string, string>>({});
   const [settleCfg, setSettleCfg] = useState<SettleConfig>({ ...DEFAULT_SETTLE, waterTo: 'gavin' });
   const [expenses, setExpenses] = useState<ExpenseDoc[]>([
@@ -194,6 +215,7 @@ export default function Demo() {
     { id: '1', by: 'athena', name: 'Athena', text: 'Gavin 今晚好旺喎 🔥', at: Date.now() - 600000 },
     { id: '2', by: 'ivan', name: 'Ivan', text: '下一鋪一定到我', at: Date.now() - 300000 },
   ]);
+  const [demoMusic, setDemoMusic] = useState('');
   const [demoPaid, setDemoPaid] = useState<Record<string, { by: string; at: number }>>({});
   const [people, setPeople] = useState<{ id: string; name: string }[]>([{ id: 'guest-vincent', name: 'Vincent' }]);
   const [pairs, setPairs] = useState<PairDoc[]>([{ id: 'p1', a: 'robin', b: 'tat', by: 'robin', accepted: ['robin'] }]);
@@ -217,11 +239,11 @@ export default function Demo() {
   ]);
   useEffect(() => {
     if (path !== '/demo/home') return;
-    pushNotice({ g: 'demo', at: Date.now(), title: '「不打不相識」番數表已更新', body: 'Gavin：清一色 30 → 40、新增 天胡 200', url: '/demo/rules' });
+    pushNotice({ g: 'demo', at: Date.now(), title: '「不打不相識」番數表已更新', body: 'Gavin：清一色 80 → 100、新增 天胡 200', url: '/demo/rules#fans' });
   }, [path]);
   const tables = useMemo(
-    () => TABLES.map((t) => ({ ...t, seats: seatOverride[t.id] ?? t.seats, names: { ...t.names, ...extraNames }, dice: dice[t.id] ?? null })),
-    [seatOverride, extraNames, dice],
+    () => [...TABLES, ...addedTables].map((t) => ({ ...t, seats: seatOverride[t.id] ?? t.seats, names: { ...t.names, ...extraNames }, dice: dice[t.id] ?? null })),
+    [seatOverride, extraNames, dice, addedTables],
   );
   const testTables = useMemo(
     () => TEST_TABLES.map((t) => ({ ...t, seats: seatOverride[t.id] ?? t.seats, names: { ...t.names, ...extraNames }, dice: dice[t.id] ?? null })),
@@ -238,7 +260,7 @@ export default function Demo() {
     const C: [string, string, string][] = [
       ['/demo/home', '主頁', '戰績、Live 卡、日曆、加主畫面提示、補資料提示'],
       ['/demo/groups', '牌友圈列表', '搜尋、公開牌友圈、加入碼'],
-      ['/demo/group', '牌友圈頁', '約局（三缺一、兩枱）、成員、權限、邀請'],
+      ['/demo/group', '牌友圈頁', '約局（三缺一、兩枱、局主唔去由下一個接手）、成員、權限、邀請'],
       ['/demo', '大局', '5 張枱、一齊執位、加枱、電視直播'],
       ['/demo/t/0', '枱：一般', '入數、番數表、特別事項（返回）、換人、撤回、紀錄分段'],
       ['/demo/t/1', '枱：有流局', '流局（唔使確認）、拉同枱面'],
@@ -247,12 +269,14 @@ export default function Demo() {
       ['/demo/t/4', '枱：打完四圈', '再打四圈、快圈、完場'],
       ['/demo/t/5', '枱：夠三拉', '決定找唔找數'],
       ['/demo/t/6', '枱：雙響、特別事項、詐糊、自摸', '紀錄寫實際食幾多番'],
+      ['/demo/t/7', '枱：拉 3 家 3 次', '三個「找唔找」提示一齊出'],
+      ['/demo/t/8', '枱：拉 3 家 6 次', '第 3 拉唔找，第 6 拉再問三家'],
       ['/demo/t/0?view=1', '枱：唔喺呢張枱', '只可以睇，入唔到數、擲唔到骰'],
       ['/demo/settle', '埋數', '開支、Group、轉賬、已轉'],
       ['/demo/pay', '找數', '我要俾、我要收、Interac email'],
       ['/demo/board', '龍虎榜', '走勢（所有人、highlight 自己）、排行表、數據'],
       ['/demo/rank', '段位', '段位進度、成就'],
-      ['/demo/live', '電視直播', '大字分數、直播室、音樂'],
+      ['/demo/live', '電視直播', '大字分數、直播室、音樂（♫ 貼連結撳「播」）'],
       ['/demo/rules', '家規', '番數表、抽水、拉'],
       ['/demo/install', '加主畫面教學', 'iPhone Safari、其他瀏覽器、Android'],
       ['/demo/skins', '風格', '10 款風格'],
@@ -279,7 +303,7 @@ export default function Demo() {
       <main className="page">
         <TopBar back="/demo" title="家規" />
         <HouseRules
-          fans={<FanTableView table={DEFAULT_FAN_TABLE} canEdit onSave={async () => undefined} />}
+          fans={<FanTableView table={DEMO_FAN_TABLE} log={DEMO_FAN_LOG} canEdit onSave={async () => undefined} />}
           scoring={<RulesEditor initial={{}} canEdit scopeNote="示範：修改不會儲存。" onSave={async () => undefined} />}
           settle={<>
             <SettleConfigForm cfg={settleCfg} canEdit accounts={[{ id: 'gavin', name: 'Gavin' }, { id: 'athena', name: 'Athena' }, { id: 'ivan', name: 'Ivan' }]} busy={false} error="" onSave={(c) => setSettleCfg(c)} />
@@ -302,11 +326,11 @@ export default function Demo() {
         tables={tv}
         ranking={[...acc.values()].sort((a, b) => b.v - a.v)}
         chat={demoChat}
-        music="https://www.youtube.com/watch?v=jfKfPfyJRdk"
+        music={demoMusic || undefined}
         me="gavin"
         backHref="/demo"
         onSend={async (t) => setDemoChat((l) => [...l, { id: String(l.length + 1), by: 'gavin', name: 'Gavin', text: t, at: Date.now() }])}
-        onMusic={async () => undefined}
+        onMusic={async (u) => setDemoMusic(u.trim())}
       />
     );
   }
@@ -444,7 +468,8 @@ export default function Demo() {
         <MeetupsView
           list={meets}
           me="gavin"
-          ownerOrAdmin
+          // 示範：當自己唔係牌友圈局主，睇得到約局局主接手（你改「唔去」，Athena 就變局主可以取消）
+          ownerOrAdmin={false}
           onCreate={async (m) => setMeets((l) => [...l, { id: `m${Date.now()}`, by: 'gavin', byName: 'Gavin', ...m, going: ['gavin'], maybe: [], no: [], names: { gavin: 'Gavin' }, createdAt: Date.now() }].sort((a, b) => a.at - b.at))}
           onRsvp={async (id, st) => setMeets((l) => l.map((m) => m.id !== id ? m : {
             ...m,
@@ -544,7 +569,7 @@ export default function Demo() {
   }
 
   const m = match('/demo/t/:i', path);
-  const table = m ? [...tables, ...testTables][Number(m.i)] : undefined;
+  const table = m ? [...tables, ...testTables].find((t) => t.id === `t${m.i}`) : undefined;
 
   if (table) {
     const c = computed[table.id];
@@ -609,7 +634,12 @@ export default function Demo() {
       regroup={{
         draw: demoDraw,
         canForce: true,
-        candidates: [{ id: 'kit', name: 'Kit' }, { id: 'jo', name: 'Jo' }],
+        // 未坐低嘅人（包括上次執位減咗嘅）
+        candidates: (() => {
+          const seated = new Set(tables.flatMap((t) => (computed[t.id] && !computed[t.id]!.state.ended ? computed[t.id]!.state.seats : [])));
+          const all = new Map<string, string>([...tables.flatMap((t) => Object.entries(t.names)), ['kit', 'Kit'], ['jo', 'Jo']]);
+          return [...all].filter(([id]) => !seated.has(id)).map(([id, name]) => ({ id, name }));
+        })(),
         onStart: async (d) => {
           setDemoDraw(d);
           if (d.mode === 'auto') setTimeout(() => setDemoDraw((x) => (x ? autoFill(x) : x)), 1400);
@@ -627,16 +657,21 @@ export default function Demo() {
         onAuto: async () => setDemoDraw((x) => (x ? autoFill(x) : x)),
         onCancel: async () => setDemoDraw(null),
         onApply: async (plan) => {
-          // 示範：新嘅幾組人放返入原本幾張枱（用換人＋換位紀錄），名全部枱通用
-          const target = tables.filter((t) => computed[t.id] && !computed[t.id]!.state.ended);
+          // 示範：新嘅幾組人放返入原本未保留嘅枱（用換人＋換位紀錄）；組多過枱就開新枱，枱多過組就完場
+          // （真 app 係舊枱完場、開新枱）
+          const kept = new Set(plan.map((p) => p.keep).filter(Boolean) as string[]);
+          const target = tables.filter((t) => computed[t.id] && !computed[t.id]!.state.ended && !kept.has(t.id));
+          const fresh = plan.filter((p) => !p.keep);
           setExtraNames((n) => ({ ...n, ...Object.assign({}, ...tables.map((t) => t.names)), ...Object.assign({}, ...plan.map((p) => p.names)) }));
+          const extra = fresh.slice(target.length).map((p, k) => ({ id: `t${20 + addedTables.length + k}`, name: p.name, order: 20 + addedTables.length + k, seats: p.seats, names: p.names } as TableDoc));
+          if (extra.length) setAddedTables((l) => [...l, ...extra]);
           setEvents((prev) => {
             const next = { ...prev };
-            plan.forEach((p, k) => {
-              const t = target[k];
-              if (!t || p.keep) return;
+            target.forEach((t, k) => {
+              const p = fresh[k];
               const list = [...(next[t.id] ?? [])];
               const add = (event: LogEvent) => list.push({ seq: list.length + 1, by: 'demo', event, at: Date.now() });
+              if (!p) { add({ type: 'end' }); next[t.id] = list; return; }
               const current = computed[t.id]?.state.seats ?? [];
               const out = current.filter((x) => !p.seats.includes(x));
               const inn = p.seats.filter((x) => !current.includes(x));

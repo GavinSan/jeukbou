@@ -196,6 +196,11 @@ export async function rsvpMeetup(g: string, id: string, user: User, status: 'goi
   });
 }
 
+/** 約局嘅局主：開局嗰個仲去就係佢；佢改咗唔去，就由最早應「去」嗰個接手（可以取消約局） */
+export function meetupHost(m: Pick<Meetup, 'by' | 'going'>): string {
+  return m.going.includes(m.by) || !m.going.length ? m.by : m.going[0];
+}
+
 export async function deleteMeetup(g: string, id: string): Promise<void> {
   await deleteDoc(doc(fs(), 'groups', g, 'meetups', id));
 }
