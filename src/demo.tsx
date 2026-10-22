@@ -569,6 +569,16 @@ export default function Demo() {
         subtitle="示範"
         candidates={[{ id: 'kit', name: 'Kit' }, { id: 'mandy', name: 'Mandy' }]}
         onPush={push}
+        onScan={async () => {
+          // 示範：假結果（真嘅要 super admin 喺真牌友圈用）
+          await new Promise((r) => setTimeout(r, 1200));
+          return {
+            tiles: ['一萬', '一萬', '一萬', '二萬', '三萬', '四萬', '五萬', '六萬', '七萬', '八萬', '九萬', '九萬', '九萬', '東', '東', '東', '東'],
+            flowers: ['春', '梅'],
+            patterns: [{ name: '清一色', fan: 80, why: '全部萬子（示範）' }, { name: '正花', option: '', fan: 5, why: '春、梅' }],
+            total: 85, confidence: 'medium', notes: '示範結果', used: 3, limit: 40,
+          };
+        }}
         onSwap={async (out, incoming) => {
           setExtraNames((n) => ({ ...n, [incoming.id]: incoming.name }));
           await push({ type: 'swap', out, in: incoming.id });

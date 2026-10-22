@@ -2,10 +2,11 @@
 // 只送 data（title/body/url/tag），由 app 嘅 service worker 顯示；同一個 tag 會取代舊通知。
 // 地區由部署時嘅 functions/.env（PUSH_REGION）決定，要同 Firestore 資料庫一樣。
 import { initializeApp } from 'firebase-admin/app';
-import { getFirestore } from 'firebase-admin/firestore';
+import { FieldValue, getFirestore } from 'firebase-admin/firestore';
 import { getMessaging } from 'firebase-admin/messaging';
 import { setGlobalOptions } from 'firebase-functions/v2';
 import { onDocumentCreated, onDocumentUpdated } from 'firebase-functions/v2/firestore';
+import { HttpsError, onCall } from 'firebase-functions/v2/https';
 import { logger } from 'firebase-functions';
 
 initializeApp();
@@ -138,4 +139,77 @@ export const joinRequested = onDocumentCreated('groups/{g}/joinRequests/{u}', as
     url: `/g/${g}`,
     tag: `${g}:join`,
   });
+});
+
+// ---------- 影相認牌計番（試驗：淨係超級管理員） ----------
+// app 傳一張縮細咗嘅相（JPEG base64）同番數表嘅牌型名，Claude 認牌再對番數表計番。
+// API key 同超級管理員 email 由部署時寫入 functions/.env（來自 GitHub Secrets），唔會入 repo。
+// 每日上限防止用爆 credit。
+
+const SCAN_DAILY_LIMIT = Number(process.env.SCAN_DAILY_LIMIT || 40);
+
+function scanPrompt(items) {
+  const list = items.map((x) => `- ${x.name}：${x.value}`).join('\n');
+  return `呢張相係港式台灣牌（16 張）嘅食糊手牌。請認出所有牌，再用下面呢份番數表計番。
+
+番數表（牌型：番數；「明:5|暗:15」即係明槓 5、暗槓 15 嗰類選項）：
+${list}
+
+規則：
+- 牌名用中文：一萬至九萬、一筒至九筒、一索至九索、東南西北、中發白；花牌寫「春夏秋冬」或者「梅蘭菊竹」。
+- 淨係用番數表入面有嘅牌型名（一字不改），每個牌型寫用咗邊個選項同幾多番。
+- 睇唔清就照講，confidence 寫 low。
+- 只回覆一個 JSON，唔好有其他字：
+{"tiles":["…"],"flowers":["…"],"exposed":[["…"]],"patterns":[{"name":"…","option":"","fan":0,"why":"…"}],"total":0,"confidence":"high|medium|low","notes":"…"}`;
+}
+
+export const scanHand = onCall({ timeoutSeconds: 60, memory: '512MiB', maxInstances: 2 }, async (req) => {
+  const admin = process.env.SUPER_ADMIN_EMAIL || '';
+  const tok = req.auth?.token;
+  if (!admin || !tok || tok.email !== admin || tok.email_verified !== true) throw new HttpsError('permission-denied', '影相計番暫時淨係超級管理員用得');
+  const key = process.env.ANTHROPIC_API_KEY || '';
+  if (!key) throw new HttpsError('failed-precondition', '未設定 ANTHROPIC_API_KEY');
+  const image = String(req.data?.image ?? '');
+  const media = String(req.data?.mediaType ?? 'image/jpeg');
+  if (!/^[A-Za-z0-9+/=]+$/.test(image) || image.length > 6_000_000) throw new HttpsError('invalid-argument', '相唔啱');
+  if (!['image/jpeg', 'image/png', 'image/webp'].includes(media)) throw new HttpsError('invalid-argument', '相格式唔啱');
+  const items = Array.isArray(req.data?.items) ? req.data.items.slice(0, 200).map((x) => ({ name: String(x?.name ?? '').slice(0, 40), value: String(x?.value ?? '').slice(0, 60) })).filter((x) => x.name) : [];
+
+  // 每日上限（多倫多日子）
+  const day = new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Toronto' }).format(new Date());
+  const ref = db.doc('admin/scanUsage');
+  const used = await db.runTransaction(async (tx) => {
+    const snap = await tx.get(ref);
+    const n = snap.exists && snap.get('day') === day ? Number(snap.get('count') ?? 0) : 0;
+    if (n >= SCAN_DAILY_LIMIT) return -1;
+    tx.set(ref, { day, count: n + 1, at: FieldValue.serverTimestamp() });
+    return n + 1;
+  });
+  if (used < 0) throw new HttpsError('resource-exhausted', `今日已經用咗 ${SCAN_DAILY_LIMIT} 次，聽日再試`);
+
+  const res = await fetch('https://api.anthropic.com/v1/messages', {
+    method: 'POST',
+    headers: { 'content-type': 'application/json', 'x-api-key': key, 'anthropic-version': '2023-06-01' },
+    body: JSON.stringify({
+      model: process.env.CLAUDE_MODEL || 'claude-sonnet-5-5',
+      max_tokens: 1500,
+      messages: [{ role: 'user', content: [
+        { type: 'image', source: { type: 'base64', media_type: media, data: image } },
+        { type: 'text', text: scanPrompt(items) },
+      ] }],
+    }),
+  });
+  if (!res.ok) {
+    const t = await res.text().catch(() => '');
+    logger.error('claude api', { status: res.status, body: t.slice(0, 500) });
+    throw new HttpsError('unavailable', `Claude 未能處理（${res.status}）`);
+  }
+  const out = await res.json();
+  const text = (out.content ?? []).filter((c) => c.type === 'text').map((c) => c.text).join('');
+  const m = /\{[\s\S]*\}/.exec(text);
+  let parsed = null;
+  try { parsed = m ? JSON.parse(m[0]) : null; } catch { parsed = null; }
+  if (!parsed) throw new HttpsError('internal', '認唔到，試下影清楚啲');
+  logger.info('scan', { used, tokens: out.usage });
+  return { ...parsed, used, limit: SCAN_DAILY_LIMIT };
 });
