@@ -3,6 +3,7 @@
 import { useState } from 'react';
 import type { User } from 'firebase/auth';
 import { claimLegacy, legacyMap, legacyStem, setLegacyAlias, setLegacyAliases } from '../lib/data.ts';
+import type { Group, Member } from '../lib/data.ts';
 import { useSuperAdmin } from '../lib/admin.ts';
 import { useGroup, useMembers } from '../lib/live.ts';
 import { Hint, Loading, TopBar, message } from '../ui.tsx';
@@ -11,19 +12,43 @@ export default function PlayersPage({ user, groupId }: { user: User; groupId: st
   const group = useGroup(groupId);
   const members = useMembers(groupId);
   const admin = useSuperAdmin(user.uid);
+  const back = `/g/${groupId}`;
+  if (!group.data) {
+    return (
+      <main className="page">
+        <TopBar back={back} title="對應玩家" />
+        {group.loading ? <Loading /> : <p className="error">{group.error ?? '搵唔到呢個牌友圈'}</p>}
+      </main>
+    );
+  }
+  return (
+    <PlayersView
+      g={group.data}
+      members={members.data}
+      me={user.uid}
+      owner={group.data.ownerId === user.uid || admin}
+      back={back}
+      onClaim={(key) => claimLegacy(groupId, user.uid, key)}
+      onAlias={(key, uid) => setLegacyAlias(groupId, key, uid)}
+      onAliases={(map) => setLegacyAliases(groupId, map)}
+    />
+  );
+}
+
+export function PlayersView({ g, members, me: uidMe, owner, back, onClaim, onAlias, onAliases }: {
+  g: Group; members: Member[]; me: string; owner: boolean; back: string;
+  onClaim: (key: string) => Promise<void>;
+  onAlias: (key: string, uid: string) => Promise<void>;
+  onAliases: (map: Record<string, string>) => Promise<void>;
+}) {
   const [busy, setBusy] = useState('');
   const [error, setError] = useState('');
-  const back = `/g/${groupId}`;
-  if (!group.data) return <main className="page"><TopBar back={back} /><Loading /></main>;
-
-  const g = group.data;
-  const owner = g.ownerId === user.uid || admin;
   const names = g.legacyNames ?? {};
   const keys = Object.keys(names).sort((a, b) => names[a].localeCompare(names[b]));
-  const map = legacyMap(g, members.data);
-  const me = members.data.find((m) => m.uid === user.uid);
-  const myKey = Object.entries(map).find(([, uid]) => uid === user.uid)?.[0] ?? '';
-  const memberName = (uid: string) => members.data.find((m) => m.uid === uid)?.name ?? '（已離開）';
+  const map = legacyMap(g, members);
+  const me = members.find((m) => m.uid === uidMe);
+  const myKey = Object.entries(map).find(([, uid]) => uid === uidMe)?.[0] ?? '';
+  const memberName = (uid: string) => members.find((m) => m.uid === uid)?.name ?? '（已離開）';
 
   // 同一個人嘅其他寫法（未配對）：例如「ATHENA C.」同「Athena」
   const sameAs = (k: string) => {
@@ -35,7 +60,7 @@ export default function PlayersPage({ user, groupId }: { user: User; groupId: st
   for (const k of keys) {
     if (map[k]) continue;
     const st = legacyStem(names[k]);
-    const hits = st ? members.data.filter((m) => legacyStem(m.name) === st) : [];
+    const hits = st ? members.filter((m) => legacyStem(m.name) === st) : [];
     if (hits.length === 1) auto[k] = hits[0].uid;
   }
   const autoCount = Object.keys(auto).length;
@@ -43,9 +68,9 @@ export default function PlayersPage({ user, groupId }: { user: User; groupId: st
   async function pairOwner(k: string, uid: string) {
     const more = uid ? sameAs(k) : [];
     if (more.length && window.confirm(`「${more.map((o) => names[o]).join('」「')}」似係同一個人，一齊配對俾 ${memberName(uid)}？`)) {
-      await setLegacyAliases(groupId, Object.fromEntries([k, ...more].map((x) => [x, uid])));
+      await onAliases(Object.fromEntries([k, ...more].map((x) => [x, uid])));
     } else {
-      await setLegacyAlias(groupId, k, uid);
+      await onAlias(k, uid);
     }
   }
 
@@ -67,12 +92,12 @@ export default function PlayersPage({ user, groupId }: { user: User; groupId: st
               value={myKey}
               disabled={!!busy}
               aria-label="我喺舊紀錄嘅名"
-              onChange={(e) => run('me', () => claimLegacy(groupId, user.uid, e.target.value))}
+              onChange={(e) => run('me', () => onClaim(e.target.value))}
             >
               <option value="">（未揀）</option>
-              {keys.map((k) => <option key={k} value={k} disabled={!!map[k] && map[k] !== user.uid}>{names[k]}{map[k] && map[k] !== user.uid ? `（已配對 ${memberName(map[k])}）` : ''}</option>)}
+              {keys.map((k) => <option key={k} value={k} disabled={!!map[k] && map[k] !== uidMe}>{names[k]}{map[k] && map[k] !== uidMe ? `（已配對 ${memberName(map[k])}）` : ''}</option>)}
             </select>
-            {me?.legacyKey && g.aliases?.[me.legacyKey] && g.aliases[me.legacyKey] !== user.uid && <p className="error small">局主已將此名字配對給其他人。</p>}
+            {me?.legacyKey && g.aliases?.[me.legacyKey] && g.aliases[me.legacyKey] !== uidMe && <p className="error small">局主已將此名字配對給其他人。</p>}
           </section>
 
           <section className="stack">
@@ -87,7 +112,7 @@ export default function PlayersPage({ user, groupId }: { user: User; groupId: st
                 disabled={!!busy}
                 onClick={() => {
                   const lines = Object.entries(auto).map(([k, uid]) => `${names[k]} → ${memberName(uid)}`).join('\n');
-                  if (window.confirm(`按名自動配對 ${autoCount} 個：\n${lines}`)) run('auto', () => setLegacyAliases(groupId, auto));
+                  if (window.confirm(`按名自動配對 ${autoCount} 個：\n${lines}`)) run('auto', () => onAliases(auto));
                 }}
               >一鍵配對 {autoCount} 個（按名）</button>
             )}
@@ -107,7 +132,7 @@ export default function PlayersPage({ user, groupId }: { user: User; groupId: st
                       onChange={(e) => { const uid = e.target.value; run(k, () => pairOwner(k, uid)); }}
                     >
                       <option value="">{map[k] && !g.aliases?.[k] ? '（成員自己認領）' : '配對…'}</option>
-                      {members.data.map((m) => <option key={m.uid} value={m.uid}>{m.name}</option>)}
+                      {members.map((m) => <option key={m.uid} value={m.uid}>{m.name}</option>)}
                     </select>
                   )}
                 </li>

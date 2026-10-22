@@ -56,9 +56,11 @@ export default function PayPage({ user, groupId, sessionId }: { user: User; grou
   const manager = admin || g.ownerId === user.uid || s.createdBy === user.uid;
   const canToggle = (it: { dir: string }) => manager || it.dir === 'pay' || it.dir === 'get';
 
-  async function toggle(key: string, on: boolean) {
+  async function toggle(it: PayItem, on: boolean) {
+    const key = it.key;
     setBusy(key); setError('');
-    try { await markPaid(groupId, sessionId, key, user.uid, on); } catch (err) { setError(message(err)); } finally { setBusy(''); }
+    // 俾錢嘅人撳「已轉」：牌友圈要確認嘅話就變「等確認」；收錢嘅人、局主、場主撳就即刻搞掂
+    try { await markPaid(groupId, sessionId, key, user.uid, on, on && it.confirm && it.dir === 'pay' && !manager); } catch (err) { setError(message(err)); } finally { setBusy(''); }
   }
 
   return (
@@ -79,13 +81,13 @@ export default function PayPage({ user, groupId, sessionId }: { user: User; grou
           {mine.length > 0 && (
             <section className="stack">
               <h2 className="section-head">同你有關</h2>
-              <PayRows items={mine} pp={pp} busyKey={busy} canToggle={canToggle} onToggle={(it, on) => toggle(it.key, on)} onRemind={onRemind} canRemind={(it) => it.dir === 'get' || admin} />
+              <PayRows items={mine} pp={pp} busyKey={busy} canToggle={canToggle} onToggle={toggle} onRemind={onRemind} canRemind={(it) => it.dir === 'get' || admin} />
             </section>
           )}
           <section className="stack">
             <h2 className="section-head">全部轉賬</h2>
-            <PayRows items={items} pp={pp} busyKey={busy} canToggle={canToggle} onToggle={(it, on) => toggle(it.key, on)} onRemind={onRemind} canRemind={(it) => it.dir === 'get' || admin} />
-            <Hint>撳人名睇佢嘅 Interac email。轉咗就撳「標記已轉」：俾錢、收錢嗰個、局主同場主都撳得，全部人都會見到。金額係麻雀＋水＋開支合併。</Hint>
+            <PayRows items={[...items].sort((a, b) => Number(b.dir !== 'other') - Number(a.dir !== 'other'))} pp={pp} busyKey={busy} canToggle={canToggle} onToggle={toggle} onRemind={onRemind} canRemind={(it) => it.dir === 'get' || admin} />
+            <Hint>撳人名睇佢嘅 Interac email。轉咗就撳「標記已轉」{items.some((x) => x.confirm) ? '，收錢嘅人確認咗先算數（收錢嘅人亦可以直接撳「已收到」）' : ''}；俾錢、收錢嗰個、局主同場主都撳得，全部人都會見到。金額係麻雀＋水＋開支合併。</Hint>
           </section>
         </>
       )}

@@ -27,9 +27,10 @@ function TierStrip({ points }: { points: number }) {
       {TIERS.map((t, i) => {
         const next = TIERS[i + 1];
         const fill = points >= (next?.min ?? Infinity) ? 1 : points >= t.min ? (next ? (points - t.min) / (next.min - t.min) : 1) : 0;
+        // 一格填滿先到下一格：每格 0.28 秒，接住上一格
         return (
           <span key={t.name} className={`ts-seg ${t.cls}`} title={`${t.name} ${t.min} 分`}>
-            <i style={{ width: `${Math.round(fill * 100)}%`, animationDelay: `${i * 0.08}s` }} />
+            <i style={{ width: `${Math.round(fill * 100)}%`, animationDelay: `${0.2 + i * 0.28}s`, animationDuration: `${Math.max(0.08, 0.28 * fill)}s` }} />
           </span>
         );
       })}
@@ -175,7 +176,7 @@ export function DashboardView({ name, photo, joined, groupCount, mine, loading, 
           </div>
           <TierTile tier={t.tier} size="lg" />
         </div>
-        <div className="hero-tier">
+        <Link to={rankHref} className="hero-tier" aria-label="睇段位同成就">
           <div className="between">
             <b className="hero-tier-name">{t.tier.name}</b>
             <span className="hero-points"><CountUp value={st.points} /> 分</span>
@@ -183,7 +184,7 @@ export function DashboardView({ name, photo, joined, groupCount, mine, loading, 
           <Progress value={t.progress} />
           <small>{t.next ? `再 ${t.toNext} 分升「${t.next.name}」` : '已到最高段位'}</small>
           <TierStrip points={st.points} />
-        </div>
+        </Link>
       </section>
 
       {live}

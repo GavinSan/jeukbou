@@ -3,7 +3,7 @@ import { rememberTable } from '../lib/nav.ts';
 import type { User } from 'firebase/auth';
 import SessionScreen from '../components/SessionScreen.tsx';
 import Incoming from '../components/Incoming.tsx';
-import { applyDraw, approveDraw, autoDeal, cancelDraw, canDo, addTable, deleteSession, findTodaySession, pickTile, setSessionNoWater, setSessionPullPush, startDraw, tableNameUpper } from '../lib/data.ts';
+import { paidState, applyDraw, approveDraw, autoDeal, cancelDraw, canDo, addTable, deleteSession, findTodaySession, pickTile, setSessionNoWater, setSessionPullPush, startDraw, tableNameUpper } from '../lib/data.ts';
 import { Link } from '../lib/router.tsx';
 import { useSuperAdmin } from '../lib/admin.ts';
 import { drawTurn } from '../lib/fns.ts';
@@ -62,7 +62,7 @@ export default function SessionPage({ user, groupId, sessionId }: { user: User; 
           <Link to={`/g/${groupId}/s/${sessionId}/pay`} className="link-card closed-card">
             {(() => {
               const ts = session.data.payout?.transfers ?? [];
-              const done = ts.filter((t) => session.data!.paid?.[`${t.from}>${t.to}`]).length;
+              const done = ts.filter((t) => paidState(session.data!.paid?.[`${t.from}>${t.to}`]) === 'done').length;
               const clear = done >= ts.length;
               return (
                 <>

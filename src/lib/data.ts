@@ -129,7 +129,8 @@ export interface Session {
   /** 埋數嗰陣嘅轉賬（麻雀＋水＋開支合併）；Group 嘅 key 係「a + b」 */
   payout?: Payout | null;
   /** 邊幾筆已經轉咗：key = from>to */
-  paid?: Record<string, { by: string; at: number }>;
+  /** ok = false：俾錢嘅人話轉咗，等收錢嘅人確認 */
+  paid?: Record<string, PaidMark>;
   /** 今日有份但冇打牌嘅人（成員或者訪客），開支用 */
   people?: { id: string; name: string }[];
   /** 今晚唔用嘅預設 Group（team id） */
@@ -345,9 +346,17 @@ export async function savePayout(g: string, s: string, payout: Payout): Promise<
 }
 
 /** 標記一筆轉賬已轉／未轉 */
-export async function markPaid(g: string, s: string, key: string, uid: string, on: boolean): Promise<void> {
+export interface PaidMark { by: string; at: number; ok?: boolean }
+
+/** 一筆轉賬嘅狀態：未轉、等確認（俾錢嘅人話轉咗）、搞掂 */
+export function paidState(m: PaidMark | null | undefined): 'none' | 'pending' | 'done' {
+  return !m ? 'none' : m.ok === false ? 'pending' : 'done';
+}
+
+/** pending = 俾錢嘅人撳「已轉」而牌友圈要收錢嘅人確認 */
+export async function markPaid(g: string, s: string, key: string, uid: string, on: boolean, pending = false): Promise<void> {
   // lastPaid：規則用嚟核對改緊邊一筆（俾錢／收錢嘅人先改得，局主、場主就乜都改得）
-  await updateDoc(doc(fs(), 'groups', g, 'sessions', s), { [`paid.${key}`]: on ? { by: uid, at: Date.now() } : deleteField(), lastPaid: key });
+  await updateDoc(doc(fs(), 'groups', g, 'sessions', s), { [`paid.${key}`]: on ? { by: uid, at: Date.now(), ...(pending ? { ok: false } : {}) } : deleteField(), lastPaid: key });
 }
 
 /** 收錢 email：存喺自己資料同所有牌友圈嘅成員資料（同圈嘅人先睇到） */
@@ -390,6 +399,8 @@ export interface SettleConfig {
   waterTo: string;
   /** 金額取整：向上、四捨五入、不變 */
   rounding: MoneyRounding;
+  /** 俾錢嗰個撳「已轉」之後，要收錢嗰個確認先算數 */
+  confirmPay?: boolean;
 }
 
 export const DEFAULT_SETTLE: SettleConfig = { currency: 'CAD', perUnit: 6, waterTo: '', rounding: 'none' };

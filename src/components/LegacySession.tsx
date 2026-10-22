@@ -5,7 +5,7 @@ import { TopBar, fmt } from '../ui.tsx';
 import { Link } from '../lib/router.tsx';
 import type { Session } from '../lib/data.ts';
 
-export default function LegacySession({ group, session, members, back, me }: { group: Group; session: Session; members: Member[]; back: string; me: string }) {
+export default function LegacySession({ group, session, members, back, me, playersHref }: { group: Group; session: Session; members: Member[]; back: string; me: string; playersHref?: string }) {
   const lg = session.legacy!;
   const map = legacyMap(group, members);
   const nameOf = (key: string) => {
@@ -20,7 +20,7 @@ export default function LegacySession({ group, session, members, back, me }: { g
       <div className="closed-stamp">
         <span className="stamp">{lg.paid ? '已找數' : '未找數'}</span>
       </div>
-      {rows.some((r) => !r.linked) && <Link to={`/g/${group.id}/players`} className="link-card"><span className="grow"><b>有人未配對</b><small>去「對應玩家」一次過配對晒（同名嘅一齊配）</small></span><span className="chev" aria-hidden="true">›</span></Link>}
+      {rows.some((r) => !r.linked) && <Link to={playersHref ?? `/g/${group.id}/players`} className="link-card"><span className="grow"><b>有人未配對</b><small>去「對應玩家」一次過配對晒（同名嘅一齊配）</small></span><span className="chev" aria-hidden="true">›</span></Link>}
       <div className="ledger settle-table">
         <div className="st-row st-head three"><span>玩家</span><span>舊紀錄名</span><span>番</span></div>
         {rows.map((r) => (

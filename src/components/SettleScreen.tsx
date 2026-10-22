@@ -4,7 +4,7 @@ import type { ReactElement } from 'react';
 import type { MoneyRounding } from '../engine/settlement.ts';
 import { guestId, isGuest, pairActive, teamActive } from '../lib/data.ts';
 import type { ExpenseDoc, PairDoc, Payout, SettleConfig, TeamDoc } from '../lib/data.ts';
-import { payKey } from '../lib/data.ts';
+import { paidState, payKey } from '../lib/data.ts';
 import { buildSettle, payoutOf, samePayout } from '../lib/settle.ts';
 import { Hint, NumInput, Sheet, TopBar, clampName, message, useConfirm } from '../ui.tsx';
 import { go } from '../lib/router.tsx';
@@ -60,7 +60,8 @@ export interface SettleScreenProps {
   /** 埋數後嘅轉賬快照、已轉標記 */
   payout?: Payout | null;
   paid?: Record<string, { by: string; at: number }>;
-  onMarkPaid?: (key: string, on: boolean) => Promise<void>;
+  /** pending = 俾錢嘅人撳咗，等收錢嘅人確認 */
+  onMarkPaid?: (key: string, on: boolean, pending?: boolean) => Promise<void>;
   onSavePayout?: (p: Payout) => Promise<void>;
   /** 轉賬詳情頁 */
   payHref?: string;
@@ -183,7 +184,7 @@ export default function SettleScreen(p: SettleScreenProps) {
   const expTotal = items.reduce((a, e) => a + e.amount, 0);
   const tfTotal = led ? led.transfers.reduce((a, t) => a + t.amount, 0) : 0;
   const showPaid = view === 'combined' && closed && !!p.onMarkPaid;
-  const paidCount = r ? r.combined.transfers.filter((t) => p.paid?.[payKey(t)]).length : 0;
+  const paidCount = r ? r.combined.transfers.filter((t) => paidState(p.paid?.[payKey(t)]) === 'done').length : 0;
   const shareLabel = (e: ExpenseDoc) => (isAll[e.id] ? '全部人有份' : `${(shares[e.id] ?? e.sharedBy).length} 人有份`);
 
   async function run(task: () => Promise<void>, keepSheet = false) {
@@ -297,7 +298,7 @@ export default function SettleScreen(p: SettleScreenProps) {
         </div>
       )}
 
-      {p.closing && <CloseBar c={{ ...p.closing, allPaid: !!r && r.combined.transfers.length > 0 && r.combined.transfers.every((t) => p.paid?.[payKey(t)]), onClose: () => p.closing!.onClose(snapshot() ?? undefined) }} me={p.me} nameOf={nameOf} busy={busy} run={run} />}
+      {p.closing && <CloseBar c={{ ...p.closing, allPaid: !!r && r.combined.transfers.length > 0 && r.combined.transfers.every((t) => paidState(p.paid?.[payKey(t)]) === 'done'), onClose: () => p.closing!.onClose(snapshot() ?? undefined) }} me={p.me} nameOf={nameOf} busy={busy} run={run} />}
 
       {built.error && <p className="error">{built.error}</p>}
 
@@ -315,11 +316,20 @@ export default function SettleScreen(p: SettleScreenProps) {
           {led.transfers.length ? (
             <>
               <ol className={`transfers${showPaid ? ' has-paid' : ''}`}>
-                {led.transfers.map((t, i) => {
+                {/* 同自己有關嘅排最頂 */}
+                {[...led.transfers].sort((a, b) => Number(mine(b.from) || mine(b.to)) - Number(mine(a.from) || mine(a.to))).map((t, i) => {
                   const key = payKey(t);
-                  const done = !!p.paid?.[key];
+                  const st = paidState(p.paid?.[key]);
+                  const done = st === 'done';
+                  const pending = st === 'pending';
                   // 俾錢嗰個、收錢嗰個（Group 入面任何一個）、局主、場主、超級管理員都標記得
-                  const canMark = mine(t.from) || mine(t.to) || !!p.isAdmin || !!p.payManager;
+                  const manager = !!p.isAdmin || !!p.payManager;
+                  const canMark = mine(t.from) || mine(t.to) || manager;
+                  const receiver = mine(t.to) || (manager && !mine(t.from));
+                  // 要確認：俾錢嘅人撳 → 等確認；收錢嘅人（或者局主、場主）撳 → 搞掂
+                  const label = done ? '✓ 已轉' : pending ? (receiver ? '確認收到' : '等確認') : receiver && !mine(t.from) ? '已收到' : '未轉';
+                  const next = !(done || (pending && !receiver));
+                  const asPending = next && !!cfg.confirmPay && !receiver;
                   return (
                     <li key={i} className={showPaid && done ? 'done' : ''}>
                       <Acct k={t.from} cls="tf-from" />
@@ -329,11 +339,11 @@ export default function SettleScreen(p: SettleScreenProps) {
                       <Acct k={t.to} cls="tf-to" />
                       <b className="num tf-amt">{money(t.amount)}</b>
                       {showPaid && (canMark ? (
-                        <button type="button" className={`tf-paid${done ? ' on' : ''}`} aria-pressed={done} aria-label={done ? '已轉，撳一下改返未轉' : '未轉，撳一下標記已轉'} disabled={busy} onClick={() => run(() => p.onMarkPaid!(key, !done), true)}>
-                          {done ? '✓ 已轉' : '未轉'}
+                        <button type="button" className={`tf-paid${done ? ' on' : ''}${pending ? ' pending' : ''}`} aria-pressed={done} disabled={busy} onClick={() => run(() => p.onMarkPaid!(key, next, asPending), true)}>
+                          {label}
                         </button>
                       ) : (
-                        <span className={`tf-paid static${done ? ' on' : ''}`}>{done ? '✓ 已轉' : '未轉'}</span>
+                        <span className={`tf-paid static${done ? ' on' : ''}${pending ? ' pending' : ''}`}>{done ? '✓ 已轉' : pending ? '等確認' : '未轉'}</span>
                       ))}
                     </li>
                   );
@@ -344,7 +354,7 @@ export default function SettleScreen(p: SettleScreenProps) {
           ) : (
             <p className="muted">{view === 'expense' && !p.expenses.length ? '未有開支。' : '不用轉賬。'}</p>
           )}
-          {showPaid && <Hint>轉咗數就撳「未轉」標記：俾錢、收錢嗰個（Group 任何一個）、局主同場主都撳得，全部人都會見到。</Hint>}
+          {showPaid && <Hint>{cfg.confirmPay ? '俾錢嘅人撳「未轉」會變「等確認」，收錢嘅人撳「確認收到」先算搞掂；收錢嘅人亦可以直接撳「已收到」。' : '轉咗數就撳「未轉」標記：俾錢、收錢嗰個（Group 任何一個）、局主同場主都撳得，全部人都會見到。'}</Hint>}
           {p.payHref && closed && (
             <button type="button" className="link-card" onClick={() => go(p.payHref!)}>
               <span className="grow"><b>轉賬詳情</b><small>收款 email、邊筆未轉</small></span>
@@ -359,14 +369,35 @@ export default function SettleScreen(p: SettleScreenProps) {
           <h2>每人總結</h2>
           <div className="ledger settle-table sum-table">
             <div className="st-row st-head four"><span>玩家</span><span>麻雀</span><span>開支</span><span>合計</span></div>
-            {summary.map((x) => (
-              <button key={x.k} type="button" className={`st-row four st-tap${mine(x.k) ? ' me' : ''}`} onClick={() => setSheet({ who: x.k })} aria-label={`${accountName(x.k)} 明細`}>
-                <Acct k={x.k} cls="" />
-                <span className={`num ${tone(x.game)}`}>{money(x.game, true)}</span>
-                <span className={`num ${tone(x.exp)}`}>{money(x.exp, true)}</span>
-                <b className={`num ${tone(x.total)}`}>{money(x.total, true)}<span className="chev" aria-hidden="true">›</span></b>
-              </button>
-            ))}
+            {summary.map((x) => {
+              const head = (
+                <button key={x.k} type="button" className={`st-row four st-tap${mine(x.k) ? ' me' : ''}${x.k.includes(' + ') ? ' st-group-head' : ''}`} onClick={() => setSheet({ who: x.k })} aria-label={`${accountName(x.k)} 明細`}>
+                  <Acct k={x.k} cls="" />
+                  <span className={`num ${tone(x.game)}`}>{money(x.game, true)}</span>
+                  <span className={`num ${tone(x.exp)}`}>{money(x.exp, true)}</span>
+                  <b className={`num ${tone(x.total)}`}>{money(x.total, true)}<span className="chev" aria-hidden="true">›</span></b>
+                </button>
+              );
+              if (!x.k.includes(' + ')) return head;
+              // Group：好似「麻雀」咁，下面逐個人列返佢自己份數
+              return (
+                <div key={x.k} className={`st-group${mine(x.k) ? ' me' : ''}`}>
+                  {head}
+                  {x.k.split(' + ').map((id) => {
+                    const g = gameRows.find((row) => row.id === id)?.cash ?? 0;
+                    const e = r.expense[id] ?? 0;
+                    return (
+                      <div key={id} className="st-row four st-member">
+                        <span className="ellipsis">{nameOf(id)}</span>
+                        <span className="num">{money(g, true)}</span>
+                        <span className="num">{money(e, true)}</span>
+                        <span className="num">{money(g + e, true)}</span>
+                      </div>
+                    );
+                  })}
+                </div>
+              );
+            })}
           </div>
           <Hint>撳一個人睇明細：每張枱、每項開支。正數 = 收錢，負數 = 俾錢。</Hint>
         </section>
@@ -860,6 +891,7 @@ export function SettleConfigForm({ cfg, canEdit, accounts, busy, error, onSave }
   const waterTo = cfg.waterTo;
   void accounts;
   const [rounding, setRounding] = useState<MoneyRounding>(cfg.rounding);
+  const [confirmPay, setConfirmPay] = useState(!!cfg.confirmPay);
   const n = per;
   const d = !canEdit;
   return (
@@ -887,8 +919,12 @@ export function SettleConfigForm({ cfg, canEdit, accounts, busy, error, onSave }
           ))}
         </div>
       </div>
+      <div className="rule-row">
+        <span className="grow">找數要收錢嘅人確認<small>開咗：俾錢嘅人撳「已轉」之後，要收錢嘅人撳「確認收到」先算數</small></span>
+        <button type="button" role="switch" className="switch" aria-checked={confirmPay} aria-label="找數要收錢嘅人確認" disabled={d} onClick={() => setConfirmPay((v) => !v)} />
+      </div>
       {error && <p className="error">{error}</p>}
-      {canEdit && <button type="button" className="btn big" disabled={busy || !(n > 0) || !cur.trim()} onClick={() => onSave({ perUnit: n, currency: cur.trim(), waterTo, rounding })}>儲存埋數設定</button>}
+      {canEdit && <button type="button" className="btn big" disabled={busy || !(n > 0) || !cur.trim()} onClick={() => onSave({ perUnit: n, currency: cur.trim(), waterTo, rounding, confirmPay })}>儲存埋數設定</button>}
     </div>
   );
 }

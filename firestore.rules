@@ -155,6 +155,16 @@ service cloud.firestore {
             || (key is string && changed.hasOnly([key])
               && key.matches('(.*[^A-Za-z0-9])?' + request.auth.uid + '([^A-Za-z0-9].*)?'));
         }
+        // 牌友圈要收錢嘅人確認：俾錢嘅人淨係標得「等確認」（ok == false）；收錢嘅人、局主、場主先可以標搞掂
+        function paidConfirmOk() {
+          let key = request.resource.data.get('lastPaid', '');
+          let v = request.resource.data.get('paid', {}).get(key, null);
+          return groupDoc(g).data.get('settle', {}).get('confirmPay', false) != true
+            || v == null || v.get('ok', true) == false
+            || isOwner(g) || resource.data.createdBy == request.auth.uid
+            || (key is string && key.split('>').size() == 2
+              && key.split('>')[1].matches('(.*[^A-Za-z0-9])?' + request.auth.uid + '([^A-Za-z0-9].*)?'));
+        }
         allow read: if isMember(g);
         // 匯入嘅舊紀錄（legacy）淨係局主／超級管理員寫得
         allow create: if isMember(g) && (!('legacy' in request.resource.data) || isOwner(g));
@@ -165,7 +175,7 @@ service cloud.firestore {
           // 已埋數：今日人物唔可以再改（局主除外）
           && (!request.resource.data.diff(resource.data).affectedKeys().hasAny(['people', 'skipTeams']) || resource.data.get('closed', null) == null || can(g, 'records'))
           // 已轉／未轉：局主、場主改得晒；其他人淨係改到自己份（俾錢或者收錢嗰邊有自己）
-          && (!request.resource.data.diff(resource.data).affectedKeys().hasAny(['paid', 'lastPaid']) || paidOk())
+          && (!request.resource.data.diff(resource.data).affectedKeys().hasAny(['paid', 'lastPaid']) || (paidOk() && paidConfirmOk()))
           // 直播室禁言：場主、局主（同超級管理員）先改得
           && (!request.resource.data.diff(resource.data).affectedKeys().hasAny(['chatBlock']) || isOwner(g) || resource.data.createdBy == request.auth.uid);
         allow delete: if can(g, 'records');

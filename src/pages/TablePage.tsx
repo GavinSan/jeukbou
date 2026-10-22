@@ -106,7 +106,7 @@ export default function TablePage({ user, groupId, sessionId, tableId }: { user:
   const busyElsewhere = c.state.seats.filter((id) => tables.data.some((t) => t.id !== tableId && computed[t.id] && !computed[t.id]!.state.ended && computed[t.id]!.state.seats.includes(id)));
   const reopen = endStep && canEnter && !session.data?.closed ? {
     blocked: busyElsewhere.length ? `${busyElsewhere.map((id) => table.names[id] ?? '玩家').join('、')} 已經喺第二張枱打緊，重開唔到（同一個人唔可以同時打兩張枱）。` : null,
-    run: () => appendEvent(groupId, sessionId, tableId, tableEvents.length + 1, user.uid, { type: 'undo', target: endStep.seq }),
+    run: (mode: 'continue' | 'fresh') => appendEvent(groupId, sessionId, tableId, tableEvents.length + 1, user.uid, mode === 'continue' ? { type: 'undo', target: endStep.seq } : { type: 'reopen' }),
   } : undefined;
 
   return (

@@ -64,8 +64,8 @@ function LiveSession({ group, session, me, onLive, hidden }: { group: Group; ses
   const tables: LiveTableView[] = open.map((t) => {
     const c = live.computed[t.id]!;
     const winds = ['東', '南', '西', '北'];
-    const players = c.state.seats.map((id, i) => ({ id, name: t.names[id] ?? '玩家', v: (c.state.settled[id] ?? 0) + (c.pending[id] ?? 0), wind: winds[(i - c.state.dealerSeat + 4) % 4] }))
-      .sort((a, b) => winds.indexOf(a.wind) - winds.indexOf(b.wind));
+    // 座位東南西北（第一個位 = 東位）
+    const players = c.state.seats.map((id, i) => ({ id, name: t.names[id] ?? '玩家', v: (c.state.settled[id] ?? 0) + (c.pending[id] ?? 0), wind: winds[i] }));
     return { id: t.id, name: t.name, round: roundLabel(c), players, dealer: c.info.dealer ?? null, streak: c.state.streak };
   });
   return (

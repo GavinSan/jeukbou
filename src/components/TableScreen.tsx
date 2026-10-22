@@ -89,7 +89,7 @@ export interface TableScreenProps {
   /** 有人啱啱夠拉（被拉三、六…）：通知其他人（跟大局設定） */
   onPullAlert?: (lines: string[]) => void;
   /** 完咗場：重開（撤回完場，拉住嘅數返晒嚟）；blocked = 點解唔得 */
-  reopen?: { blocked: string | null; run: () => Promise<void> };
+  reopen?: { blocked: string | null; run: (mode: 'continue' | 'fresh') => Promise<void> };
 }
 
 /** 紀錄表起始欄：自己排第一（之後跟座位次序），上一張枱有嘅人坐返佢之前嗰欄 */
@@ -146,6 +146,18 @@ export default function TableScreen(props: TableScreenProps) {
   const viewOnly = props.canEnter === false;
   // 打完圈數：問繼續（快圈／再打四圈）、換位、換人定完場
   const roundsDone = !!c.state.roundsDone && !ended;
+  // 幾時可以換位（家規）：未開局、打完圈、或者「每圈」嘅時候啱啱過完一圈（新一圈第一鋪未打）、或者「隨時」
+  const atRoundStart = (() => {
+    if (c.state.dealerTurns % 4 !== 0 || c.state.streak !== 0) return false;
+    let k = c.steps.length - 1;
+    while (k >= 0 && c.steps[k].event.type !== 'win' && c.steps[k].event.type !== 'draw') k--;
+    if (k < 0) return true;
+    const before = k > 0 ? c.steps[k - 1].result.state.dealerTurns : 0;
+    return c.steps[k].result.state.dealerTurns > before;
+  })();
+  const reseatRule = rules.reseat ?? 'round';
+  const canReseat = !ended && (c.steps.length === 0 || roundsDone || reseatRule === 'any' || (reseatRule === 'round' && atRoundStart));
+  const reseatNote = reseatRule === 'four' ? '打完圈數先換得位' : '打完呢個圈先換得位';
 
   // 自己坐喺下面
   const rotate = me && seats.includes(me) ? seats.indexOf(me) : 0;
@@ -686,8 +698,13 @@ export default function TableScreen(props: TableScreenProps) {
       {viewOnly && !ended && <p className="banner calm">你唔喺呢張枱，只可以睇。坐喺呢張枱嘅人先可以入數同擲骰。</p>}
       {ended && props.reopen && (
         <section className="reopen-card">
-          <div className="grow"><b>已完場</b><small className="muted">{props.reopen.blocked ?? '撳錯完場？重開會撤回「完場」，之前拉住嘅數返晒嚟，照打落去。'}</small></div>
-          <button type="button" className="btn plain" disabled={busy || !!props.reopen.blocked} onClick={() => ask({ title: '重開呢張枱', detail: '撤回「完場」：完場時結算咗嘅拉會返返去拉住，可以繼續打。', action: '重開', run: () => run(() => props.reopen!.run(), '已重開') })}>重開</button>
+          <div className="grow"><b>已完場</b><small className="muted">{props.reopen.blocked ?? '想再打？揀重開方式：'}</small></div>
+          {!props.reopen.blocked && (
+            <div className="reopen-opts">
+              <button type="button" className="btn plain" disabled={busy} onClick={() => ask({ title: '重開・繼續之前嘅數', detail: '撤回「完場」：完場時結算咗嘅拉會返返去拉住，照打落去。', action: '重開', run: () => run(() => props.reopen!.run('continue'), '已重開') })}>繼續之前拉住嘅數<small>撤回完場</small></button>
+              <button type="button" className="btn plain" disabled={busy} onClick={() => ask({ title: '重開・由零開始', detail: '完場嗰陣已經找咗嘅數唔變，重開之後由零開始拉。', action: '重開', run: () => run(() => props.reopen!.run('fresh'), '已重開') })}>由零開始<small>完場嘅數照找</small></button>
+            </div>
+          )}
         </section>
       )}
       {roundsDone && !viewOnly && (
@@ -703,10 +720,23 @@ export default function TableScreen(props: TableScreenProps) {
             <button type="button" className="btn" disabled={busy} onClick={() => push({ type: 'extend', rounds: 1 }, `打${c.info.nextQuick}`)}>打{c.info.nextQuick}<small>一圈</small></button>
             <button type="button" className="btn plain" disabled={busy} onClick={() => push({ type: 'extend', rounds: 4 }, '再打四圈')}>再打四圈</button>
           </div>
-          <div className="rounds-more">
-            {props.onReseat && <button type="button" className="textbtn" onClick={() => { setError(''); setMore('reseat'); }}>換位</button>}
-            {props.onSwap && <button type="button" className="textbtn" onClick={() => { setSwapOut(''); setSwapIn(''); setGuestName(''); setError(''); setMore('swap'); }}>換人</button>}
-            <button type="button" className="textbtn loss" onClick={() => { setError(''); setMore('end'); }}>完場</button>
+          <div className="acts rounds-acts">
+            {props.onReseat && (
+              <button type="button" className="act icon-act" onClick={() => { setError(''); setMore('reseat'); }}>
+                <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M4 12a8 8 0 0 1 13.7-5.6L20 9" /><path d="M20 4v5h-5" /><path d="M20 12a8 8 0 0 1-13.7 5.6L4 15" /><path d="M4 20v-5h5" /></svg>
+                <span>換位</span>
+              </button>
+            )}
+            {props.onSwap && (
+              <button type="button" className="act icon-act" onClick={() => { setSwapOut(''); setSwapIn(''); setGuestName(''); setError(''); setMore('swap'); }}>
+                <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M7 7h11l-3-3M17 17H6l3 3" /></svg>
+                <span>換人</span>
+              </button>
+            )}
+            <button type="button" className="act icon-act end" onClick={() => { setError(''); setMore('end'); }}>
+              <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M6 21V4" /><path d="M6 4.5h11l-2.5 4 2.5 4H6" /></svg>
+              <span>完場</span>
+            </button>
           </div>
         </section>
       )}
@@ -1017,7 +1047,7 @@ export default function TableScreen(props: TableScreenProps) {
               <div className="choices three">
                 {props.onSwap && !ended && !viewOnly && <button type="button" className="choice" onClick={() => { setSwapOut(''); setSwapIn(''); setGuestName(''); setMore('swap'); }}>換人<small>有人加入</small></button>}
                 {props.onDice && !ended && !viewOnly && <button type="button" className="choice" onClick={() => run(() => props.onDice!(), '')}>擲骰<small>三粒骰</small></button>}
-                {props.onReseat && !ended && !viewOnly && (c.steps.length === 0 || roundsDone) && <button type="button" className="choice" onClick={() => setMore('reseat')}>{c.steps.length === 0 ? '掉位' : '換位'}<small>抽風牌或自己揀</small></button>}
+                {props.onReseat && !ended && !viewOnly && canReseat && <button type="button" className="choice" onClick={() => setMore('reseat')}>{c.steps.length === 0 ? '掉位' : '換位'}<small>抽風牌或自己揀</small></button>}
                 <button type="button" className="choice" aria-pressed={pf.sound} onClick={() => { unlock(); setPref('sound', !pf.sound); if (!pf.sound) setTimeout(() => sfx.tap(), 30); }}>
                   聲效<small>{pf.sound ? '開' : '關'}</small>
                 </button>
@@ -1032,8 +1062,8 @@ export default function TableScreen(props: TableScreenProps) {
               <div className="choices">
                 {props.onSwap && <button type="button" className="choice" onClick={() => { setSwapOut(''); setSwapIn(''); setGuestName(''); setMore('swap'); }}>換人<small>有人走、有人入</small></button>}
                 {props.onReseat && (
-                  <button type="button" className="choice" disabled={!(c.steps.length === 0 || roundsDone)} onClick={() => setMore('reseat')}>
-                    {c.steps.length === 0 ? '掉位' : '換位'}<small>{c.steps.length === 0 || roundsDone ? '抽風牌或自己揀' : '打完圈先換得位'}</small>
+                  <button type="button" className="choice" disabled={!canReseat} onClick={() => setMore('reseat')}>
+                    {c.steps.length === 0 ? '掉位' : '換位'}<small>{canReseat ? '抽風牌或自己揀' : reseatNote}</small>
                   </button>
                 )}
               </div>

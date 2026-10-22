@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import type { ReactNode } from 'react';
 import type { User } from 'firebase/auth';
-import { PERMS, settleConfigOf, approveJoin, createMeetup, deleteMeetup, rsvpMeetup, canDo, deleteGroup, deleteSession, ensureJoinCode, rejectJoin, removeMember, resetInvite, setJoinMode, setMemberPerms, updateGroupProfile, legacyMap } from '../lib/data.ts';
+import { PERMS, paidState, settleConfigOf, approveJoin, createMeetup, deleteMeetup, rsvpMeetup, canDo, deleteGroup, deleteSession, ensureJoinCode, rejectJoin, removeMember, resetInvite, setJoinMode, setMemberPerms, updateGroupProfile, legacyMap } from '../lib/data.ts';
 import type { Perm } from '../lib/data.ts';
 import { toAvatar } from '../lib/avatar.ts';
 import GroupIcon from '../components/GroupIcon.tsx';
@@ -481,7 +481,7 @@ export default function GroupPage({ user, groupId }: { user: User; groupId: stri
                     if (!s.closed) return <span className="pay-status live">進行中</span>;
                     const ts = s.payout?.transfers ?? [];
                     if (!ts.length) return null;
-                    const done = ts.filter((t) => s.paid?.[`${t.from}>${t.to}`]).length;
+                    const done = ts.filter((t) => paidState(s.paid?.[`${t.from}>${t.to}`]) === 'done').length;
                     return done >= ts.length ? <span className="pay-status done">已找清</span> : <span className="pay-status">待找數 {done}/{ts.length}</span>;
                   })()}</span>
                   <span className="muted small">{s.createdAt ? s.createdAt.toDate().toLocaleDateString('zh-HK') : ''}</span>

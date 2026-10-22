@@ -251,13 +251,13 @@ export function DrawBoard({ draw, me, tables, canForce, onApprove, onPick, onAut
 
       {draw.status !== 'propose' && (
         <>
-          {strict && (
+          {strict && draw.mode === 'pick' && (
             <div className={`draw-turn${who === me ? ' mine' : ''}`} role="status">
               {who === me ? <b>到你揀！撳一隻牌</b> : <span>輪到 <b>{nameOf(who)}</b> 揀{canPickNow ? '（佢冇電話可以幫佢撳）' : ''}</span>}
               <small className="muted">次序：{draw.order.map((id) => `${nameOf(id)}${done.has(id) ? '✓' : ''}`).join(' → ')}</small>
             </div>
           )}
-          {draw.status === 'picking' && !strict && (
+          {draw.status === 'picking' && !strict && draw.mode === 'pick' && (
             <div className="draw-actor">
               <span className="small muted">幫邊個揀：</span>
               <div className="chips-row">

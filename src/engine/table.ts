@@ -67,7 +67,9 @@ export type TableEvent =
   | { type: 'settle'; puller: PlayerId; pulled: PlayerId }
   /** 換位：批咗即時生效，呢張枱有拉就即時找數 */
   | { type: 'swap'; out: PlayerId; in: PlayerId }
-  | { type: 'end' };
+  | { type: 'end' }
+  /** 完咗場再開（完場嗰陣已經結算咗嘅拉唔會返嚟，由零開始） */
+  | { type: 'reopen' };
 
 export type LineKind = 'pending' | 'settle' | 'instant' | 'water';
 
@@ -120,7 +122,8 @@ export function createTable(seats: PlayerId[], dealerSeat = 0): TableState {
 }
 
 export function applyEvent(prev: TableState, ev: TableEvent, rules: Rules = DEFAULT_RULES): StepResult {
-  if (prev.ended) throw new RuleError('此枱已完場');
+  if (prev.ended && ev.type !== 'reopen') throw new RuleError('此枱已完場');
+  if (!prev.ended && ev.type === 'reopen') throw new RuleError('此枱未完場');
   const s: TableState = structuredClone(prev);
   // 舊資料冇呢兩個欄
   s.extraRounds ??= 0;
@@ -336,6 +339,11 @@ export function applyEvent(prev: TableState, ev: TableEvent, rules: Rules = DEFA
       break;
     }
 
+    case 'reopen': {
+      s.ended = false;
+      break;
+    }
+
     case 'extend': {
       // 打多一個快圈（快東、快南…）；拉住嘅數照拉
       if (!s.roundsDone) throw new RuleError('未打完圈數');
@@ -348,7 +356,8 @@ export function applyEvent(prev: TableState, ev: TableEvent, rules: Rules = DEFA
       const now = [...s.seats].sort().join('|');
       if (ev.seats.length !== s.seats.length || [...ev.seats].sort().join('|') !== now) throw new RuleError('換位只可以同一班人重新排');
       s.seats = [...ev.seats];
-      s.dealerSeat = 0;
+      // 莊照舊喺圈數對應嗰個位（例如東圈南位 = 第二個位），換咗人坐嗰個位就由佢做莊
+      s.dealerSeat = s.dealerTurns % 4;
       s.streak = 0;
       s.lastMultiWin = null;
       break;

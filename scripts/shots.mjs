@@ -464,7 +464,7 @@ for (const scheme of ['light', 'dark']) {
       await page.screenshot({ path: `${out}/ledger-col.png` });
     });
     await step('skins', async () => {
-      for (const sk of ['teahouse', 'neon', 'minimal']) {
+      for (const sk of ['chachaan', 'glass', 'brutal', 'porcelain']) {
         await page.goto(`${base}/demo/home?skin=${sk}`, { waitUntil: 'networkidle' });
         await page.waitForTimeout(900);
         const close = page.getByRole('button', { name: '關閉' });
@@ -477,7 +477,7 @@ for (const scheme of ['light', 'dark']) {
         await page.waitForTimeout(500);
         await page.screenshot({ path: `${out}/skin-${sk}-settle.png` });
       }
-      for (const sk of ['ocean', 'sakura', 'matcha', 'midnight', 'amber', 'violet']) {
+      for (const sk of ['teahouse', 'neon', 'clay', 'paper', 'pixel', 'palace', 'jade']) {
         await page.goto(`${base}/demo/t/0?skin=${sk}`, { waitUntil: 'networkidle' });
         await page.waitForTimeout(900);
         await page.screenshot({ path: `${out}/skin-${sk}-table.png` });
