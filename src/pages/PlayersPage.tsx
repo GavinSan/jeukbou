@@ -2,7 +2,7 @@
 // 局主可以幫任何人配對；成員可以自己認領
 import { useState } from 'react';
 import type { User } from 'firebase/auth';
-import { claimLegacy, legacyMap, setLegacyAlias } from '../lib/data.ts';
+import { claimLegacy, legacyMap, legacyStem, setLegacyAlias, setLegacyAliases } from '../lib/data.ts';
 import { useSuperAdmin } from '../lib/admin.ts';
 import { useGroup, useMembers } from '../lib/live.ts';
 import { Hint, Loading, TopBar, message } from '../ui.tsx';
@@ -24,6 +24,30 @@ export default function PlayersPage({ user, groupId }: { user: User; groupId: st
   const me = members.data.find((m) => m.uid === user.uid);
   const myKey = Object.entries(map).find(([, uid]) => uid === user.uid)?.[0] ?? '';
   const memberName = (uid: string) => members.data.find((m) => m.uid === uid)?.name ?? '（已離開）';
+
+  // 同一個人嘅其他寫法（未配對）：例如「ATHENA C.」同「Athena」
+  const sameAs = (k: string) => {
+    const st = legacyStem(names[k] ?? '');
+    return st ? keys.filter((o) => o !== k && !map[o] && legacyStem(names[o]) === st) : [];
+  };
+  // 一鍵配對：舊名同成員名第一個字一樣、又冇第二個成員撞名
+  const auto: Record<string, string> = {};
+  for (const k of keys) {
+    if (map[k]) continue;
+    const st = legacyStem(names[k]);
+    const hits = st ? members.data.filter((m) => legacyStem(m.name) === st) : [];
+    if (hits.length === 1) auto[k] = hits[0].uid;
+  }
+  const autoCount = Object.keys(auto).length;
+
+  async function pairOwner(k: string, uid: string) {
+    const more = uid ? sameAs(k) : [];
+    if (more.length && window.confirm(`「${more.map((o) => names[o]).join('」「')}」似係同一個人，一齊配對俾 ${memberName(uid)}？`)) {
+      await setLegacyAliases(groupId, Object.fromEntries([k, ...more].map((x) => [x, uid])));
+    } else {
+      await setLegacyAlias(groupId, k, uid);
+    }
+  }
 
   async function run(id: string, task: () => Promise<void>) {
     setBusy(id); setError('');
@@ -56,6 +80,17 @@ export default function PlayersPage({ user, groupId }: { user: User; groupId: st
               <h2>全部舊紀錄玩家（{keys.length}）</h2>
               <span className="muted small">已配對 {keys.filter((k) => map[k]).length}</span>
             </div>
+            {owner && autoCount > 0 && (
+              <button
+                type="button"
+                className="btn plain"
+                disabled={!!busy}
+                onClick={() => {
+                  const lines = Object.entries(auto).map(([k, uid]) => `${names[k]} → ${memberName(uid)}`).join('\n');
+                  if (window.confirm(`按名自動配對 ${autoCount} 個：\n${lines}`)) run('auto', () => setLegacyAliases(groupId, auto));
+                }}
+              >一鍵配對 {autoCount} 個（按名）</button>
+            )}
             <ul className="list exp-list">
               {keys.map((k) => (
                 <li key={k} className="exp-row">
@@ -69,7 +104,7 @@ export default function PlayersPage({ user, groupId }: { user: User; groupId: st
                       value={g.aliases?.[k] ?? ''}
                       disabled={busy === k}
                       aria-label={`${names[k]} 配對成員`}
-                      onChange={(e) => run(k, () => setLegacyAlias(groupId, k, e.target.value))}
+                      onChange={(e) => { const uid = e.target.value; run(k, () => pairOwner(k, uid)); }}
                     >
                       <option value="">{map[k] && !g.aliases?.[k] ? '（成員自己認領）' : '配對…'}</option>
                       {members.data.map((m) => <option key={m.uid} value={m.uid}>{m.name}</option>)}

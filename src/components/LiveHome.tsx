@@ -47,14 +47,17 @@ export function LiveCardView({ groupName, icon, sessionName, href, tvHref, table
   );
 }
 
-function LiveSession({ group, session, me, onLive }: { group: Group; session: Session; me: string; onLive: (k: string, on: boolean) => void }) {
+type OnLive = (k: string, on: boolean, info?: { label: string }) => void;
+
+function LiveSession({ group, session, me, onLive, hidden }: { group: Group; session: Session; me: string; onLive: OnLive; hidden?: boolean }) {
   const live = useSessionLive(group.id, session.id, group, session);
   const open = live.tables.filter((t) => { const c = live.computed[t.id]; return c && !c.state.ended; });
   const recent = Math.max(session.createdAt?.toMillis() ?? 0, ...live.tables.map((t) => lastActivity(live.computed[t.id])));
   const isLive = !session.closed && !session.legacy && open.length > 0 && Date.now() - recent < LIVE_HOURS * 3600000;
   const key = `${group.id}/${session.id}`;
-  useEffect(() => { onLive(key, isLive); return () => onLive(key, false); }, [key, isLive, onLive]);
-  if (!isLive) return null;
+  const label = `${group.name}・${session.name}`;
+  useEffect(() => { onLive(key, isLive, { label }); return () => onLive(key, false); }, [key, isLive, onLive, label]);
+  if (!isLive || hidden) return null;
   const tables: LiveTableView[] = open.map((t) => {
     const c = live.computed[t.id]!;
     const players = c.state.seats.map((id) => ({ id, name: t.names[id] ?? '玩家', v: (c.state.settled[id] ?? 0) + (c.pending[id] ?? 0) })).sort((a, b) => b.v - a.v);
@@ -73,14 +76,14 @@ function LiveSession({ group, session, me, onLive }: { group: Group; session: Se
   );
 }
 
-function LiveGroup({ gid, me, onLive }: { gid: string; me: string; onLive: (k: string, on: boolean) => void }) {
+function LiveGroup({ gid, me, onLive, hidden }: { gid: string; me: string; onLive: OnLive; hidden?: boolean }) {
   const group = useGroup(gid);
   const sessions = useRecentSessions(gid, 2);
   if (!group.data) return null;
-  return <>{sessions.data.filter((s) => !s.closed && !s.legacy).map((s) => <LiveSession key={s.id} group={group.data!} session={s} me={me} onLive={onLive} />)}</>;
+  return <>{sessions.data.filter((s) => !s.closed && !s.legacy).map((s) => <LiveSession key={s.id} group={group.data!} session={s} me={me} onLive={onLive} hidden={hidden} />)}</>;
 }
 
-/** 自己所有牌友圈入面打緊嘅大局 */
-export default function LiveNow({ groupIds, me, onLive }: { groupIds: string[]; me: string; onLive: (k: string, on: boolean) => void }) {
-  return <>{groupIds.map((g) => <LiveGroup key={g} gid={g} me={me} onLive={onLive} />)}</>;
+/** 自己所有牌友圈入面打緊嘅大局；hidden = 唔顯示，淨係報返有邊幾個（電視直播轉台用） */
+export default function LiveNow({ groupIds, me, onLive, hidden }: { groupIds: string[]; me: string; onLive: OnLive; hidden?: boolean }) {
+  return <>{groupIds.map((g) => <LiveGroup key={g} gid={g} me={me} onLive={onLive} hidden={hidden} />)}</>;
 }

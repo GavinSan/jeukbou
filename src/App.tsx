@@ -68,8 +68,18 @@ export default function App() {
   const path = usePath();
   const { skin } = usePrefs();
   useEffect(() => { applySkin(skin); }, [skin]);
+  // 手機打字時鍵盤會將底部 tab 頂上嚟、跟住碌嚟碌去：打字期間收埋佢
+  useEffect(() => {
+    const typing = (el: EventTarget | null) => el instanceof HTMLElement && (el.tagName === 'TEXTAREA' || el.tagName === 'SELECT'
+      || (el.tagName === 'INPUT' && !['checkbox', 'radio', 'range', 'button', 'submit', 'file', 'color'].includes((el as HTMLInputElement).type)));
+    const on = (e: FocusEvent) => { if (typing(e.target)) document.body.classList.add('typing'); };
+    const off = (e: FocusEvent) => { if (!typing(e.relatedTarget)) document.body.classList.remove('typing'); };
+    document.addEventListener('focusin', on);
+    document.addEventListener('focusout', off);
+    return () => { document.removeEventListener('focusin', on); document.removeEventListener('focusout', off); };
+  }, []);
   // 電視直播可以打橫，其他頁手機打橫就叫人轉返直向
-  const tv = path.startsWith('/live/') || path === '/demo/live';
+  const tv = path.startsWith('/live/') || path === '/demo/live' || path.startsWith('/demo/live/');
   useEffect(() => { document.body.classList.toggle('tv-mode', tv); }, [tv]);
 
   // 大局頁記低我坐邊張枱之後，tab 要更新
@@ -106,7 +116,7 @@ export default function App() {
           <a href="/" className="demo-pill exit" onClick={(e) => { e.preventDefault(); go('/'); }}>退出示範</a>
         </div>
         <Suspense fallback={<main className="page narrow"><Loading /></main>}><Demo /></Suspense>
-        {path === '/demo/admin' || path === '/demo/live' ? null : path === '/demo/home' || path === '/demo/rank' || path === '/demo/groups' || path === '/demo/pay' || path === '/demo/skins'
+        {path === '/demo/admin' || path.startsWith('/demo/live') ? null : path === '/demo/home' || path === '/demo/rank' || path === '/demo/groups' || path === '/demo/pay' || path === '/demo/skins'
           ? <TabBar tabs={HOME_DEMO_TABS} active={path === '/demo/rank' ? 'rank' : path === '/demo/groups' ? 'groups' : path === '/demo/pay' ? 'pay' : path === '/demo/skins' ? 'settings' : 'home'} />
           : <TabBar tabs={demoTabs} active={active} />}
       </>

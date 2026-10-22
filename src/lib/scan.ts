@@ -2,7 +2,7 @@
 import { app } from '../firebase.ts';
 import type { FanTable } from './fanTable.ts';
 
-const REGION = (import.meta.env.VITE_FUNCTIONS_REGION as string | undefined)?.trim() || 'northamerica-northeast2';
+import { FUNCTIONS_REGION as REGION } from './fns.ts';
 
 export interface ScanPattern { name: string; option?: string; fan: number; why?: string }
 export interface ScanResult {

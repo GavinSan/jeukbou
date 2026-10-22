@@ -30,6 +30,9 @@ import { RankView } from './pages/RankPage.tsx';
 import { MyPayView } from './pages/MyPayPage.tsx';
 import { AdminView } from './pages/AdminPage.tsx';
 import { LiveTv, tvTablesOf } from './pages/LivePage.tsx';
+import type { TvTable } from './pages/LivePage.tsx';
+import { WaterBox } from './pages/GroupPage.tsx';
+import { Sheet } from './ui.tsx';
 import { LiveCardView } from './components/LiveHome.tsx';
 import type { ChatMsg } from './lib/live.ts';
 import type { PayItem } from './lib/pay.ts';
@@ -190,6 +193,26 @@ const DEMO_GROUPS: GroupResults[] = (() => {
   return [make('a', '不打不相識', 34, 3), make('b', '星期五雀局', 9, 9)];
 })();
 
+// 主頁示範：另外兩個牌友圈都打緊（轉台用）
+const OTHER_LIVE: Record<string, { name: string; icon: string; session: string; tables: TvTable[]; chat: ChatMsg[] }> = (() => {
+  const P = (id: string, name: string, v: number, wind: string) => ({ id, name, v, wind });
+  return {
+    b: {
+      name: '星期五雀局', icon: '🎲', session: '10月22日 星期五局',
+      tables: [{ id: 'b1', name: '第 1 枱', round: '南圈西位 第 7 鋪', dealer: 'tony', players: [P('tony', 'Tony', 86, '東'), P('kingsang', 'King Sang', -12, '南'), P('janice', 'Janice', -30, '西'), P('ivan', 'Ivan', -44, '北')], last: 'Tony 自摸 每家 13 番' }],
+      chat: [{ id: 'b1', by: 'tony', name: 'Tony', text: '今晚手風順 😎', at: Date.now() - 240000 }],
+    },
+    c: {
+      name: '公司麻雀會', icon: '🏢', session: '10月22日 午飯局',
+      tables: [
+        { id: 'c1', name: '第 1 枱', round: '東圈北位 第 4 鋪', dealer: 'may', players: [P('may', 'May', 25, '北'), P('ken', 'Ken', 10, '東'), P('joe', 'Joe', -5, '南'), P('ann', 'Ann', -30, '西')], last: 'May 食 Ann（20 番）' },
+        { id: 'c2', name: '第 2 枱', round: '東圈南位 第 2 鋪', dealer: 'leo', players: [P('leo', 'Leo', 16, '南'), P('sue', 'Sue', 0, '西'), P('bob', 'Bob', -8, '北'), P('kay', 'Kay', -8, '東')], last: 'Leo 自摸 每家 8 番' },
+      ],
+      chat: [{ id: 'c1', by: 'ken', name: 'Ken', text: '仲有十分鐘就要返工 😂', at: Date.now() - 120000 }],
+    },
+  };
+})();
+
 export default function Demo() {
   const path = usePath();
   const [noWater, setNoWater] = useState(false);
@@ -211,11 +234,16 @@ export default function Demo() {
     { id: 'e2', kind: 'expense', label: '飲品', payer: 'guest-vincent', amount: 23.92, sharedBy: [], all: true, note: '奶茶', names: { 'guest-vincent': 'Vincent' }, by: 'demo', at: null },
   ]);
   const [demoDraw, setDemoDraw] = useState<Draw | null>(null);
-  const [demoChat, setDemoChat] = useState<ChatMsg[]>([
-    { id: '1', by: 'athena', name: 'Athena', text: 'Gavin 今晚好旺喎 🔥', at: Date.now() - 600000 },
-    { id: '2', by: 'ivan', name: 'Ivan', text: '下一鋪一定到我', at: Date.now() - 300000 },
-  ]);
-  const [demoMusic, setDemoMusic] = useState('');
+  const [chats, setChats] = useState<Record<string, ChatMsg[]>>(() => ({
+    a: [
+      { id: '1', by: 'athena', name: 'Athena', text: 'Gavin 今晚好旺喎 🔥', at: Date.now() - 600000 },
+      { id: '2', by: 'ivan', name: 'Ivan', text: '下一鋪一定到我', at: Date.now() - 300000 },
+    ],
+    b: OTHER_LIVE.b.chat,
+    c: OTHER_LIVE.c.chat,
+  }));
+  const [demoMusic, setDemoMusic] = useState<Record<string, string>>({});
+  const [groupSheet, setGroupSheet] = useState(false);
   const [demoPaid, setDemoPaid] = useState<Record<string, { by: string; at: number }>>({});
   const [people, setPeople] = useState<{ id: string; name: string }[]>([{ id: 'guest-vincent', name: 'Vincent' }]);
   const [pairs, setPairs] = useState<PairDoc[]>([{ id: 'p1', a: 'robin', b: 'tat', by: 'robin', accepted: ['robin'] }]);
@@ -258,7 +286,7 @@ export default function Demo() {
 
   if (path === '/demo/cases') {
     const C: [string, string, string][] = [
-      ['/demo/home', '主頁', '戰績、Live 卡、日曆、加主畫面提示、補資料提示'],
+      ['/demo/home', '主頁', '戰績、3 個 Live 牌友圈、日曆、加主畫面提示、補資料提示'],
       ['/demo/groups', '牌友圈列表', '搜尋、公開牌友圈、加入碼'],
       ['/demo/group', '牌友圈頁', '約局（三缺一、兩枱、局主唔去由下一個接手）、成員、權限、邀請'],
       ['/demo', '大局', '5 張枱、一齊執位、加枱、電視直播'],
@@ -276,7 +304,7 @@ export default function Demo() {
       ['/demo/pay', '找數', '我要俾、我要收、Interac email'],
       ['/demo/board', '龍虎榜', '走勢（所有人、highlight 自己）、排行表、數據'],
       ['/demo/rank', '段位', '段位進度、成就'],
-      ['/demo/live', '電視直播', '大字分數、直播室、音樂（♫ 貼連結撳「播」）'],
+      ['/demo/live', '電視直播', '大字分數、直播室、音樂（♫ 貼連結撳「播」）、轉台（3 個 Live）'],
       ['/demo/rules', '家規', '番數表、抽水、拉'],
       ['/demo/install', '加主畫面教學', 'iPhone Safari、其他瀏覽器、Android'],
       ['/demo/skins', '風格', '10 款風格'],
@@ -314,23 +342,29 @@ export default function Demo() {
     );
   }
 
-  if (path === '/demo/live') {
-    const tv = tvTablesOf(tables, computed);
+  const liveM = path === '/demo/live' ? { c: 'a' } : match('/demo/live/:c', path);
+  if (liveM) {
+    const c = OTHER_LIVE[liveM.c] ? liveM.c : 'a';
+    const tv = c === 'a' ? tvTablesOf(tables, computed) : OTHER_LIVE[c].tables;
     const acc = new Map<string, { id: string; name: string; v: number }>();
-    for (const t of tables) { const c = computed[t.id]; if (!c) continue; for (const id of Object.keys(c.state.settled)) { const r = acc.get(id) ?? { id, name: t.names[id] ?? '玩家', v: 0 }; r.v += (c.state.settled[id] ?? 0) + (c.pending[id] ?? 0); acc.set(id, r); } }
+    for (const t of tv) for (const pl of t.players) { const r = acc.get(pl.id) ?? { id: pl.id, name: pl.name, v: 0 }; r.v += pl.v; acc.set(pl.id, r); }
+    const channels = [{ key: 'a', label: '不打不相識・10月18日 屋企局', href: '/demo/live' }, ...Object.entries(OTHER_LIVE).map(([k, x]) => ({ key: k, label: `${x.name}・${x.session}`, href: `/demo/live/${k}` }))];
     return (
       <LiveTv
-        groupName="不打不相識"
-        icon="🀄"
-        sessionName="10月18日 屋企局"
+        key={c}
+        groupName={c === 'a' ? '不打不相識' : OTHER_LIVE[c].name}
+        icon={c === 'a' ? '🀄' : OTHER_LIVE[c].icon}
+        sessionName={c === 'a' ? '10月18日 屋企局' : OTHER_LIVE[c].session}
         tables={tv}
         ranking={[...acc.values()].sort((a, b) => b.v - a.v)}
-        chat={demoChat}
-        music={demoMusic || undefined}
+        chat={chats[c] ?? []}
+        music={demoMusic[c] || undefined}
         me="gavin"
-        backHref="/demo"
-        onSend={async (t) => setDemoChat((l) => [...l, { id: String(l.length + 1), by: 'gavin', name: 'Gavin', text: t, at: Date.now() }])}
-        onMusic={async (u) => setDemoMusic(u.trim())}
+        backHref="/demo/home"
+        channels={channels}
+        current={c}
+        onSend={async (t) => setChats((m) => ({ ...m, [c]: [...(m[c] ?? []), { id: `${c}${Date.now()}`, by: 'gavin', name: 'Gavin', text: t, at: Date.now() }] }))}
+        onMusic={async (u) => setDemoMusic((m) => ({ ...m, [c]: u.trim() }))}
       />
     );
   }
@@ -348,16 +382,14 @@ export default function Demo() {
           resume={<ResumeRow href="/demo" name="10月18日 屋企局" />}
           live={(() => {
             const tv = tvTablesOf(tables, computed).slice(0, 3);
+            const card = (t: TvTable) => ({ id: t.id, name: t.name, round: t.round, players: [...t.players].sort((a, b) => b.v - a.v) });
             return (
-              <LiveCardView
-                groupName="不打不相識"
-                icon="🀄"
-                sessionName="10月18日 屋企局"
-                href="/demo"
-                tvHref="/demo/live"
-                me="gavin"
-                tables={tv.map((t) => ({ id: t.id, name: t.name, round: t.round, players: [...t.players].sort((a, b) => b.v - a.v) }))}
-              />
+              <>
+                <LiveCardView groupName="不打不相識" icon="🀄" sessionName="10月18日 屋企局" href="/demo" tvHref="/demo/live" me="gavin" tables={tv.map(card)} />
+                {Object.entries(OTHER_LIVE).map(([k, x]) => (
+                  <LiveCardView key={k} groupName={x.name} icon={x.icon} sessionName={x.session} href={`/demo/live/${k}`} tvHref={`/demo/live/${k}`} me="gavin" tables={x.tables.map(card)} />
+                ))}
+              </>
             );
           })()}
           sessionHref={() => '/demo'}
@@ -389,6 +421,7 @@ export default function Demo() {
         emails={{ tony: 'tony.tsui@example.com', kingsang: 'ksl@example.com' }}
         loading={false}
         onToggle={() => undefined}
+        onRemind={async () => { await new Promise((r) => setTimeout(r, 600)); return '✓ 已催（示範）'; }}
       />
     );
   }
@@ -463,7 +496,13 @@ export default function Demo() {
     const stats: Record<string, MemberStat> = memberStatsOf(hist.sessions, (id) => pointsFor(id, hist.sessions));
     return (
       <main className="page">
-        <TopBar back="/demo/groups" title={g.name} />
+        <TopBar back="/demo/groups" title={g.name} right={<button type="button" className="iconbtn" aria-label="牌友圈設定" onClick={() => setGroupSheet(true)}>⚙︎</button>} />
+        {groupSheet && (
+          <Sheet onClose={() => setGroupSheet(false)} label="牌友圈設定">
+            <h2>牌友圈設定（示範）</h2>
+            <WaterBox rows={[{ id: 'gavin', name: 'Gavin', fan: 264, n: 12 }, { id: 'athena', name: 'Athena', fan: 57, n: 3 }]} pending={9} me="gavin" perUnit={6} />
+          </Sheet>
+        )}
         <JoinRequestsView reqs={reqs} onApprove={async (r) => setReqs((l) => l.filter((x) => x.uid !== r.uid))} onReject={async (r) => setReqs((l) => l.filter((x) => x.uid !== r.uid))} />
         <MeetupsView
           list={meets}

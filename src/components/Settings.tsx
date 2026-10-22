@@ -7,6 +7,8 @@ import { buzz } from '../lib/haptics.ts';
 import { sfx, unlock } from '../lib/sound.ts';
 import { Avatar, NameForm, Sheet, message, useConfirm } from '../ui.tsx';
 import { askNotify, notifySupported } from '../lib/notify.ts';
+import { useSuperAdmin } from '../lib/admin.ts';
+import { sendTestPush } from '../lib/fns.ts';
 import { pushConfigured, registerPush, unregisterPush } from '../lib/push.ts';
 import { signOut } from 'firebase/auth';
 import { auth } from '../firebase.ts';
@@ -131,7 +133,7 @@ function DetailsFields({ first, last, birthday, busy, onSave }: {
   const changed = f.trim() !== first || l.trim() !== last || bday !== birthday;
   return (
     <div className="field details-fields">
-      <span>真名同生日<small className="muted">　可以留空</small></span>
+      <span>真名同生日</span>
       <div className="row">
         <input className="input grow" value={f} onChange={(e) => setF(e.target.value.slice(0, 30))} placeholder="名（First name）" aria-label="名" autoComplete="given-name" />
         <input className="input grow" value={l} onChange={(e) => setL(e.target.value.slice(0, 30))} placeholder="姓（Last name）" aria-label="姓" autoComplete="family-name" />
@@ -146,7 +148,6 @@ function DetailsFields({ first, last, birthday, busy, onSave }: {
           {Array.from({ length: maxDay }, (_, i) => <option key={i} value={i + 1}>{i + 1} 日</option>)}
         </select>
       </div>
-      <small className="muted">真名淨係超級管理員見到（認人用）；生日唔使年份，同圈牌友會見到，方便一齊慶祝。</small>
       {changed && <button type="button" className="btn small-btn" disabled={busy} onClick={() => onSave({ firstName: f, lastName: l, birthday: bday })}>儲存</button>}
     </div>
   );
@@ -189,6 +190,8 @@ export function SkinPicker() {
 export function PrefsList() {
   const p = usePrefs();
   const [note, setNote] = useState('');
+  const [testNote, setTestNote] = useState('');
+  const admin = useSuperAdmin(auth?.currentUser?.uid ?? null);
   return (
     <>
       <div className="list flat">
@@ -224,6 +227,15 @@ export function PrefsList() {
         ))}
       </div>
       {note && <p className="error small">{note}</p>}
+      {admin && p.notify && (
+        <div className="row">
+          <button type="button" className="btn plain small-btn" onClick={async () => {
+            setTestNote('發緊…');
+            try { const r = await sendTestPush(); setTestNote(`已發出，${r.ok} 部機收到。閂咗 app 都應該見到。`); } catch (err) { setTestNote(err instanceof Error ? err.message : '發唔到'); }
+          }}>發測試通知（超級管理員）</button>
+          {testNote && <small className="muted grow">{testNote}</small>}
+        </div>
+      )}
       <p className="muted small">聲效、震動同通知只儲存在這部裝置。</p>
     </>
   );

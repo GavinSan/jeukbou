@@ -9,8 +9,8 @@ import type { PlayStats } from './score.ts';
 import type { BoardRow } from '../components/Charts.tsx';
 
 // 已埋數嘅大局唔會再變：計過一次就記住（呢部機），下次即刻有
-const CACHE_KEY = 'jeukbou-totals-v5';
-type Totals = { totals: Record<string, number>; names: Record<string, string>; play?: PlayStats };
+const CACHE_KEY = 'jeukbou-totals-v6';
+type Totals = { totals: Record<string, number>; names: Record<string, string>; play?: PlayStats; water?: number };
 let memo: Record<string, Totals> | null = null;
 function cacheGet(k: string) {
   if (!memo) { try { memo = JSON.parse(localStorage.getItem(CACHE_KEY) ?? '{}'); } catch { memo = {}; } }
@@ -37,7 +37,7 @@ export async function sessionTotals(g: Group, s: Session, legacy: Record<string,
       totals[id] = (totals[id] ?? 0) + Number(v);
       names[id] = g.legacyNames?.[key] ?? key;
     }
-    return { totals, names };
+    return { totals, names, water: Number(s.legacy.water ?? 0) || 0 };
   }
   const rulesNow = rulesOf(g, s);
   const ck = s.closed ? `${g.id}/${s.id}/${hash(JSON.stringify([rulesNow, s.rulesLog ?? []]))}` : '';
@@ -49,6 +49,7 @@ export async function sessionTotals(g: Group, s: Session, legacy: Record<string,
   const totals: Record<string, number> = {};
   const names: Record<string, string> = {};
   let play = emptyPlay();
+  let water = 0;
   await Promise.all(
     tables.map(async (t) => {
       const evSnap = await getDocs(query(collection(fs(), 'groups', g.id, 'sessions', s.id, 'tables', t.id, 'events'), orderBy('seq')));
@@ -56,11 +57,12 @@ export async function sessionTotals(g: Group, s: Session, legacy: Record<string,
       if (!c) return;
       Object.assign(names, t.names);
       play = addPlay(play, c.stats);
+      water += c.state.water ?? 0;
       for (const id of Object.keys(c.state.settled)) totals[id] = (totals[id] ?? 0) + (c.state.settled[id] ?? 0) + (c.pending[id] ?? 0);
     }),
   );
-  if (ck) cachePut(ck, { totals, names, play });
-  return { totals, names, play };
+  if (ck) cachePut(ck, { totals, names, play, water });
+  return { totals, names, play, water };
 }
 
 /** 一個大局嘅結果（龍虎榜用） */
@@ -71,6 +73,10 @@ export interface SessionResult {
   totals: Record<string, number>;
   /** 食糊、自摸、出銃、時間等（舊紀錄冇） */
   play?: PlayStats;
+  /** 抽水（番）同邊個保管；埋咗數先算收咗 */
+  water?: number;
+  waterTo?: string;
+  closed?: boolean;
 }
 
 export interface History {
@@ -92,7 +98,11 @@ export function useHistory(group: Group | null, sessions: Session[], memberNames
       const names: Record<string, string> = {};
       const out: SessionResult[] = results.map((r, i) => {
         for (const [id, n] of Object.entries(r.names)) names[id] = names[id] || n;
-        return { id: ordered[i].id, name: ordered[i].name, at: ordered[i].createdAt?.toMillis() ?? Date.now(), totals: r.totals, play: r.play };
+        const s = ordered[i];
+        return {
+          id: s.id, name: s.name, at: s.createdAt?.toMillis() ?? Date.now(), totals: r.totals, play: r.play,
+          water: r.water ?? 0, waterTo: s.waterTo || s.createdBy, closed: !!s.closed || !!s.legacy,
+        };
       });
       for (const [id, n] of Object.entries(memberNames)) names[id] = n;
       if (alive) setState({ sessions: out, names, loading: false });

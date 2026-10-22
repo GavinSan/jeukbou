@@ -2,6 +2,7 @@
 import { useState } from 'react';
 import type { User } from 'firebase/auth';
 import { markPaid } from '../lib/data.ts';
+import { remindPay, remindResult } from '../lib/fns.ts';
 import { useGroup, useSessions } from '../lib/live.ts';
 import { useGroupPay } from '../lib/pay.ts';
 import type { PayItem } from '../lib/pay.ts';
@@ -33,6 +34,9 @@ export default function GroupPayPage({ user, groupId }: { user: User; groupId: s
   const toPay = open.filter((x) => x.dir === 'pay');
   const toGet = open.filter((x) => x.dir === 'get');
   const hostOf = new Map(sessions.data.map((s) => [s.id, s.createdBy]));
+  const onRemind = async (items: PayItem[]) => remindResult(await remindPay(items.map((it) => ({ g: it.gid, s: it.sid, key: it.key }))));
+  // 催找數：收錢嗰個，或者超級管理員
+  const canRemind = (it: PayItem) => it.dir === 'get' || admin;
   const canToggle = (it: PayItem) => admin || g.ownerId === user.uid || hostOf.get(it.sid) === user.uid || it.dir !== 'other';
 
   // 每個大局嘅狀態
@@ -84,7 +88,7 @@ export default function GroupPayPage({ user, groupId }: { user: User; groupId: s
 
           <section className="stack">
             <h2 className="section-head">未轉（{open.length}）</h2>
-            {open.length ? <PayRows items={open} pp={pp} showSession busyKey={busy} canToggle={canToggle} onToggle={toggle} /> : <p className="muted">全部找清，好嘢！</p>}
+            {open.length ? <PayRows items={open} pp={pp} showSession busyKey={busy} canToggle={canToggle} onToggle={toggle} onRemind={onRemind} canRemind={canRemind} /> : <p className="muted">全部找清，好嘢！</p>}
           </section>
 
           {(paid.length > 0 || cleared.length > 0) && (
