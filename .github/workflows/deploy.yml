@@ -89,7 +89,10 @@ jobs:
             extra=""
             [ "$target" = "functions" ] && extra="--force"
             npx --yes firebase-tools@13 deploy --only "$target" --project jeukbou-app --non-interactive $extra 2>&1 | tee "$RUNNER_TEMP/deploy.log"
-            if [ "${PIPESTATUS[0]}" -ne 0 ]; then
+            st=${PIPESTATUS[0]}
+            # 有時 functions 部分失敗都會 exit 0：見到「failed to create/update function」都當失敗
+            if [ "$st" -eq 0 ] && grep -qiE "failed to (create|update|delete) function|Functions deploy had errors" "$RUNNER_TEMP/deploy.log"; then st=1; fi
+            if [ "$st" -ne 0 ]; then
               fail=1
               # 出錯：顯示最尾幾行有用嘅訊息（唔顯示金鑰）
               sed 's/\x1b\[[0-9;]*m//g' "$RUNNER_TEMP/deploy.log" | grep -v -iE "private_key|BEGIN|sk-ant|ensuring required API|required API .* is enabled" \
