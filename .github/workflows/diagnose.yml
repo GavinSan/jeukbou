@@ -40,6 +40,10 @@ jobs:
             --project jeukbou-app --limit 80 --order desc \
             --format="value(timestamp,resource.labels.service_name,resource.labels.revision_name,severity,textPayload,jsonPayload.message,protoPayload.status.message)" \
             | grep -v -iE "private_key|sk-ant" | cut -c1-600 || true
+          echo "=== 處理請求時嘅錯誤（完整內容）"
+          gcloud logging read "resource.type=\"cloud_run_revision\" AND resource.labels.location=\"northamerica-northeast2\" AND severity>=ERROR AND timestamp>=\"${since}\" AND NOT textPayload:\"Ready condition\" AND NOT protoPayload.status.message:\"Ready condition\"" \
+            --project jeukbou-app --limit 15 --order desc --format=json \
+            | grep -v -iE "private_key|sk-ant|\"token\"" | cut -c1-400 | head -400 || true
           echo "=== 啟動失敗嘅 revision（meetupping 最新）"
           rev=$(gcloud run services describe meetupping --region northamerica-northeast2 --format="value(status.latestCreatedRevisionName)" 2>/dev/null)
           [ -n "$rev" ] && gcloud logging read "resource.type=\"cloud_run_revision\" AND resource.labels.revision_name=\"${rev}\"" \
