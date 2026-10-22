@@ -91,17 +91,18 @@ jobs:
             npx --yes firebase-tools@13 deploy --only "$target" --project jeukbou-app --non-interactive $extra 2>&1 | tee "$RUNNER_TEMP/deploy.log"
             st=${PIPESTATUS[0]}
             # 之前建立失敗嘅 function 會留低一個空殼（當咗係 HTTPS），之後就改唔到做 Firestore 觸發：
-            # 淨係刪走報錯嗰幾個，再部署一次
+            # 淨係刪走報錯嗰個，再部署一次（firebase 每次只報第一個，所以最多重複 5 次）
             if [ "$target" = "functions" ]; then
-              broken=$(sed 's/\x1b\[[0-9;]*m//g' "$RUNNER_TEMP/deploy.log" | grep -oE '\[[A-Za-z0-9_-]+\([a-z0-9-]+\)\] Changing from an HTTPS function to a background triggered function' | sed -E 's/^\[([A-Za-z0-9_-]+)\(([a-z0-9-]+)\)\].*/\1 \2/' | sort -u)
-              if [ -n "$broken" ]; then
+              for pass in 1 2 3 4 5; do
+                broken=$(sed 's/\x1b\[[0-9;]*m//g' "$RUNNER_TEMP/deploy.log" | grep -oE '\[[A-Za-z0-9_-]+\([a-z0-9-]+\)\] Changing from an HTTPS function to a background triggered function' | sed -E 's/^\[([A-Za-z0-9_-]+)\(([a-z0-9-]+)\)\].*/\1 \2/' | sort -u)
+                [ -z "$broken" ] && break
                 while read -r fn rg; do
                   echo "::warning title=functions::刪走建立失敗嘅 ${fn}（${rg}）再重新部署"
                   npx --yes firebase-tools@13 functions:delete "$fn" --region "$rg" --project jeukbou-app --force --non-interactive || true
                 done <<< "$broken"
                 npx --yes firebase-tools@13 deploy --only "$target" --project jeukbou-app --non-interactive $extra 2>&1 | tee "$RUNNER_TEMP/deploy.log"
                 st=${PIPESTATUS[0]}
-              fi
+              done
             fi
             # 有時 functions 部分失敗都會 exit 0：見到「failed to create/update function」都當失敗
             if [ "$st" -eq 0 ] && grep -qiE "failed to (create|update|delete) function|Functions deploy had errors" "$RUNNER_TEMP/deploy.log"; then st=1; fi
