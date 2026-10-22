@@ -14,6 +14,9 @@ const REGION = 'northamerica-northeast2';
 setGlobalOptions({ region: REGION, maxInstances: 5, memory: '256MiB' });
 
 const db = getFirestore();
+// app 直接 call 嘅 function：明確設定「任何人都 call 得」（入面自己檢查登入同權限），
+// 唔靠第一次建立時自動設定，新加嘅 function 先唔會 call 唔到
+const CALL = { invoker: 'public' };
 const DEAD = new Set(['messaging/registration-token-not-registered', 'messaging/invalid-registration-token', 'messaging/invalid-argument']);
 const WEEK = ['日', '一', '二', '三', '四', '五', '六'];
 
@@ -173,7 +176,7 @@ ${list}
 {"tiles":["…"],"flowers":["…"],"exposed":[["…"]],"patterns":[{"name":"…","option":"","fan":0,"why":"…"}],"total":0,"confidence":"high|medium|low","notes":"…"}`;
 }
 
-export const scanHand = onCall({ timeoutSeconds: 60, memory: '512MiB', maxInstances: 2 }, async (req) => {
+export const scanHand = onCall({ ...CALL, timeoutSeconds: 60, memory: '512MiB', maxInstances: 2 }, async (req) => {
   if (!isAdmin(req.auth?.token)) throw new HttpsError('permission-denied', '影相計番暫時淨係超級管理員用得');
   const key = process.env.ANTHROPIC_API_KEY || '';
   if (!key) throw new HttpsError('failed-precondition', '未設定 ANTHROPIC_API_KEY');
@@ -223,7 +226,7 @@ export const scanHand = onCall({ timeoutSeconds: 60, memory: '512MiB', maxInstan
 });
 
 // ---------- 測試通知（超級管理員）：發一個通知俾自己所有開咗通知嘅機 ----------
-export const testPush = onCall(async (req) => {
+export const testPush = onCall(CALL, async (req) => {
   if (!isAdmin(req.auth?.token)) throw new HttpsError('permission-denied', '淨係超級管理員用得');
   const ok = await send([req.auth.uid], {
     title: '測試通知 🀄',
@@ -247,7 +250,7 @@ const dm = (ms) => {
   return `${p.day}/${p.month}`;
 };
 
-export const remindPay = onCall(async (req) => {
+export const remindPay = onCall(CALL, async (req) => {
   const uid = req.auth?.uid;
   if (!uid) throw new HttpsError('unauthenticated', '要登入');
   const admin = isAdmin(req.auth.token);
@@ -300,7 +303,7 @@ export const remindPay = onCall(async (req) => {
 });
 
 // ---------- 超級管理員發通知：打字，發俾所有人或者一個牌友圈 ----------
-export const adminBroadcast = onCall(async (req) => {
+export const adminBroadcast = onCall(CALL, async (req) => {
   if (!isAdmin(req.auth?.token)) throw new HttpsError('permission-denied', '淨係超級管理員用得');
   const title = String(req.data?.title ?? '').trim().slice(0, 60);
   const body = String(req.data?.body ?? '').trim().slice(0, 200);
@@ -321,7 +324,7 @@ export const adminBroadcast = onCall(async (req) => {
 });
 
 // ---------- 夠拉通知：有人被拉三、六…，跟大局設定通知同枱／成個大局／成個牌友圈 ----------
-export const pullAlert = onCall(async (req) => {
+export const pullAlert = onCall(CALL, async (req) => {
   const uid = req.auth?.uid;
   if (!uid) throw new HttpsError('unauthenticated', '要登入');
   const g = String(req.data?.g ?? ''); const s = String(req.data?.s ?? ''); const t = String(req.data?.t ?? '');
@@ -348,7 +351,7 @@ export const pullAlert = onCall(async (req) => {
 });
 
 // ---------- 一齊執位：輪到你揀 ----------
-export const drawTurn = onCall(async (req) => {
+export const drawTurn = onCall(CALL, async (req) => {
   const uid = req.auth?.uid;
   if (!uid) throw new HttpsError('unauthenticated', '要登入');
   const g = String(req.data?.g ?? ''); const s = String(req.data?.s ?? '');
@@ -373,7 +376,17 @@ export const drawTurn = onCall(async (req) => {
 
 // ---------- 約局：問有冇人打（任何成員都撳得；同一個約局 30 分鐘一次） ----------
 const PING_GAP = 30 * 60 * 1000;
-export const meetupPing = onCall(async (req) => {
+export const meetupPing = onCall(CALL, async (req) => {
+  try {
+    return await pingOnce(req);
+  } catch (err) {
+    if (err instanceof HttpsError) throw err;
+    logger.error('meetupPing failed', err);
+    throw new HttpsError('internal', `發唔到通知：${err?.message ?? err}`);
+  }
+});
+
+async function pingOnce(req) {
   const uid = req.auth?.uid;
   if (!uid) throw new HttpsError('unauthenticated', '要登入');
   const g = String(req.data?.g ?? ''); const id = String(req.data?.m ?? '');
@@ -408,4 +421,4 @@ export const meetupPing = onCall(async (req) => {
     tag: `${g}:meetup:${id}`,
   });
   return { people: uids.length, ok };
-});
+}
