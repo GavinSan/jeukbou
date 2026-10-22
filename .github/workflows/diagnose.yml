@@ -49,3 +49,16 @@ jobs:
           [ -n "$rev" ] && gcloud logging read "resource.type=\"cloud_run_revision\" AND resource.labels.revision_name=\"${rev}\"" \
             --project jeukbou-app --limit 40 --order asc \
             --format="value(timestamp,severity,textPayload,jsonPayload.message)" | grep -v -iE "private_key|sk-ant" | cut -c1-600 || true
+      - name: Revision 詳細狀態同系統記錄
+        run: |
+          for r in $(gcloud run revisions list --service meetupping --region northamerica-northeast2 --format="value(metadata.name)" | head -3); do
+            echo "=== revision $r"
+            gcloud run revisions describe "$r" --region northamerica-northeast2 \
+              --format="yaml(status.conditions,spec.containers[0].image,spec.containers[0].resources,spec.serviceAccountName,metadata.annotations)" | cut -c1-300 || true
+            gcloud logging read "resource.type=\"cloud_run_revision\" AND resource.labels.revision_name=\"${r}\"" \
+              --project jeukbou-app --limit 25 --order asc --format=json \
+              | grep -E '"(textPayload|message|logName|severity|timestamp)"' | grep -v -iE "private_key|sk-ant" | cut -c1-500 || true
+          done
+          echo "=== Artifact Registry 清理設定"
+          gcloud artifacts repositories describe gcf-artifacts --location northamerica-northeast2 --format="yaml(cleanupPolicies,cleanupPolicyDryRun,sizeBytes)" || true
+          gcloud artifacts docker images list northamerica-northeast2-docker.pkg.dev/jeukbou-app/gcf-artifacts --include-tags --limit 30 --format="table(package.basename(),tags.list(),createTime)" 2>&1 | tail -30 || true
