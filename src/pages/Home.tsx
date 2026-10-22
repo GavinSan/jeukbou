@@ -27,10 +27,9 @@ function TierStrip({ points }: { points: number }) {
       {TIERS.map((t, i) => {
         const next = TIERS[i + 1];
         const fill = points >= (next?.min ?? Infinity) ? 1 : points >= t.min ? (next ? (points - t.min) / (next.min - t.min) : 1) : 0;
-        // 一格填滿先到下一格：每格 0.28 秒，接住上一格
         return (
           <span key={t.name} className={`ts-seg ${t.cls}`} title={`${t.name} ${t.min} 分`}>
-            <i style={{ width: `${Math.round(fill * 100)}%`, animationDelay: `${0.2 + i * 0.28}s`, animationDuration: `${Math.max(0.08, 0.28 * fill)}s` }} />
+            <i style={{ width: `${Math.round(fill * 100)}%` }} />
           </span>
         );
       })}

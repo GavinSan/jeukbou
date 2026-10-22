@@ -1309,8 +1309,7 @@ button.join-code:active { background: var(--line); }
 /* ---------- 首頁：多啲色水 ---------- */
 .tier-strip { display: grid; grid-template-columns: repeat(8, 1fr); gap: 3px; margin-top: 4px; }
 .ts-seg { height: 7px; border-radius: 4px; background: rgba(0, 0, 0, .28); overflow: hidden; }
-.ts-seg i { display: block; height: 100%; background: var(--c); box-shadow: 0 0 8px var(--c); animation: grow-x .28s linear both; transform-origin: left; }
-@keyframes grow-x { from { transform: scaleX(0); } }
+.ts-seg i { display: block; height: 100%; background: var(--c); box-shadow: 0 0 8px var(--c); }
 
 .badge.got { background: linear-gradient(160deg, color-mix(in srgb, var(--bc) 16%, var(--surface)), var(--surface) 70%); box-shadow: 0 0 0 1.5px color-mix(in srgb, var(--bc) 40%, transparent) inset; }
 .badge.got .badge-mark { color: var(--bc); box-shadow: 0 3px 0 var(--bc), 0 0 0 1px rgba(0,0,0,.05) inset; }
