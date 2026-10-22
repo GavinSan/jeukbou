@@ -1,0 +1,47 @@
+name: Diagnose functions
+
+# 淨係睇（唔部署）：Cloud Functions / Cloud Run 嘅狀態同最近嘅錯誤記錄，查通知發唔到嘅原因
+on:
+  workflow_dispatch:
+    inputs:
+      hours:
+        description: 睇最近幾多個鐘嘅記錄
+        default: '8'
+
+permissions:
+  contents: read
+
+jobs:
+  diagnose:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: google-github-actions/auth@v2
+        with:
+          credentials_json: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
+      - uses: google-github-actions/setup-gcloud@v2
+      - name: Cloud Run 服務狀態
+        run: |
+          gcloud config set project jeukbou-app >/dev/null
+          gcloud run services list --region northamerica-northeast2 \
+            --format="table(metadata.name,status.conditions[0].status,status.conditions[0].message.slice(0:120),status.latestReadyRevisionName,status.latestCreatedRevisionName)" || true
+          for s in meetupping pullalert; do
+            echo "=== $s"
+            gcloud run services describe "$s" --region northamerica-northeast2 \
+              --format="yaml(status.conditions,status.traffic,spec.template.spec.containers[0].resources,spec.template.metadata.annotations)" || true
+            gcloud run services get-iam-policy "$s" --region northamerica-northeast2 || true
+          done
+      - name: 最近嘅錯誤記錄
+        env:
+          HOURS: ${{ inputs.hours }}
+        run: |
+          h=$(printf '%s' "$HOURS" | tr -cd '0-9'); h=${h:-8}
+          since=$(date -u -d "-${h} hours" +%Y-%m-%dT%H:%M:%SZ)
+          gcloud logging read "resource.type=\"cloud_run_revision\" AND resource.labels.location=\"northamerica-northeast2\" AND severity>=WARNING AND timestamp>=\"${since}\"" \
+            --project jeukbou-app --limit 80 --order desc \
+            --format="value(timestamp,resource.labels.service_name,resource.labels.revision_name,severity,textPayload,jsonPayload.message,protoPayload.status.message)" \
+            | grep -v -iE "private_key|sk-ant" | cut -c1-600 || true
+          echo "=== 啟動失敗嘅 revision（meetupping 最新）"
+          rev=$(gcloud run services describe meetupping --region northamerica-northeast2 --format="value(status.latestCreatedRevisionName)" 2>/dev/null)
+          [ -n "$rev" ] && gcloud logging read "resource.type=\"cloud_run_revision\" AND resource.labels.revision_name=\"${rev}\"" \
+            --project jeukbou-app --limit 40 --order asc \
+            --format="value(timestamp,severity,textPayload,jsonPayload.message)" | grep -v -iE "private_key|sk-ant" | cut -c1-600 || true
