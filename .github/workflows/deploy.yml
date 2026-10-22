@@ -125,14 +125,8 @@ jobs:
                 | while IFS= read -r line; do echo "::error title=${target}::${line}"; done
             else
               echo "::notice title=${target}::部署成功"
-              # 舊嘅 function 映像檔：Artifact Registry 自動清走一日前嘅（唔使人手去刪）
-              if [ "$target" = "functions" ]; then
-                for loc in northamerica-northeast2 us-central1; do
-                  npx --yes firebase-tools@13 functions:artifacts:setpolicy --location "$loc" --days 1 --force --project jeukbou-app --non-interactive >/dev/null 2>&1 \
-                    && echo "::notice title=functions::${loc} 舊映像檔會自動清走（保留 1 日）" \
-                    || echo "::warning title=functions::${loc} 設定唔到自動清走舊映像檔"
-                done
-              fi
+              # 注意：唔好設定 Artifact Registry「N 日後刪映像檔」：試過連用緊嘅 function 映像都刪埋，
+              # 之後 function 開唔到（全部通知 internal error）
             fi
           done
           # 手動跑 Deploy 揀咗 test_push：發一個測試通知俾超級管理員
