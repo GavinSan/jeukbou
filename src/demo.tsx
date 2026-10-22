@@ -266,7 +266,7 @@ export default function Demo() {
     const at = (days: number, h: number) => { const d = new Date(); d.setDate(d.getDate() + days); d.setHours(h, 0, 0, 0); return d.getTime(); };
     const names = { gavin: 'Gavin', athena: 'Athena', ivan: 'Ivan', viola: 'Viola', kit: 'Kit' };
     return [
-      { id: 'm1', by: 'athena', byName: 'Athena', at: at(2, 20), place: 'Athena 屋企', note: '打 8 圈，食完飯先', going: ['athena', 'ivan', 'viola'], maybe: ['kit'], no: [], names, createdAt: Date.now() - 3600000, tables: 1 },
+      { id: 'm1', by: 'athena', byName: 'Athena', at: at(2, 20), place: 'Athena 屋企', note: '打 8 圈，食完飯先', going: ['athena', 'ivan', 'viola'], maybe: [], no: ['kit'], names, createdAt: Date.now() - 3600000, tables: 1 },
       { id: 'm2', by: 'gavin', byName: 'Gavin', at: at(9, 19), place: '', note: '長週末開兩枱？', going: ['gavin', 'athena', 'ivan', 'viola', 'kit'], maybe: [], no: [], names, createdAt: Date.now() - 7200000, tables: 2 },
     ];
   });
@@ -297,7 +297,7 @@ export default function Demo() {
     const C: [string, string, string][] = [
       ['/demo/home', '主頁', '戰績、3 個 Live 牌友圈、日曆、加主畫面提示、補資料提示'],
       ['/demo/groups', '牌友圈列表', '搜尋、公開牌友圈、加入碼'],
-      ['/demo/group', '牌友圈頁', '約局（局主唔去由下一個接手）、⚙︎ 設定睇抽水、成員、邀請'],
+      ['/demo/group', '牌友圈頁', '約局（去／唔去、📣 問有冇人打、局主唔去由下一個接手）、⚙︎ 設定睇抽水、成員、邀請'],
       ['/demo', '大局', '5 張枱、一齊執位（高分先揀、輪到你會彈）、夠拉通知設定、電視直播'],
       ['/demo/t/0', '枱：一般', '入數、番數表、特別事項（返回）、換人、撤回、紀錄分段'],
       ['/demo/t/1', '枱：有流局', '流局（唔使確認）、拉同枱面'],
@@ -533,11 +533,16 @@ export default function Demo() {
           onRsvp={async (id, st) => setMeets((l) => l.map((m) => m.id !== id ? m : {
             ...m,
             going: [...m.going.filter((x) => x !== 'gavin'), ...(st === 'going' ? ['gavin'] : [])],
-            maybe: [...m.maybe.filter((x) => x !== 'gavin'), ...(st === 'maybe' ? ['gavin'] : [])],
+            maybe: m.maybe.filter((x) => x !== 'gavin'),
             no: [...m.no.filter((x) => x !== 'gavin'), ...(st === 'no' ? ['gavin'] : [])],
             names: { ...m.names, gavin: 'Gavin' },
           }))}
           onDelete={async (id) => setMeets((l) => l.filter((m) => m.id !== id))}
+          onPing={async (id) => {
+            const m = meets.find((x) => x.id === id);
+            const left = members.length - (m ? m.going.length + m.no.length : 0);
+            return `（示範）已經通知 ${Math.max(0, left)} 個未應嘅人`;
+          }}
         />
         <section className="stack">
           <div className="section-head">

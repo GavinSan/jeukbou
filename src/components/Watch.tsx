@@ -34,7 +34,7 @@ function MeetupWatch({ g, uid }: { g: string; uid: string }) {
     if (!name) return;
     for (const m of data) {
       if (m.at < Date.now()) continue;
-      const answered = m.going.includes(uid) || m.maybe.includes(uid) || m.no.includes(uid);
+      const answered = m.going.includes(uid) || m.no.includes(uid);
       if (answered) continue;
       const n = m.going.length;
       const key = `${g}:meetup:${m.id}`;

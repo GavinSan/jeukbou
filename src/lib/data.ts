@@ -198,12 +198,12 @@ export async function createMeetup(g: string, user: User, m: { at: number; place
   });
 }
 
-/** 應約：去／可能／唔去 */
-export async function rsvpMeetup(g: string, id: string, user: User, status: 'going' | 'maybe' | 'no' | null): Promise<void> {
+/** 應約：去／唔去（一揀咗就係其中一樣；舊嘅「可能」會清走） */
+export async function rsvpMeetup(g: string, id: string, user: User, status: 'going' | 'no'): Promise<void> {
   const uid = user.uid;
   await updateDoc(doc(fs(), 'groups', g, 'meetups', id), {
     going: status === 'going' ? arrayUnion(uid) : arrayRemove(uid),
-    maybe: status === 'maybe' ? arrayUnion(uid) : arrayRemove(uid),
+    maybe: arrayRemove(uid),
     no: status === 'no' ? arrayUnion(uid) : arrayRemove(uid),
     [`names.${uid}`]: displayName(user),
   });

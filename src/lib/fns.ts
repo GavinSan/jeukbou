@@ -28,6 +28,10 @@ export const drawTurn = (m: { g: string; s: string }) => call<typeof m, { ok: nu
 export const pullAlert = (m: { g: string; s: string; t: string; lines: string[] }) =>
   call<typeof m, { ok: number }>('pullAlert', m);
 
+/** 約局：問未應嘅成員有冇人打（同一個約局 30 分鐘一次） */
+export const pingMeetup = (g: string, m: string) =>
+  call<{ g: string; m: string }, { people: number; ok: number }>('meetupPing', { g, m });
+
 /** 催找數：收錢嘅人（或者超級管理員）提未轉錢嘅人；每筆 24 個鐘最多一次 */
 export const remindPay = (items: { g: string; s: string; key: string }[]) =>
   call<{ items: typeof items }, { people: number; sent: number; skipped: number }>('remindPay', { items });

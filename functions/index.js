@@ -370,3 +370,42 @@ export const drawTurn = onCall(async (req) => {
   const ok = await send([next], { title: '到你揀位 🀄', body: `「${name}」一齊執位，輪到你揀牌，快啲入嚟揀！`, url: `/g/${g}/s/${s}`, tag: `${g}:${s}:draw` });
   return { ok };
 });
+
+// ---------- 約局：問有冇人打（任何成員都撳得；同一個約局 30 分鐘一次） ----------
+const PING_GAP = 30 * 60 * 1000;
+export const meetupPing = onCall(async (req) => {
+  const uid = req.auth?.uid;
+  if (!uid) throw new HttpsError('unauthenticated', '要登入');
+  const g = String(req.data?.g ?? ''); const id = String(req.data?.m ?? '');
+  if (!g || !id || g.includes('/') || id.includes('/')) throw new HttpsError('invalid-argument', '資料唔啱');
+  const me = await db.doc(`groups/${g}/members/${uid}`).get();
+  if (!me.exists && !isAdmin(req.auth.token)) throw new HttpsError('permission-denied', '唔係成員');
+  const ref = db.doc(`groups/${g}/meetups/${id}`);
+  const m = await db.runTransaction(async (tx) => {
+    const snap = await tx.get(ref);
+    if (!snap.exists) throw new HttpsError('not-found', '約局已經取消咗');
+    const d = snap.data();
+    if (Number(d.at) < Date.now()) throw new HttpsError('failed-precondition', '約局時間已經過咗');
+    const last = Number(d.pingAt ?? 0);
+    if (Date.now() - last < PING_GAP) {
+      throw new HttpsError('resource-exhausted', `啱啱先問過，${Math.ceil((PING_GAP - (Date.now() - last)) / 60000)} 分鐘後再問`);
+    }
+    tx.update(ref, { pingAt: Date.now() });
+    return d;
+  });
+  const going = list(m.going);
+  const answered = new Set([...going, ...list(m.no), uid]);
+  const [{ name }, mem] = await Promise.all([groupName(g), members(g)]);
+  const uids = mem.map((x) => x.uid).filter((u) => !answered.has(u));
+  const n = going.length;
+  const want = Math.max(1, Number(m.tables ?? 1)) * 4;
+  const lack = n < want ? want - n : (4 - (n % 4)) % 4;
+  const caller = String(m.names?.[uid] ?? req.auth.token.name ?? '有人');
+  const ok = await send(uids, {
+    title: `「${name}」有冇人打？${lack ? `仲差 ${lack} 個` : '夠腳，仲可以開多枱'} 🀄`,
+    body: `${when(Number(m.at), m.tz)}${m.place ? `・${m.place}` : ''}：${n ? `${going.map((u) => m.names?.[u] ?? '玩家').join('、')} 已經去` : '未有人應'}。${caller} 問緊，撳入嚟應去唔去！`,
+    url: `/g/${g}#meetups`,
+    tag: `${g}:meetup:${id}`,
+  });
+  return { people: uids.length, ok };
+});

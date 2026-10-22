@@ -9,6 +9,7 @@ import type { Group, JoinMode, JoinRequest, Member } from '../lib/data.ts';
 import { useSuperAdmin } from '../lib/admin.ts';
 import { go } from '../lib/router.tsx';
 import { useGroup, useJoinRequests, useMeetups, useMembers, useSessions } from '../lib/live.ts';
+import { pingMeetup } from '../lib/fns.ts';
 import { MeetupsView } from '../components/Meetups.tsx';
 import { Link } from '../lib/router.tsx';
 import { Avatar, ConfirmDelete, Hint, Loading, Sheet, TopBar, fmt, message } from '../ui.tsx';
@@ -459,6 +460,7 @@ export default function GroupPage({ user, groupId }: { user: User; groupId: stri
         onCreate={(m) => createMeetup(groupId, user, m)}
         onRsvp={(id, st) => rsvpMeetup(groupId, id, user, st)}
         onDelete={(id) => deleteMeetup(groupId, id)}
+        onPing={async (id) => { const r = await pingMeetup(groupId, id); return r.people ? `已經通知 ${r.people} 個未應嘅人` : '全部人都應咗，冇人要問'; }}
       />
 
       {hasLegacy && !claimed && (
