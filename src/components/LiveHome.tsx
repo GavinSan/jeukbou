@@ -13,7 +13,10 @@ export interface LiveTableView {
   id: string;
   name: string;
   round: string;
-  players: { id: string; name: string; v: number }[];
+  /** 跟東南西北排；wind = 門風（莊 = 東） */
+  players: { id: string; name: string; v: number; wind?: string }[];
+  dealer?: string | null;
+  streak?: number;
 }
 
 /** 純顯示（示範都用） */
@@ -34,8 +37,8 @@ export function LiveCardView({ groupName, icon, sessionName, href, tvHref, table
             <span className="live-table-top"><b>{t.name}</b><small>{t.round}</small></span>
             <span className="live-scores">
               {t.players.map((p) => (
-                <span key={p.id} className={`live-score${p.id === me ? ' me' : ''}`}>
-                  <span className="ellipsis">{p.name}</span>
+                <span key={p.id} className={`live-score${p.id === me ? ' me' : ''}${p.id === t.dealer ? ' dealer' : ''}`}>
+                  <span className="ellipsis">{p.wind && <i className="live-wind">{p.wind}</i>}{p.name}{p.id === t.dealer && <i className="live-dealer">莊{t.streak ? `冧${t.streak}` : ''}</i>}</span>
                   <b className={`num ${p.v > 0 ? 'gain' : p.v < 0 ? 'loss' : ''}`}>{fmt(p.v)}</b>
                 </span>
               ))}
@@ -60,8 +63,10 @@ function LiveSession({ group, session, me, onLive, hidden }: { group: Group; ses
   if (!isLive || hidden) return null;
   const tables: LiveTableView[] = open.map((t) => {
     const c = live.computed[t.id]!;
-    const players = c.state.seats.map((id) => ({ id, name: t.names[id] ?? '玩家', v: (c.state.settled[id] ?? 0) + (c.pending[id] ?? 0) })).sort((a, b) => b.v - a.v);
-    return { id: t.id, name: t.name, round: roundLabel(c), players };
+    const winds = ['東', '南', '西', '北'];
+    const players = c.state.seats.map((id, i) => ({ id, name: t.names[id] ?? '玩家', v: (c.state.settled[id] ?? 0) + (c.pending[id] ?? 0), wind: winds[(i - c.state.dealerSeat + 4) % 4] }))
+      .sort((a, b) => winds.indexOf(a.wind) - winds.indexOf(b.wind));
+    return { id: t.id, name: t.name, round: roundLabel(c), players, dealer: c.info.dealer ?? null, streak: c.state.streak };
   });
   return (
     <LiveCardView

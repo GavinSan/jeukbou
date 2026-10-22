@@ -3,9 +3,10 @@ import { rememberTable } from '../lib/nav.ts';
 import type { User } from 'firebase/auth';
 import SessionScreen from '../components/SessionScreen.tsx';
 import Incoming from '../components/Incoming.tsx';
-import { applyDraw, approveDraw, autoDeal, cancelDraw, canDo, addTable, deleteSession, findTodaySession, pickTile, setSessionNoWater, startDraw, tableNameUpper } from '../lib/data.ts';
+import { applyDraw, approveDraw, autoDeal, cancelDraw, canDo, addTable, deleteSession, findTodaySession, pickTile, setSessionNoWater, setSessionPullPush, startDraw, tableNameUpper } from '../lib/data.ts';
 import { Link } from '../lib/router.tsx';
 import { useSuperAdmin } from '../lib/admin.ts';
+import { drawTurn } from '../lib/fns.ts';
 import { go } from '../lib/router.tsx';
 import { useGroup, useManyEvents, useMembers, useRequests, useSession, useTables } from '../lib/live.ts';
 import { computeTable, rulesOf, rulesTimeline } from '../lib/score.ts';
@@ -55,6 +56,7 @@ export default function SessionPage({ user, groupId, sessionId }: { user: User; 
       liveHref={session.data.closed ? undefined : `/live/${groupId}/${sessionId}`}
       settleHref={`/g/${groupId}/s/${sessionId}/settle`}
       water={session.data.closed ? undefined : { on: !session.data.noWater, onToggle: (on) => setSessionNoWater(groupId, sessionId, !on) }}
+      pullPush={session.data.closed ? undefined : { value: session.data.pullPush ?? 'off', onChange: (v) => setSessionPullPush(groupId, sessionId, v) }}
       closedNote={session.data.closed
         ? (
           <Link to={`/g/${groupId}/s/${sessionId}/pay`} className="link-card closed-card">
@@ -89,6 +91,7 @@ export default function SessionPage({ user, groupId, sessionId }: { user: User; 
         ],
         onStart: async (d) => {
           await startDraw(groupId, sessionId, d);
+          if (d.strict && d.status === 'picking') drawTurn({ g: groupId, s: sessionId }).catch(() => undefined);
           // 電腦派：等洗牌動畫轉完先派
           if (d.mode === 'auto' && d.status === 'picking') setTimeout(() => { autoDeal(groupId, sessionId).catch(() => undefined); }, 1400);
         },
@@ -96,9 +99,15 @@ export default function SessionPage({ user, groupId, sessionId }: { user: User; 
           const seatsOf: Record<string, string[]> = {};
           for (const t of tables.data) { const c = computed[t.id]; if (c) seatsOf[t.id] = c.state.seats; }
           const force = session.data!.createdBy === user.uid || group.data!.ownerId === user.uid || admin;
-          return force ? startDraw(groupId, sessionId, { ...session.data!.draw!, status: 'picking', approvals: [...new Set([...(session.data!.draw?.approvals ?? []), user.uid])] }) : approveDraw(groupId, sessionId, user.uid, seatsOf);
+          const done = force ? startDraw(groupId, sessionId, { ...session.data!.draw!, status: 'picking', approvals: [...new Set([...(session.data!.draw?.approvals ?? []), user.uid])] }) : approveDraw(groupId, sessionId, user.uid, seatsOf);
+          return done.then(() => { drawTurn({ g: groupId, s: sessionId }).catch(() => undefined); });
         },
-        onPick: (tile, player) => pickTile(groupId, sessionId, tile, player),
+        onPick: async (tile, player) => {
+          const r = await pickTile(groupId, sessionId, tile, player);
+          // 輪住揀：通知下一個（佢 app 閂咗都收到）
+          if (r === 'ok') drawTurn({ g: groupId, s: sessionId }).catch(() => undefined);
+          return r;
+        },
         onAuto: () => autoDeal(groupId, sessionId),
         onCancel: () => cancelDraw(groupId, sessionId),
         onApply: (plan, endTables) => applyDraw(groupId, sessionId, user.uid, plan, endTables, tables.data.length),

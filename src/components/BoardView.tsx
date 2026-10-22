@@ -208,13 +208,18 @@ export function PlayerSheet({ id, name, sessions, all, scope, sessionHref, onClo
         );
       })()}
       {vals.length > 1 && (
-        <svg className="mini-bars" viewBox={`0 0 ${vals.length * 14} 80`} preserveAspectRatio="none" aria-label="每場上落">
-          <line x1="0" x2={vals.length * 14} y1="40" y2="40" className="viz-zero" />
+        // 每場上落：條 bar 頂（或者底）寫埋數字；場數多就左右碌
+        <div className="mini-bars" role="img" aria-label={`每場上落：${vals.map(fmt).join('、')}`}>
           {vals.map((v, i) => {
-            const h = (Math.abs(v) / max) * 36;
-            return <rect key={i} x={i * 14 + 2} y={v >= 0 ? 40 - h : 40} width="10" height={Math.max(1, h)} rx="2" className={v >= 0 ? 'bar-gain' : 'bar-loss'} />;
+            const h = `${Math.max(4, (Math.abs(v) / max) * 100)}%`;
+            return (
+              <span key={i} className="mb-col">
+                <span className="mb-up">{v > 0 && <><small className="gain">{fmt(v)}</small><i className="bar-gain" style={{ height: h }} /></>}</span>
+                <span className="mb-down">{v < 0 && <><i className="bar-loss" style={{ height: h }} /><small className="loss">{fmt(v)}</small></>}{v === 0 && <small className="muted">0</small>}</span>
+              </span>
+            );
           })}
-        </svg>
+        </div>
       )}
       <ul className="list exp-list">
         {[...sessions].reverse().map((s) => {

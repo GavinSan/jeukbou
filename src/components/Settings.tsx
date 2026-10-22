@@ -176,9 +176,9 @@ export function SkinPicker() {
   return (
     <div className="skin-pick" role="radiogroup" aria-label="介面風格">
       {SKINS.map((k) => (
-        <button key={k.key} type="button" role="radio" aria-checked={p.skin === k.key} className={`skin-card${p.skin === k.key ? ' on' : ''}`} onClick={() => { setPref('skin', k.key); sfx.tap(); }}>
+        <button key={k.key} type="button" role="radio" aria-checked={p.skin === k.key} className={`skin-card${p.skin === k.key ? ' on' : ''}${k.premium ? ` premium skin-${k.key}` : ''}`} onClick={() => { setPref('skin', k.key); sfx.tap(); }}>
           <span className="skin-sw" aria-hidden="true">{k.colors.map((c) => <i key={c} style={{ background: c }} />)}</span>
-          <b>{k.name}</b>
+          <b>{k.name}{k.premium && <span className="skin-crown" title="豪華風格">👑</span>}</b>
           <small>{k.note}</small>
         </button>
       ))}

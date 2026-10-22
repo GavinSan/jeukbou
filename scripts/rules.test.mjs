@@ -3,7 +3,7 @@
 import { readFileSync } from 'node:fs';
 import { after, before, beforeEach, test } from 'node:test';
 import { assertFails, assertSucceeds, initializeTestEnvironment } from '@firebase/rules-unit-testing';
-import { deleteDoc, deleteField, doc, setDoc, updateDoc } from 'firebase/firestore';
+import { collection, deleteDoc, deleteField, doc, serverTimestamp, setDoc, updateDoc, writeBatch } from 'firebase/firestore';
 
 let env;
 const G = 'g1';
@@ -124,4 +124,23 @@ test('取消約局：開局嗰個仲去就佢取消；佢唔去咗就由最早�
   await assertFails(deleteDoc(m('a', 'm2')));
   await assertFails(deleteDoc(m('c', 'm2')));
   await assertSucceeds(deleteDoc(m('b', 'm2')));
+});
+
+test('直播室：每 2 秒最多一句（要同時寫 chatLast）；場主、局主先禁言得；禁咗言講唔到', async () => {
+  const say = (uid, text) => {
+    const db = as(uid);
+    const b = writeBatch(db);
+    b.set(doc(collection(db, 'groups', G, 'sessions', S, 'chat')), { by: uid, name: uid, text, at: serverTimestamp() });
+    b.set(doc(db, 'groups', G, 'sessions', S, 'chatLast', uid), { at: serverTimestamp() });
+    return b.commit();
+  };
+  await assertSucceeds(say('a', '你好'));
+  await assertFails(say('a', '洗版'));
+  await assertFails(setDoc(doc(collection(as('c'), 'groups', G, 'sessions', S, 'chat')), { by: 'c', name: 'c', text: '冇 chatLast', at: serverTimestamp() }));
+  const sess = (uid) => doc(as(uid), 'groups', G, 'sessions', S);
+  await assertFails(updateDoc(sess('a'), { 'chatBlock.b': Date.now() + 86400000 }));
+  await assertSucceeds(updateDoc(sess('host'), { 'chatBlock.b': Date.now() + 86400000 }));
+  await assertFails(say('b', '我被禁言'));
+  await assertSucceeds(updateDoc(sess('owner'), { 'chatBlock.b': deleteField() }));
+  await assertSucceeds(say('b', '解禁啦'));
 });

@@ -18,8 +18,8 @@ import type { SessionResult } from './lib/history.ts';
 import SettleScreen, { SettleConfigForm } from './components/SettleScreen.tsx';
 import HouseRules from './components/HouseRules.tsx';
 import { FanTableView } from './components/FanTable.tsx';
-import { DEFAULT_SETTLE } from './lib/data.ts';
-import type { ExpenseDoc, PairDoc, SettleConfig } from './lib/data.ts';
+import { DEFAULT_SETTLE, drawNext } from './lib/data.ts';
+import type { ExpenseDoc, PairDoc, PullPush, SettleConfig } from './lib/data.ts';
 import { sessionSummary } from './lib/totals.ts';
 import { DEFAULT_FAN_TABLE } from './lib/fanTable.ts';
 import type { JoinMode, JoinRequest, Meetup } from './lib/data.ts';
@@ -29,7 +29,7 @@ import { DashboardView, ResumeRow } from './pages/Home.tsx';
 import { RankView } from './pages/RankPage.tsx';
 import { MyPayView } from './pages/MyPayPage.tsx';
 import { AdminView } from './pages/AdminPage.tsx';
-import { LiveTv, tvTablesOf } from './pages/LivePage.tsx';
+import { LiveTv, bySeat, tvTablesOf } from './pages/LivePage.tsx';
 import type { TvTable } from './pages/LivePage.tsx';
 import { WaterBox } from './pages/GroupPage.tsx';
 import { Sheet } from './ui.tsx';
@@ -43,15 +43,15 @@ import { mySessions, pointsFor } from './lib/stats.ts';
 import type { GroupResults } from './lib/stats.ts';
 import TeamsEditor from './components/Teams.tsx';
 import { NoticeBar } from './components/Watch.tsx';
-import { pushNotice } from './lib/notify.ts';
+import { markSeen, pushNotice } from './lib/notify.ts';
 import { InstallSteps } from './components/InstallGuide.tsx';
 
 const TABLES: TableDoc[] = [
-  { id: 't0', name: '第 1 枱', order: 0, seats: ['gavin', 'athena', 'ivan', 'viola'], names: { gavin: 'Gavin', athena: 'Athena', ivan: 'Ivan', viola: 'Viola' } },
-  { id: 't1', name: '第 2 枱', order: 1, seats: ['janice', 'sang', 'clau', 'af'], names: { janice: 'Janice', sang: 'Sang', clau: 'Clau', af: 'AF' } },
-  { id: 't2', name: '第 3 枱', order: 2, seats: ['robin', 'tat', 'nat', 'ts'], names: { robin: 'Robin', tat: 'Tat', nat: 'Nat', ts: 'TS' } },
-  { id: 't3', name: '第 4 枱', order: 3, seats: ['mandy', 'ben', 'wing', 'kitty'], names: { mandy: 'Mandy', ben: 'Ben', wing: 'Wing', kitty: 'Kitty' } },
-  { id: 't4', name: '第 5 枱', order: 4, seats: ['pat', 'sam', 'lok', 'yan'], names: { pat: 'Pat Chan', sam: 'Samantha Wong', lok: 'Lok', yan: 'Yan' } },
+  { id: 't0', name: '第壹枱', order: 0, seats: ['gavin', 'athena', 'ivan', 'viola'], names: { gavin: 'Gavin', athena: 'Athena', ivan: 'Ivan', viola: 'Viola' } },
+  { id: 't1', name: '第貳枱', order: 1, seats: ['janice', 'sang', 'clau', 'af'], names: { janice: 'Janice', sang: 'Sang', clau: 'Clau', af: 'AF' } },
+  { id: 't2', name: '第參枱', order: 2, seats: ['robin', 'tat', 'nat', 'ts'], names: { robin: 'Robin', tat: 'Tat', nat: 'Nat', ts: 'TS' } },
+  { id: 't3', name: '第肆枱', order: 3, seats: ['mandy', 'ben', 'wing', 'kitty'], names: { mandy: 'Mandy', ben: 'Ben', wing: 'Wing', kitty: 'Kitty' } },
+  { id: 't4', name: '第伍枱', order: 4, seats: ['pat', 'sam', 'lok', 'yan'], names: { pat: 'Pat Chan', sam: 'Samantha Wong', lok: 'Lok', yan: 'Yan' } },
 ];
 // 測試用嘅枱（唔喺示範大局入面，淨係 /demo/t/5、/demo/t/6 用）：夠三拉、雙響同特別事項
 const TEST_TABLES: TableDoc[] = [
@@ -60,6 +60,7 @@ const TEST_TABLES: TableDoc[] = [
   // 同時拉三家：三條拉一齊夠數，睇三個「找唔找」提示一齊出
   { id: 't7', name: '測試：拉 3 家 3 次', order: 7, seats: ['gavin', 'kit', 'jo', 'vincent'], names: { gavin: 'Gavin', kit: 'Kit', jo: 'Jo', vincent: 'Vincent' } },
   // 第 3 拉三家都揀咗「不找」，再拉到第 6 拉
+  { id: 't9', name: '測試：已完場（可以重開）', order: 9, seats: ['kit', 'jo', 'vincent', 'may'], names: { kit: 'Kit', jo: 'Jo', vincent: 'Vincent', may: 'May' } },
   { id: 't8', name: '測試：拉 3 家 6 次', order: 8, seats: ['gavin', 'kit', 'jo', 'vincent'], names: { gavin: 'Gavin', kit: 'Kit', jo: 'Jo', vincent: 'Vincent' }, declined: ['gavin>kit#3', 'gavin>jo#3', 'gavin>vincent#3'] },
 ];
 
@@ -86,6 +87,7 @@ const SCRIPT: Record<string, TableEvent[]> = {
   ],
   // 自摸 = 同時拉三家
   t7: [self('gavin', 5), self('gavin', 8), self('gavin', 6)],
+  t9: [eat('kit', 10, 'jo'), eat('kit', 12, 'jo'), { type: 'end' }],
   t8: [self('gavin', 5), self('gavin', 8), self('gavin', 6), self('gavin', 3), self('gavin', 10), self('gavin', 4)],
 };
 
@@ -199,14 +201,14 @@ const OTHER_LIVE: Record<string, { name: string; icon: string; session: string; 
   return {
     b: {
       name: '星期五雀局', icon: '🎲', session: '10月22日 星期五局',
-      tables: [{ id: 'b1', name: '第 1 枱', round: '南圈西位 第 7 鋪', dealer: 'tony', players: [P('tony', 'Tony', 86, '東'), P('kingsang', 'King Sang', -12, '南'), P('janice', 'Janice', -30, '西'), P('ivan', 'Ivan', -44, '北')], last: 'Tony 自摸 每家 13 番' }],
+      tables: [{ id: 'b1', name: '第壹枱', round: '南圈西位 第 7 鋪', dealer: 'tony', players: [P('tony', 'Tony', 86, '東'), P('kingsang', 'King Sang', -12, '南'), P('janice', 'Janice', -30, '西'), P('ivan', 'Ivan', -44, '北')], streak: 2, last: 'Tony 自摸 13番' }],
       chat: [{ id: 'b1', by: 'tony', name: 'Tony', text: '今晚手風順 😎', at: Date.now() - 240000 }],
     },
     c: {
       name: '公司麻雀會', icon: '🏢', session: '10月22日 午飯局',
       tables: [
-        { id: 'c1', name: '第 1 枱', round: '東圈北位 第 4 鋪', dealer: 'may', players: [P('may', 'May', 25, '北'), P('ken', 'Ken', 10, '東'), P('joe', 'Joe', -5, '南'), P('ann', 'Ann', -30, '西')], last: 'May 食 Ann（20 番）' },
-        { id: 'c2', name: '第 2 枱', round: '東圈南位 第 2 鋪', dealer: 'leo', players: [P('leo', 'Leo', 16, '南'), P('sue', 'Sue', 0, '西'), P('bob', 'Bob', -8, '北'), P('kay', 'Kay', -8, '東')], last: 'Leo 自摸 每家 8 番' },
+        { id: 'c1', name: '第壹枱', round: '東圈北位 第 4 鋪', dealer: 'may', players: [P('may', 'May', 25, '東'), P('ken', 'Ken', 10, '南'), P('joe', 'Joe', -5, '西'), P('ann', 'Ann', -30, '北')], last: 'May 食 Ann 20番' },
+        { id: 'c2', name: '第貳枱', round: '東圈南位 第 2 鋪', dealer: 'leo', players: [P('leo', 'Leo', 16, '東'), P('sue', 'Sue', 0, '南'), P('bob', 'Bob', -8, '西'), P('kay', 'Kay', -8, '北')], last: 'Leo 自摸 8番' },
       ],
       chat: [{ id: 'c1', by: 'ken', name: 'Ken', text: '仲有十分鐘就要返工 😂', at: Date.now() - 120000 }],
     },
@@ -244,6 +246,8 @@ export default function Demo() {
   }));
   const [demoMusic, setDemoMusic] = useState<Record<string, string>>({});
   const [groupSheet, setGroupSheet] = useState(false);
+  const [demoPull, setDemoPull] = useState<PullPush>('table');
+  const [demoBlocked, setDemoBlocked] = useState<Record<string, number>>({});
   const [demoPaid, setDemoPaid] = useState<Record<string, { by: string; at: number }>>({});
   const [people, setPeople] = useState<{ id: string; name: string }[]>([{ id: 'guest-vincent', name: 'Vincent' }]);
   const [pairs, setPairs] = useState<PairDoc[]>([{ id: 'p1', a: 'robin', b: 'tat', by: 'robin', accepted: ['robin'] }]);
@@ -288,8 +292,8 @@ export default function Demo() {
     const C: [string, string, string][] = [
       ['/demo/home', '主頁', '戰績、3 個 Live 牌友圈、日曆、加主畫面提示、補資料提示'],
       ['/demo/groups', '牌友圈列表', '搜尋、公開牌友圈、加入碼'],
-      ['/demo/group', '牌友圈頁', '約局（三缺一、兩枱、局主唔去由下一個接手）、成員、權限、邀請'],
-      ['/demo', '大局', '5 張枱、一齊執位、加枱、電視直播'],
+      ['/demo/group', '牌友圈頁', '約局（局主唔去由下一個接手）、⚙︎ 設定睇抽水、成員、邀請'],
+      ['/demo', '大局', '5 張枱、一齊執位（高分先揀、輪到你會彈）、夠拉通知設定、電視直播'],
       ['/demo/t/0', '枱：一般', '入數、番數表、特別事項（返回）、換人、撤回、紀錄分段'],
       ['/demo/t/1', '枱：有流局', '流局（唔使確認）、拉同枱面'],
       ['/demo/t/2', '枱：大番數', '40 番、找數'],
@@ -298,17 +302,18 @@ export default function Demo() {
       ['/demo/t/5', '枱：夠三拉', '決定找唔找數'],
       ['/demo/t/6', '枱：雙響、特別事項、詐糊、自摸', '紀錄寫實際食幾多番'],
       ['/demo/t/7', '枱：拉 3 家 3 次', '三個「找唔找」提示一齊出'],
-      ['/demo/t/8', '枱：拉 3 家 6 次', '第 3 拉唔找，第 6 拉再問三家'],
+      ['/demo/t/8', '枱：拉 3 家 6 次', '第 3 拉唔找，第 6 拉再問三家；夠拉會彈示範通知'],
+      ['/demo/t/9', '枱：已完場', '重開（撤回完場，拉住嘅數返晒嚟）'],
       ['/demo/t/0?view=1', '枱：唔喺呢張枱', '只可以睇，入唔到數、擲唔到骰'],
       ['/demo/settle', '埋數', '開支、Group、轉賬、已轉'],
-      ['/demo/pay', '找數', '我要俾、我要收、Interac email'],
+      ['/demo/pay', '找數', '同一班人合埋一張卡（撳開分人分日）、催找數'],
       ['/demo/board', '龍虎榜', '走勢（所有人、highlight 自己）、排行表、數據'],
       ['/demo/rank', '段位', '段位進度、成就'],
-      ['/demo/live', '電視直播', '大字分數、直播室、音樂（♫ 貼連結撳「播」）、轉台（3 個 Live）'],
+      ['/demo/live', '電視直播', '一版睇晒全部枱、東南西北、冧莊、直播室（撳名禁言）、音樂、轉台'],
       ['/demo/rules', '家規', '番數表、抽水、拉'],
       ['/demo/install', '加主畫面教學', 'iPhone Safari、其他瀏覽器、Android'],
-      ['/demo/skins', '風格', '10 款風格'],
-      ['/demo/admin', '超級管理員', '用戶、牌友圈'],
+      ['/demo/skins', '風格', '11 款風格（3 款 👑 豪華）'],
+      ['/demo/admin', '超級管理員', '用戶、牌友圈、發通知'],
       ['/demo/legacy', '舊紀錄', '匯入嘅舊數'],
     ];
     return (
@@ -365,6 +370,7 @@ export default function Demo() {
         current={c}
         onSend={async (t) => setChats((m) => ({ ...m, [c]: [...(m[c] ?? []), { id: `${c}${Date.now()}`, by: 'gavin', name: 'Gavin', text: t, at: Date.now() }] }))}
         onMusic={async (u) => setDemoMusic((m) => ({ ...m, [c]: u.trim() }))}
+        moderate={{ blocked: demoBlocked, onBlock: async (uid, on) => setDemoBlocked((m) => { const n = { ...m }; if (on) n[uid] = Date.now() + 24 * 3600000; else delete n[uid]; return n; }) }}
       />
     );
   }
@@ -382,7 +388,7 @@ export default function Demo() {
           resume={<ResumeRow href="/demo" name="10月18日 屋企局" />}
           live={(() => {
             const tv = tvTablesOf(tables, computed).slice(0, 3);
-            const card = (t: TvTable) => ({ id: t.id, name: t.name, round: t.round, players: [...t.players].sort((a, b) => b.v - a.v) });
+            const card = (t: TvTable) => ({ id: t.id, name: t.name, round: t.round, players: bySeat(t.players), dealer: t.dealer, streak: t.streak });
             return (
               <>
                 <LiveCardView groupName="不打不相識" icon="🀄" sessionName="10月18日 屋企局" href="/demo" tvHref="/demo/live" me="gavin" tables={tv.map(card)} />
@@ -411,6 +417,8 @@ export default function Demo() {
       mk('s3', '10月16日 屋企局', 'gavin', 'kingsang', 16.66),
       mk('s5', '10月14日 屋企局', 'ivan', 'gavin', 12.5),
       mk('s9', '10月10日 屋企局', 'gavin', 'tony', 9.33, true),
+      mk('s4', '10月18日 屋企局', 'ivan', 'gavin', 30),
+      mk('s4', '10月18日 屋企局', 'gavin + athena', 'kingsang', 10),
     ];
     return (
       <MyPayView
@@ -437,7 +445,7 @@ export default function Demo() {
         sessions: [2, 12].map((d, i) => ({ id: `t${i}`, name: `星期五 ${i + 1}`, at: now - d * day, closed: true, legacy: false })) },
     ];
     const users = people.map(([uid, name, email]) => ({ uid, name, email, payEmail: email, groups: uid === 'gavin' ? ['a'] : uid === 'ivan' ? ['a'] : ['a', 'b'], updatedAt: now - day, firstName: uid === 'tony' ? 'Tony' : '', lastName: uid === 'tony' ? 'Tsui' : '', birthday: uid === 'tony' ? '10-24' : '' }));
-    return <AdminView me="gavin" groups={groups} users={users} error="" onRefresh={() => undefined} />;
+    return <AdminView me="gavin" groups={groups} users={users} error="" onRefresh={() => undefined} onBroadcast={async (m) => { await new Promise((r) => setTimeout(r, 500)); pushNotice({ g: `demo-admin-${Date.now()}`, at: Date.now(), title: m.title, body: m.body || '（示範）', url: '/demo/admin' }); return { people: m.target === 'all' ? 6 : 4, ok: 3 }; }} />;
   }
 
   if (path === '/demo/install') {
@@ -620,10 +628,23 @@ export default function Demo() {
       });
     };
     return (
+      <>
       <TableScreen
         table={table}
         computed={c}
         rules={rules}
+        reopen={(() => {
+          const endStep = c.state.ended ? [...c.steps].reverse().find((st) => st.event.type === 'end') : undefined;
+          if (!endStep) return undefined;
+          const busy = c.state.seats.filter((id) => tables.some((t) => t.id !== table.id && computed[t.id] && !computed[t.id]!.state.ended && computed[t.id]!.state.seats.includes(id)));
+          return { blocked: busy.length ? `${busy.map((id) => table.names[id] ?? '玩家').join('、')} 已經喺第二張枱打緊，重開唔到。` : null, run: () => push({ type: 'undo', target: endStep.seq }) };
+        })()}
+        onPullAlert={demoPull === 'off' ? undefined : (lines) => {
+          // 示範：扮收到推播，幾秒後自己收埋
+          const n = { g: `demo-pull-${Date.now()}`, at: Date.now(), title: `${table.name} 夠拉！找唔找？（示範通知）`, body: lines.join('；'), url: `/demo/t/${table.id.slice(1)}` };
+          pushNotice(n);
+          setTimeout(() => markSeen(n.g, n.at), 4000);
+        }}
         me="gavin"
         cash={{ perUnit: settleCfg.perUnit, currency: settleCfg.currency, rounding: settleCfg.rounding }}
         rulesHref="/demo/rules"
@@ -654,6 +675,8 @@ export default function Demo() {
           setDice((d) => ({ ...d, [table.id]: { values, by: 'gavin', at: Date.now(), n: (d[table.id]?.n ?? 0) + 1 } }));
         }}
       />
+      <NoticeBar />
+      </>
     );
   }
 
@@ -668,6 +691,8 @@ export default function Demo() {
       rulesHref="/demo/rules"
       settleHref="/demo/settle"
       water={{ on: !noWater, onToggle: async (on) => setNoWater(!on) }}
+      liveHref="/demo/live"
+      pullPush={{ value: demoPull, onChange: async (v) => setDemoPull(v) }}
       candidates={[{ id: 'kit', name: 'Kit' }, { id: 'jo', name: 'Jo' }]}
       me="gavin"
       regroup={{
@@ -685,9 +710,10 @@ export default function Demo() {
         },
         onApprove: async () => setDemoDraw((x) => (x ? { ...x, status: 'picking' } : x)),
         onPick: async (tile, player) => {
-          let r: 'ok' | 'taken' | 'done-already' = 'ok';
+          let r: 'ok' | 'taken' | 'done-already' | 'not-turn' = 'ok';
           setDemoDraw((x) => {
             if (!x || x.picks[String(tile)]) { r = 'taken'; return x; }
+            if (x.strict && drawNext(x) !== player) { r = 'not-turn'; return x; }
             const picks = { ...x.picks, [String(tile)]: player };
             return { ...x, picks, status: Object.keys(picks).length >= x.tiles.length ? 'done' : 'picking' };
           });

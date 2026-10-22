@@ -3,7 +3,8 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { CSSProperties } from 'react';
 import type { User } from 'firebase/auth';
-import { sendChat, setSessionMusic } from '../lib/data.ts';
+import { sendChat, setChatBlock, setSessionMusic } from '../lib/data.ts';
+import { useSuperAdmin } from '../lib/admin.ts';
 import { useChat, useGroup, useProfile, useSession } from '../lib/live.ts';
 import LiveNow from '../components/LiveHome.tsx';
 import type { ChatMsg } from '../lib/live.ts';
@@ -115,6 +116,8 @@ export interface TvTable {
   name: string;
   round: string;
   dealer: string | null;
+  /** 連莊（冧莊）幾多次 */
+  streak?: number;
   players: { id: string; name: string; v: number; wind: string }[];
   last: string;
 }
@@ -128,39 +131,82 @@ export function tvTablesOf(tables: { id: string; name: string; names: Record<str
     const name = (id: string) => t.names[id] ?? '玩家';
     const last = c.steps[c.steps.length - 1];
     return [{
-      id: t.id, name: t.name, round: roundLabel(c), dealer: c.info.dealer ?? null,
+      id: t.id, name: t.name, round: roundLabel(c), dealer: c.info.dealer ?? null, streak: c.state.streak,
       players: c.state.seats.map((id, i) => ({ id, name: name(id), v: (c.state.settled[id] ?? 0) + (c.pending[id] ?? 0), wind: WINDS[(i - c.state.dealerSeat + 4) % 4] })),
       last: last ? describe(last.event, name) : '未開始',
     }];
   });
 }
 
+/** 枱上四家：跟東南西北排（莊永遠喺第一） */
+export const bySeat = <T extends { wind: string }>(ps: T[]) => [...ps].sort((a, b) => WINDS.indexOf(a.wind) - WINDS.indexOf(b.wind));
+
+/** 幾多張枱 → 幾行幾列（全部枱一樣大，一版睇晒） */
+function gridOf(n: number): { cols: number; rows: number } {
+  if (n <= 1) return { cols: 1, rows: 1 };
+  if (n <= 3) return { cols: n, rows: 1 };
+  if (n === 4) return { cols: 2, rows: 2 };
+  if (n <= 6) return { cols: 3, rows: 2 };
+  if (n <= 8) return { cols: 4, rows: 2 };
+  return { cols: Math.ceil(n / 3), rows: 3 };
+}
+
+/** 防洗版：30 秒內講咗 5 句就要停 30 秒（正常傾偈唔會撞到） */
+function useCooldown() {
+  const sent = useRef<number[]>([]);
+  const [until, setUntil] = useState(0);
+  return {
+    until,
+    note(): boolean {
+      const now = Date.now();
+      if (now < until) return false;
+      sent.current = [...sent.current.filter((t) => now - t < 30000), now];
+      if (sent.current.length >= 5) { setUntil(now + 30000); sent.current = []; }
+      return true;
+    },
+  };
+}
+
 /** 顯示部分（示範都用） */
-export function LiveTv({ groupName, icon, sessionName, tables, ranking, chat, music, me, backHref, onSend, onMusic, channels = [], current }: {
+export function LiveTv({ groupName, icon, sessionName, tables, ranking, chat, music, me, backHref, onSend, onMusic, channels = [], current, moderate, blockedUntil = 0 }: {
   groupName: string; icon?: string; sessionName: string; tables: TvTable[]; ranking: { id: string; name: string; v: number }[];
   chat: ChatMsg[]; music?: string; me: string; backHref: string;
   onSend?: (text: string) => Promise<void>; onMusic?: (url: string) => Promise<void>;
-  /** 同時有幾個 Live：可以轉台 */
+  /** 自己有份嘅 Live（長期顯示，可以轉台） */
   channels?: { key: string; label: string; href: string }[];
   current?: string;
+  /** 場主、局主、超級管理員：禁言 24 小時／解禁 */
+  moderate?: { blocked: Record<string, number>; onBlock: (uid: string, on: boolean) => Promise<void> };
+  /** 自己被禁言到幾時 */
+  blockedUntil?: number;
 }) {
   const now = useNow();
   const [text, setText] = useState('');
   const [musicOpen, setMusicOpen] = useState(false);
   const [musicUrl, setMusicUrl] = useState(music ?? '');
   const [error, setError] = useState('');
+  const [chatOpen, setChatOpen] = useState(false);
+  const [modFor, setModFor] = useState<ChatMsg | null>(null);
   const root = useRef<HTMLDivElement>(null);
   const chatList = useRef<HTMLDivElement>(null);
   const { hints } = usePrefs();
+  const cool = useCooldown();
   // 新留言喺最底，舊嘅自己向上推；淨係碌留言框，唔好成頁跳落去。
   // 如果你碌咗上去睇舊留言，就唔好扯你返落嚟
   const stick = useRef(true);
+  const seen = useRef(chat.length);
+  const unread = chatOpen ? 0 : Math.max(0, chat.length - seen.current);
+  useEffect(() => { if (chatOpen) seen.current = chat.length; }, [chatOpen, chat.length]);
   useEffect(() => {
     const el = chatList.current;
     if (el && stick.current) el.scrollTop = el.scrollHeight;
-  }, [chat.length]);
+  }, [chat.length, chatOpen]);
   const emb = music ? embedOf(music) : null;
   const clock = new Date(now).toLocaleTimeString('zh-HK', { hour: '2-digit', minute: '2-digit' });
+  const { cols, rows } = gridOf(tables.length);
+  const muted = blockedUntil > now;
+  const coolLeft = Math.max(0, Math.ceil((cool.until - now) / 1000));
+  const chans = channels.length ? channels : current ? [{ key: current, label: `${groupName}・${sessionName}`, href: '' }] : [];
 
   async function full() {
     try {
@@ -170,7 +216,7 @@ export function LiveTv({ groupName, icon, sessionName, tables, ranking, chat, mu
   }
 
   return (
-    <div className="tv" ref={root}>
+    <div className="tv fit" ref={root} style={{ '--cols': cols, '--rows': rows } as CSSProperties}>
       <header className="tv-head">
         <Link to={backHref} className="tv-back" ariaLabel="返回">‹</Link>
         <GroupIcon icon={icon} name={groupName} size={40} />
@@ -181,32 +227,31 @@ export function LiveTv({ groupName, icon, sessionName, tables, ranking, chat, mu
         <button type="button" className="tv-btn" onClick={full} aria-label="全螢幕">⛶</button>
       </header>
 
-      {channels.length > 1 && (
+      {/* 轉台：長期顯示自己睇緊邊個 Live；有其他 Live 就撳得轉 */}
+      {chans.length > 0 && (
         <nav className="tv-channels" aria-label="轉台">
-          <span className="tv-channels-label">轉台</span>
-          {channels.map((c) => (
-            <Link key={c.key} to={c.href} className={`tv-channel${c.key === current ? ' on' : ''}`} ariaLabel={`睇 ${c.label}`}>
-              <i className="live-dot" aria-hidden="true" />{c.label}
-            </Link>
-          ))}
+          <span className="tv-channels-label">{chans.length > 1 ? '轉台' : '睇緊'}</span>
+          {chans.map((c) => (c.key === current || !c.href
+            ? <span key={c.key} className="tv-channel on" aria-current="true"><i className="live-dot" aria-hidden="true" />{c.label}</span>
+            : <Link key={c.key} to={c.href} className="tv-channel" ariaLabel={`睇 ${c.label}`}><i className="live-dot" aria-hidden="true" />{c.label}</Link>))}
         </nav>
       )}
 
       <div className="tv-body">
-        <main className={`tv-tables${tables.length >= 5 ? ' dense' : ''}`} style={{ '--cols': tables.length <= 1 ? 1 : tables.length <= 4 ? 2 : 3 } as CSSProperties}>
+        <main className="tv-tables">
           {tables.map((t) => (
             <section key={t.id} className="tv-table">
               <div className="tv-table-head"><b>{t.name}</b><span>{t.round}</span></div>
               <div className="tv-players">
-                {[...t.players].sort((a, b) => b.v - a.v).map((p) => (
-                  <div key={p.id} className={`tv-player${p.id === t.dealer ? ' dealer' : ''}`}>
+                {bySeat(t.players).map((p) => (
+                  <div key={p.id} className={`tv-player${p.id === t.dealer ? ' dealer' : ''}${p.id === me ? ' me' : ''}`}>
                     <span className="tv-wind">{p.wind}</span>
-                    <span className="grow ellipsis tv-name">{p.name}{p.id === t.dealer && <i className="tv-dealer">莊</i>}</span>
+                    <span className="grow ellipsis tv-name">{p.name}{p.id === t.dealer && <i className="tv-dealer">莊{t.streak ? ` 冧${t.streak}` : ''}</i>}</span>
                     <b className={`num tv-score ${p.v > 0 ? 'gain' : p.v < 0 ? 'loss' : ''}`}>{fmt(p.v)}</b>
                   </div>
                 ))}
               </div>
-              <div className="tv-last">{t.last}</div>
+              <div className="tv-last ellipsis">{t.last}</div>
             </section>
           ))}
           {!tables.length && <p className="tv-empty">而家冇枱打緊。</p>}
@@ -217,14 +262,14 @@ export function LiveTv({ groupName, icon, sessionName, tables, ranking, chat, mu
             <section className="tv-panel">
               <b>音樂</b>
               <div className="row">
-                <input className="input grow" value={musicUrl} onChange={(e) => setMusicUrl(e.target.value)} placeholder="貼 YouTube／YouTube Music／Spotify／Apple Music 連結" aria-label="音樂連結" />
+                <input className="input grow" value={musicUrl} onChange={(e) => setMusicUrl(e.target.value)} placeholder="貼 YouTube／Spotify／Apple Music 連結" aria-label="音樂連結" />
                 {onMusic && <button type="button" className="btn small-btn" onClick={async () => {
                   setError('');
                   if (musicUrl.trim() && !embedOf(musicUrl)) { setError('認唔到呢條連結'); return; }
                   try { await onMusic(musicUrl); } catch (err) { setError(message(err)); }
                 }}>播</button>}
               </div>
-              <small className="muted">YouTube 唔使登入；如果見到「Video unavailable」即係版權方唔俾喺其他網站播，揀過另一條（例如 Lyric video 或者播放清單）。Spotify：要喺呢個瀏覽器登入咗 Spotify Premium 先播到全首，否則只有 30 秒試聽。</small>
+              <small className="muted">YouTube 最穩陣（唔使登入）。Spotify／Apple Music 嵌入：要呢個瀏覽器本身登入咗先播到全首，否則得 30 秒試聽；電視瀏覽器多數登入唔到，咁就用手機 Spotify Connect 播去喇叭。</small>
             </section>
           )}
           {emb && (
@@ -239,37 +284,64 @@ export function LiveTv({ groupName, icon, sessionName, tables, ranking, chat, mu
           <section className="tv-panel tv-rank">
             <b>全場排名</b>
             <ol>
-              {ranking.slice(0, 8).map((r, i) => (
+              {ranking.map((r, i) => (
                 <li key={r.id} className={r.id === me ? 'me' : ''}><span className="tv-rank-no">{i + 1}</span><span className="grow ellipsis">{r.name}</span><b className={`num ${r.v > 0 ? 'gain' : r.v < 0 ? 'loss' : ''}`}>{fmt(r.v)}</b></li>
               ))}
             </ol>
           </section>
 
-          <section className="tv-panel tv-chat">
-            <b>直播室</b>
+          {/* 直播室：大螢幕喺右邊；手機變底部抽屜（撳頂部打開，有新留言會數住） */}
+          <section className={`tv-panel tv-chat${chatOpen ? ' open' : ''}`}>
+            <button type="button" className="tv-chat-head" aria-expanded={chatOpen} onClick={() => setChatOpen((v) => !v)}>
+              <b>直播室</b>
+              {unread > 0 && <span className="tv-unread">{unread}</span>}
+              <span className="grow" />
+              <span className="tv-chat-toggle" aria-hidden="true">{chatOpen ? '收埋' : '打開'}</span>
+            </button>
             <div className="tv-chat-list" ref={chatList} onScroll={(e) => { const el = e.currentTarget; stick.current = el.scrollHeight - el.scrollTop - el.clientHeight < 40; }}>
-              {chat.map((m) => (
-                <p key={m.id} className={`selectable${m.by === me ? ' mine' : ''}`}><b>{m.name}</b>{m.text}</p>
-              ))}
+              {chat.map((m) => {
+                const blocked = (moderate?.blocked[m.by] ?? 0) > now;
+                return (
+                  <p key={m.id} className={`selectable${m.by === me ? ' mine' : ''}`}>
+                    {moderate && m.by !== me ? <button type="button" className="tv-chat-name" onClick={() => setModFor(m)}>{m.name}{blocked ? ' 🔇' : ''}</button> : <b>{m.name}</b>}
+                    {m.text}
+                  </p>
+                );
+              })}
               {!chat.length && <p className="muted">未有留言，講兩句啦。</p>}
             </div>
-            {onSend && (
-              <form className="row" onSubmit={async (e) => {
+            {onSend && (muted ? <p className="tv-chat-muted">你被禁言到 {new Date(blockedUntil).toLocaleTimeString('zh-HK', { hour: '2-digit', minute: '2-digit' })}。</p> : (
+              <form className="row tv-chat-form" onSubmit={async (e) => {
                 e.preventDefault();
-                const t = text;
+                const t = text.trim();
+                if (!t) return;
+                if (!cool.note()) return;
                 setText('');
                 stick.current = true;
-                try { await onSend(t); } catch (err) { setError(message(err)); setText(t); }
+                try { await onSend(t); } catch (err) { setError(/permission|denied|權限/i.test(message(err)) ? '講得太快，等兩秒再講' : message(err)); setText(t); }
               }}>
-                <input className="input grow" value={text} onChange={(e) => setText(e.target.value.slice(0, 200))} placeholder="留言…" aria-label="留言" />
-                <button type="submit" className="btn small-btn" disabled={!text.trim()}>送出</button>
+                <input className="input grow" value={text} disabled={coolLeft > 0} onChange={(e) => setText(e.target.value.slice(0, 200))} onFocus={() => setChatOpen(true)} placeholder={coolLeft > 0 ? `講得好快喎，${coolLeft} 秒後再講` : '留言…'} aria-label="留言" />
+                <button type="submit" className="btn small-btn" disabled={!text.trim() || coolLeft > 0}>送出</button>
               </form>
-            )}
+            ))}
           </section>
           {error && <p className="error">{error}</p>}
           {hints && <p className="tv-tip">用 AirPlay／Chromecast「螢幕鏡像」，或者電腦接 HDMI 撳 ⛶ 全螢幕。</p>}
         </aside>
       </div>
+      {modFor && moderate && (() => {
+        const blocked = (moderate.blocked[modFor.by] ?? 0) > now;
+        return (
+          <div className="tv-mod" role="dialog" aria-label="管理留言">
+            <b>{modFor.name}</b>
+            <small>「{modFor.text}」</small>
+            <div className="row">
+              <button type="button" className={`btn small-btn${blocked ? '' : ' danger'}`} onClick={async () => { try { await moderate.onBlock(modFor.by, !blocked); } catch (err) { setError(message(err)); } setModFor(null); }}>{blocked ? '解除禁言' : '禁言 24 小時'}</button>
+              <button type="button" className="btn plain small-btn" onClick={() => setModFor(null)}>取消</button>
+            </div>
+          </div>
+        );
+      })()}
     </div>
   );
 }
@@ -278,6 +350,7 @@ export default function LivePage({ user, groupId, sessionId }: { user: User; gro
   const group = useGroup(groupId);
   const session = useSession(groupId, sessionId);
   const profile = useProfile(user.uid);
+  const admin = useSuperAdmin(user.uid);
   // 自己所有牌友圈入面打緊嘅大局：可以轉台
   const [chans, setChans] = useState<Record<string, string>>({});
   const onLive = useCallback((k: string, on: boolean, info?: { label: string }) => setChans((m) => {
@@ -332,6 +405,11 @@ export default function LivePage({ user, groupId, sessionId }: { user: User; gro
       backHref={`/g/${groupId}/s/${sessionId}`}
       onSend={(t) => sendChat(groupId, sessionId, user, t)}
       onMusic={(u) => setSessionMusic(groupId, sessionId, u)}
+      blockedUntil={session.data.chatBlock?.[user.uid] ?? 0}
+      moderate={session.data.createdBy === user.uid || group.data.ownerId === user.uid || admin ? {
+        blocked: session.data.chatBlock ?? {},
+        onBlock: (uid, on) => setChatBlock(groupId, sessionId, uid, on ? Date.now() + 24 * 3600000 : 0),
+      } : undefined}
     />
     </>
   );

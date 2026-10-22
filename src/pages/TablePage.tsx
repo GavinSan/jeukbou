@@ -4,6 +4,7 @@ import TableScreen, { ledgerSegments } from '../components/TableScreen.tsx';
 import Incoming from '../components/Incoming.tsx';
 import { canDo, appendEvent, applySwap, cancelSwap, declineSettle, requestSwap, reseat, rollDice, fanTableOf, settleConfigOf, deleteTable, isGuest, backfillLiveUsers } from '../lib/data.ts';
 import { useSuperAdmin } from '../lib/admin.ts';
+import { pullAlert } from '../lib/fns.ts';
 import { go } from '../lib/router.tsx';
 import { useEvents, useGroup, useManyEvents, useMembers, useRequests, useSession, useTables } from '../lib/live.ts';
 import { computeTable, rulesOf, rulesTimeline } from '../lib/score.ts';
@@ -100,9 +101,19 @@ export default function TablePage({ user, groupId, sessionId, tableId }: { user:
   const allGuests = c.state.seats.every((id) => isGuest(id));
   const canEnter = c.state.seats.includes(user.uid) || admin || (allGuests && (session.data?.createdBy === user.uid || owner));
 
+  // 完咗場可以重開（撤回完場）：大局未埋數、而佢哋四個冇人喺第二張枱打緊
+  const endStep = c.state.ended ? [...c.steps].reverse().find((st) => st.event.type === 'end') : undefined;
+  const busyElsewhere = c.state.seats.filter((id) => tables.data.some((t) => t.id !== tableId && computed[t.id] && !computed[t.id]!.state.ended && computed[t.id]!.state.seats.includes(id)));
+  const reopen = endStep && canEnter && !session.data?.closed ? {
+    blocked: busyElsewhere.length ? `${busyElsewhere.map((id) => table.names[id] ?? '玩家').join('、')} 已經喺第二張枱打緊，重開唔到（同一個人唔可以同時打兩張枱）。` : null,
+    run: () => appendEvent(groupId, sessionId, tableId, tableEvents.length + 1, user.uid, { type: 'undo', target: endStep.seq }),
+  } : undefined;
+
   return (
     <TableScreen
       table={table}
+      reopen={reopen}
+      onPullAlert={session.data?.pullPush && session.data.pullPush !== 'off' ? (lines) => { pullAlert({ g: groupId, s: sessionId, t: tableId, lines }).catch(() => undefined); } : undefined}
       canEnter={canEnter}
       colOrder={colOrder}
       computed={c}

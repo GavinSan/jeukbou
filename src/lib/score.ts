@@ -253,9 +253,9 @@ export function describe(event: TableEvent, name: (id: string) => string): strin
       const w = event.winners.map((x) => name(x.player)).join('、');
       const fans = event.winners.map((x) => `${x.fan}`).join(' / ');
       const z = event.dealer === 'one' ? '・莊當 1 番' : event.dealer === 'none' ? '・不計莊' : '';
-      if (event.loser === null) return `${w} 自摸 ${fans} 番${z}`;
-      const tag = event.winners.length === 2 ? '雙響，' : event.winners.length === 3 ? '三響，' : '';
-      return `${w} 食 ${name(event.loser)}（${tag}${fans} 番）${z}`;
+      if (event.loser === null) return `${w} 自摸 ${fans}番${z}`;
+      const tag = event.winners.length === 2 ? '雙響 ' : event.winners.length === 3 ? '三響 ' : '';
+      return `${w} 食 ${name(event.loser)} ${tag}${fans}番${z}`;
     }
     case 'special':
       return `${name(event.player)} ${event.label}，${event.direction === 'collect' ? '收' : '付'}每家 ${event.amount}`;

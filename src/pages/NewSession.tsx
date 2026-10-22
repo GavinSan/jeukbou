@@ -1,7 +1,7 @@
 import { useMemo, useState } from 'react';
 import type { FormEvent } from 'react';
 import type { User } from 'firebase/auth';
-import { createSession, guestId } from '../lib/data.ts';
+import { createSession, guestId, tableNameUpper } from '../lib/data.ts';
 import type { NewTable } from '../lib/data.ts';
 import { useGroup, useMembers } from '../lib/live.ts';
 import { go } from '../lib/router.tsx';
@@ -62,9 +62,9 @@ export default function NewSession({ user, groupId }: { user: User; groupId: str
       const names: Record<string, string> = {};
       for (let si = 0; si < 4; si++) {
         const s = tables[ti][si];
-        if (!s.value) { setError(`第 ${ti + 1} 枱${WINDS[si]}位未選人`); return; }
+        if (!s.value) { setError(`${tableNameUpper(ti)}${WINDS[si]}位未選人`); return; }
         if (s.value === GUEST) {
-          if (!s.guestName.trim()) { setError(`第 ${ti + 1} 枱${WINDS[si]}位訪客未有名稱`); return; }
+          if (!s.guestName.trim()) { setError(`${tableNameUpper(ti)}${WINDS[si]}位訪客未有名稱`); return; }
           const id = guestId();
           seats.push(id);
           names[id] = s.guestName.trim();
@@ -73,7 +73,7 @@ export default function NewSession({ user, groupId }: { user: User; groupId: str
           names[s.value] = memberName(s.value);
         }
       }
-      out.push({ name: `第 ${ti + 1} 枱`, seats, names });
+      out.push({ name: tableNameUpper(ti), seats, names });
     }
     setBusy(true);
     try {
@@ -101,10 +101,10 @@ export default function NewSession({ user, groupId }: { user: User; groupId: str
         {tables.map((t, ti) => (
           <section key={ti} className="panel">
             <div className="between">
-              <h2>第 {ti + 1} 枱</h2>
+              <h2>{tableNameUpper(ti)}</h2>
               <span className="row" style={{ gap: 4 }}>
                 <button type="button" className="textbtn" onClick={() => shuffleTable(ti)}>掉位</button>
-                {tables.length > 1 && <button type="button" className="textbtn loss" onClick={() => ask({ title: `刪除第 ${ti + 1} 枱`, detail: '呢張枱揀咗嘅人會清走。', run: () => removeTable(ti) })}>刪除</button>}
+                {tables.length > 1 && <button type="button" className="textbtn loss" onClick={() => ask({ title: `刪除${tableNameUpper(ti)}`, detail: '呢張枱揀咗嘅人會清走。', run: () => removeTable(ti) })}>刪除</button>}
               </span>
             </div>
             <div className="seat-grid">
@@ -124,7 +124,7 @@ export default function NewSession({ user, groupId }: { user: User; groupId: str
                       value={s.guestName}
                       onChange={(e) => setSeat(ti, si, { guestName: clampName(e.target.value) })}
                       placeholder="訪客名"
-                      aria-label={`第 ${ti + 1} 枱${WINDS[si]}位訪客名`}
+                      aria-label={`${tableNameUpper(ti)}${WINDS[si]}位訪客名`}
                     />
                   )}
                 </div>

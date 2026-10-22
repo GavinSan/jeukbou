@@ -434,8 +434,11 @@ export default function GroupPage({ user, groupId }: { user: User; groupId: stri
           memberCount={members.data.length}
           onClose={() => setGroupSettings(false)}
           water={(() => {
+            // 淨係局主、超級管理員睇晒；保管水嘅人睇到自己嗰份；其他人唔顯示
             const w = waterRowsOf(history.sessions, (id) => memberNames[id] ?? history.names[id] ?? '玩家');
-            return <WaterBox rows={w.rows} pending={w.pending} me={user.uid} perUnit={settleConfigOf(g).perUnit} />;
+            const rows = canManage ? w.rows : w.rows.filter((r) => r.id === user.uid);
+            if (!rows.length && !canManage) return null;
+            return <WaterBox rows={rows} pending={canManage ? w.pending : 0} me={user.uid} perUnit={settleConfigOf(g).perUnit} />;
           })()}
         />
       )}

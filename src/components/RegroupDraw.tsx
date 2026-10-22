@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import type { CSSProperties, PointerEvent as RPointerEvent } from 'react';
 import type { Draw } from '../lib/data.ts';
-import { UPPER_NUM, tableNameUpper } from '../lib/data.ts';
+import { UPPER_NUM, drawNext, tableNameUpper } from '../lib/data.ts';
 import { Sheet, clampName, message } from '../ui.tsx';
 import { sfx } from '../lib/sound.ts';
 import { buzz } from '../lib/haptics.ts';
@@ -94,6 +94,8 @@ export function DrawSetup({ tables, candidates, ranking, me, canForce, onStart, 
   // 減咗嘅人（包括訪客）記住，等佢可以加返
   const [removed, setRemoved] = useState<Person[]>([]);
   const [mode, setMode] = useState<'pick' | 'auto'>('pick');
+  // 由高分到低分輪住揀（預設開）；閂咗就邊個都可以隨時揀
+  const [strict, setStrict] = useState(() => { try { return localStorage.getItem('jeukbou-draw-strict') !== '0'; } catch { return true; } });
   const [guest, setGuest] = useState('');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
@@ -116,8 +118,9 @@ export function DrawSetup({ tables, candidates, ranking, me, canForce, onStart, 
       await onStart({
         id: Math.random().toString(36).slice(2, 10), by: me, at: Date.now(), mode, tables: tables.map((t) => t.id),
         players: roster, tiles, picks: {}, order: [...roster].sort((a, b) => rank(a.id) - rank(b.id)).map((p) => p.id),
-        status: canForce ? 'picking' : 'propose', approvals: [me],
+        status: canForce ? 'picking' : 'propose', approvals: [me], strict: mode === 'pick' && strict,
       });
+      try { localStorage.setItem('jeukbou-draw-strict', strict ? '1' : '0'); } catch { /* 唔緊要 */ }
       onClose();
     } catch (err) { setError(message(err)); setBusy(false); }
   }
@@ -148,6 +151,12 @@ export function DrawSetup({ tables, candidates, ranking, me, canForce, onStart, 
         <button type="button" role="radio" aria-checked={mode === 'pick'} aria-pressed={mode === 'pick'} onClick={() => setMode('pick')}>每人揀牌</button>
         <button type="button" role="radio" aria-checked={mode === 'auto'} aria-pressed={mode === 'auto'} onClick={() => setMode('auto')}>電腦派</button>
       </div>
+      {mode === 'pick' && (
+        <div className="rule-row">
+          <span className="grow">由高分到低分輪住揀<small>{strict ? '輪到先揀得，到你會通知你' : '閂咗：邊個都可以隨時揀'}</small></span>
+          <button type="button" role="switch" className="switch" aria-checked={strict} aria-label="由高分到低分輪住揀" onClick={() => setStrict((v) => !v)} />
+        </div>
+      )}
       {error && <p className="error">{error}</p>}
       <button type="button" className="btn big" disabled={busy || !ok} onClick={start}>
         {!ok ? (count < 4 ? `差 ${4 - count} 人` : `差 ${4 - rem} 人`) : canForce ? `開始（${n} 張枱）` : '提議（每張枱要一個人同意）'}
@@ -160,17 +169,22 @@ export function DrawSetup({ tables, candidates, ranking, me, canForce, onStart, 
 export function DrawBoard({ draw, me, tables, canForce, onApprove, onPick, onAuto, onCancel, onApply, onClose }: {
   draw: Draw; me: string; tables: DrawTable[]; canForce: boolean;
   onApprove: () => Promise<void>;
-  onPick: (tile: number, player: string) => Promise<'ok' | 'taken' | 'done-already'>;
+  onPick: (tile: number, player: string) => Promise<'ok' | 'taken' | 'done-already' | 'not-turn'>;
   onAuto: () => Promise<void>;
   onCancel: () => Promise<void>;
   onApply: (plan: { keep: string | null; seats: string[]; names: Record<string, string>; name: string }[], endTables: string[]) => Promise<void>;
   onClose: () => void;
 }) {
+  const next = drawNext(draw);
+  const strict = !!draw.strict && draw.status === 'picking';
   const nameOf = (id: string) => draw.players.find((p) => p.id === id)?.name ?? '玩家';
   const pickedBy = new Map(Object.entries(draw.picks).map(([k, v]) => [Number(k), v]));
   const done = new Set(Object.values(draw.picks));
   const left = draw.order.filter((id) => !done.has(id));
   const [actor, setActor] = useState<string>(() => (draw.players.some((p) => p.id === me) ? me : left[0] ?? ''));
+  // 輪住揀：一定係輪到嗰個；自己或者場主（幫冇電話嘅人）先撳得
+  const who = strict ? next ?? '' : actor;
+  const canPickNow = !strict || who === me || canForce || draw.by === me;
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
   const [keep, setKeep] = useState<Record<number, boolean>>({});
@@ -201,12 +215,14 @@ export function DrawBoard({ draw, me, tables, canForce, onApprove, onPick, onAut
   }
 
   async function pick(i: number) {
-    if (draw.status !== 'picking' || pickedBy.has(i) || !actor || busy) return;
+    if (draw.status !== 'picking' || pickedBy.has(i) || !who || busy) return;
+    if (!canPickNow) { setError(`未到你，等 ${nameOf(who)} 揀先`); return; }
     buzz('tap');
     await act(async () => {
-      const r = await onPick(i, actor);
+      const r = await onPick(i, who);
       if (r === 'taken') setError('呢隻啱啱俾人揀咗，揀過第二隻');
-      if (r === 'done-already') setError(`${nameOf(actor)} 已經揀咗`);
+      if (r === 'not-turn') setError('未輪到，等前面嘅人揀先');
+      if (r === 'done-already') setError(`${nameOf(who)} 已經揀咗`);
       if (r === 'ok') sfx.chips();
     });
   }
@@ -235,7 +251,13 @@ export function DrawBoard({ draw, me, tables, canForce, onApprove, onPick, onAut
 
       {draw.status !== 'propose' && (
         <>
-          {draw.status === 'picking' && (
+          {strict && (
+            <div className={`draw-turn${who === me ? ' mine' : ''}`} role="status">
+              {who === me ? <b>到你揀！撳一隻牌</b> : <span>輪到 <b>{nameOf(who)}</b> 揀{canPickNow ? '（佢冇電話可以幫佢撳）' : ''}</span>}
+              <small className="muted">次序：{draw.order.map((id) => `${nameOf(id)}${done.has(id) ? '✓' : ''}`).join(' → ')}</small>
+            </div>
+          )}
+          {draw.status === 'picking' && !strict && (
             <div className="draw-actor">
               <span className="small muted">幫邊個揀：</span>
               <div className="chips-row">
@@ -250,22 +272,22 @@ export function DrawBoard({ draw, me, tables, canForce, onApprove, onPick, onAut
           )}
           <div className={`draw-grid${shuffling && draw.status === 'picking' && !pickedBy.size ? ' shuffling' : ''}`} style={{ '--cols': Math.min(8, Math.max(5, Math.ceil(Math.sqrt(draw.tiles.length * 2.4)))) } as CSSProperties}>
             {draw.tiles.map((t, i) => {
-              const who = pickedBy.get(i);
-              const open = who !== undefined;
+              const owner = pickedBy.get(i);
+              const open = owner !== undefined;
               const delay = draw.mode === 'auto' && open ? `${(fresh.indexOf(i) >= 0 ? fresh.indexOf(i) : 0) * 0.12}s` : '0s';
               return (
                 <button
                   key={`${startedAt}-${i}`}
                   type="button"
-                  className={`draw-tile${open ? ' open' : ''}${who === me ? ' mine' : ''}`}
+                  className={`draw-tile${open ? ' open' : ''}${owner === me ? ' mine' : ''}`}
                   style={{ '--c': TILE_COLORS[t % TILE_COLORS.length], '--d': delay, '--sx': `${((i * 37) % 7) - 3}`, '--sy': `${((i * 53) % 5) - 2}` } as CSSProperties}
-                  disabled={open || draw.status !== 'picking' || !actor}
-                  aria-label={open ? `${UPPER_NUM[t]}，${nameOf(who!)}` : `第 ${i + 1} 隻牌，未揀`}
+                  disabled={open || draw.status !== 'picking' || !who || !canPickNow}
+                  aria-label={open ? `${UPPER_NUM[t]}，${nameOf(owner!)}` : `第 ${i + 1} 隻牌，未揀`}
                   onClick={() => pick(i)}
                 >
                   <span className="dt-inner">
                     <span className="dt-back" aria-hidden="true" />
-                    <span className="dt-face"><b>{UPPER_NUM[t]}</b>{open && <small className="dt-who">{nameOf(who!)}</small>}</span>
+                    <span className="dt-face"><b>{UPPER_NUM[t]}</b>{open && <small className="dt-who">{nameOf(owner!)}</small>}</span>
                   </span>
                 </button>
               );

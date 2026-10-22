@@ -125,7 +125,7 @@ export function SpecialArt({ art, heat = 0 }: { art: Art; heat?: number }) {
         </svg>
       );
     case 'forgot':
-      // 唔記得開：四隻牌冚住、鎖住，打個紅交叉
+      // 唔記得開：四隻牌冚住（問號）
       return (
         <svg className="sp-art side forgot" viewBox="0 0 160 90" preserveAspectRatio="xMidYMid meet" aria-hidden="true">
           {[0, 1, 2, 3].map((i) => (
@@ -135,7 +135,6 @@ export function SpecialArt({ art, heat = 0 }: { art: Art; heat?: number }) {
               <text x={34 + i * 31} y={48} textAnchor="middle" fontSize="16" fontWeight="700" fill="#D8DCD9" style={{ fontFamily: 'var(--font-kai)' }}>？</text>
             </g>
           ))}
-          <path className="strike" pathLength={100} d="M24 16 L137 72 M137 16 L24 72" stroke={RED} strokeWidth="5" strokeLinecap="round" opacity="0.9" />
         </svg>
       );
     case 'false':
