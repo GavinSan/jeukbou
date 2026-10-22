@@ -76,3 +76,13 @@ jobs:
           echo "=== Artifact Registry 清理設定"
           gcloud artifacts repositories describe gcf-artifacts --location northamerica-northeast2 --format="yaml(cleanupPolicies,cleanupPolicyDryRun,sizeBytes)" || true
           gcloud artifacts docker images list northamerica-northeast2-docker.pkg.dev/jeukbou-app/gcf-artifacts --include-tags --limit 30 --format="table(package.basename(),tags.list(),createTime)" 2>&1 | tail -30 || true
+      - name: 約局問人（meetupPing）最近記錄
+        env:
+          HOURS: ${{ inputs.hours }}
+        run: |
+          h=$(printf '%s' "$HOURS" | tr -cd '0-9'); h=${h:-8}
+          since=$(date -u -d "-${h} hours" +%Y-%m-%dT%H:%M:%SZ)
+          gcloud logging read "resource.type=\"cloud_run_revision\" AND resource.labels.service_name=\"meetupping\" AND timestamp>=\"${since}\" AND (logName:\"stdout\" OR logName:\"stderr\" OR logName:\"requests\")" \
+            --project jeukbou-app --limit 40 --order desc \
+            --format="value(timestamp,severity,httpRequest.status,jsonPayload.message,jsonPayload.ok,jsonPayload.failed,jsonPayload.tag,textPayload)" \
+            | grep -v -iE "private_key|sk-ant" | cut -c1-400 || true
