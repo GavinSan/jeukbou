@@ -1,4 +1,4 @@
-// 約局：約將來嘅日子同時間；大家應「去／可能／唔去」，人數用鬼馬講法（三缺一、二缺二…）
+// 約局：約將來嘅日子同時間；大家應「去／唔去」，人數用鬼馬講法（三缺一、二缺二…）；可以發通知問有冇人打
 import { useEffect, useRef, useState } from 'react';
 import type { Meetup } from '../lib/data.ts';
 import { meetupHost, meetupMood } from '../lib/data.ts';
@@ -11,20 +11,24 @@ export const meetupWhen = (t: number) => {
   return `${d.getMonth() + 1}月${d.getDate()}日（${WEEK[d.getDay()]}）${time}`;
 };
 
-export function MeetupCard({ m, me, onRsvp, onDelete, canDelete }: {
+export function MeetupCard({ m, me, onRsvp, onDelete, canDelete, onPing }: {
   m: Meetup; me: string; canDelete: boolean;
-  onRsvp: (status: 'going' | 'maybe' | 'no' | null) => Promise<void>; onDelete: () => Promise<void>;
+  onRsvp: (status: 'going' | 'no') => Promise<void>; onDelete: () => Promise<void>;
+  /** 發通知問未應嘅人；回覆一句結果 */
+  onPing?: () => Promise<string>;
 }) {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
+  const [note, setNote] = useState('');
   const [confirmUI, ask] = useConfirm();
-  const mine = m.going.includes(me) ? 'going' : m.maybe.includes(me) ? 'maybe' : m.no.includes(me) ? 'no' : null;
+  const mine = m.going.includes(me) ? 'going' : m.no.includes(me) ? 'no' : null;
   const n = m.going.length;
   const want = Math.max(1, m.tables ?? 1);
   // 位：最少顯示想開嘅枱數，人多過咗就加多枱（照樣可以加入）
   const slots = Math.max(want, Math.ceil((n + 1) / 4)) * 4;
   const soon = m.at - Date.now() < 86400000;
-  const act = async (t: () => Promise<void>) => { setBusy(true); setError(''); try { await t(); } catch (err) { setError(message(err)); } finally { setBusy(false); } };
+  const act = async (t: () => Promise<void>) => { setBusy(true); setError(''); setNote(''); try { await t(); } catch (err) { setError(message(err)); } finally { setBusy(false); } };
+  const lack = n < want * 4 ? want * 4 - n : (4 - (n % 4)) % 4;
   const nm = (id: string) => (id === me ? '你' : m.names[id] ?? '玩家');
   const host = meetupHost(m);
   return (
@@ -38,12 +42,18 @@ export function MeetupCard({ m, me, onRsvp, onDelete, canDelete }: {
       <div className="meetup-seats" aria-hidden="true">
         {Array.from({ length: slots }, (_, i) => <i key={i} className={i < n ? 'on' : ''} />)}
       </div>
-      {n > 0 && <p className="small muted">去：{m.going.map(nm).join('、')}{m.maybe.length ? `｜可能：${m.maybe.map(nm).join('、')}` : ''}</p>}
+      {n > 0 && <p className="small muted">去：{m.going.map(nm).join('、')}{m.no.length ? `｜唔去：${m.no.map(nm).join('、')}` : ''}</p>}
       <div className="seg wide" role="radiogroup" aria-label="去唔去">
-        {([['going', '去'], ['maybe', '可能'], ['no', '唔去']] as const).map(([k, t]) => (
-          <button key={k} type="button" role="radio" aria-checked={mine === k} aria-pressed={mine === k} disabled={busy} onClick={() => act(() => onRsvp(mine === k ? null : k))}>{t}</button>
+        {([['going', '去'], ['no', '唔去']] as const).map(([k, t]) => (
+          <button key={k} type="button" role="radio" aria-checked={mine === k} aria-pressed={mine === k} disabled={busy} onClick={() => { if (mine !== k) act(() => onRsvp(k)); }}>{t}</button>
         ))}
       </div>
+      {onPing && (
+        <button type="button" className="btn plain meetup-ping" disabled={busy} onClick={() => act(async () => setNote(await onPing()))}>
+          📣 問有冇人打{lack ? `（仲差 ${lack} 個）` : ''}
+        </button>
+      )}
+      {note && <p className="small gain">{note}</p>}
       <small className="muted"><span className="meetup-host">局主：{nm(host)}</span>{host !== m.by && `（${m.byName || '開局嗰個'} 唔去咗，由${host === me ? '你' : '佢'}接手）`}</small>
       {error && <p className="error">{error}</p>}
       {confirmUI}
@@ -93,11 +103,12 @@ export function MeetupSheet({ onSave, onClose, existing = [] }: { onSave: (m: { 
 }
 
 /** 牌友圈頁嘅約局區（純顯示，示範都用） */
-export function MeetupsView({ list, me, ownerOrAdmin, onCreate, onRsvp, onDelete }: {
+export function MeetupsView({ list, me, ownerOrAdmin, onCreate, onRsvp, onDelete, onPing }: {
   list: Meetup[]; me: string; ownerOrAdmin: boolean;
   onCreate: (m: { at: number; place: string; note: string; tables: number }) => Promise<void>;
-  onRsvp: (id: string, status: 'going' | 'maybe' | 'no' | null) => Promise<void>;
+  onRsvp: (id: string, status: 'going' | 'no') => Promise<void>;
   onDelete: (id: string) => Promise<void>;
+  onPing?: (id: string) => Promise<string>;
 }) {
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLElement>(null);
@@ -112,8 +123,8 @@ export function MeetupsView({ list, me, ownerOrAdmin, onCreate, onRsvp, onDelete
         <button type="button" className="textbtn" onClick={() => setOpen(true)}>＋ 約局</button>
       </div>
       {list.length ? list.map((m) => (
-        <MeetupCard key={m.id} m={m} me={me} canDelete={ownerOrAdmin || meetupHost(m) === me} onRsvp={(s) => onRsvp(m.id, s)} onDelete={() => onDelete(m.id)} />
-      )) : <button type="button" className="meetup-empty" onClick={() => setOpen(true)}>未有約局。約定日子時間，等大家應「去」，夠腳就知；人多可以開幾張枱。</button>}
+        <MeetupCard key={m.id} m={m} me={me} canDelete={ownerOrAdmin || meetupHost(m) === me} onRsvp={(s) => onRsvp(m.id, s)} onDelete={() => onDelete(m.id)} onPing={onPing && (() => onPing(m.id))} />
+      )) : <button type="button" className="meetup-empty" onClick={() => setOpen(true)}>未有約局。約定日子時間，等大家揀「去」定「唔去」，夠腳就知；人多可以開幾張枱。</button>}
       {open && <MeetupSheet onSave={onCreate} onClose={() => setOpen(false)} existing={list} />}
     </section>
   );
