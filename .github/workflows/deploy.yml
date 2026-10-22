@@ -16,6 +16,10 @@ on:
         description: 部署完發一個測試通知俾超級管理員（要佢部手機開咗通知）
         type: boolean
         default: false
+      show_logs:
+        description: 部署完顯示 Cloud Functions 最近嘅錯誤記錄（查通知發唔到）
+        type: boolean
+        default: false
 
 permissions:
   contents: read
@@ -47,6 +51,7 @@ jobs:
           ENABLE_PUSH: ${{ vars.ENABLE_PUSH }}
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
           TEST_PUSH: ${{ inputs.test_push }}
+          SHOW_LOGS: ${{ inputs.show_logs }}
         run: |
           if [ -z "$FIREBASE_SERVICE_ACCOUNT" ]; then
             echo "::error::搵唔到 FIREBASE_SERVICE_ACCOUNT secret。去 Settings → Secrets and variables → Actions → Secrets 加返，名要一模一樣。"
@@ -134,6 +139,12 @@ jobs:
           if [ "$TEST_PUSH" = "true" ]; then
             [ -d functions/node_modules ] || npm install --prefix functions --no-audit --no-fund --omit=dev >/dev/null
             node scripts/push-admin.mjs || echo "::warning title=test push::發唔到測試通知"
+          fi
+          # 手動跑 Deploy 揀咗 show_logs：顯示 functions 最近嘅錯誤（唔顯示金鑰）
+          if [ "$SHOW_LOGS" = "true" ]; then
+            npx --yes firebase-tools@13 functions:log --project jeukbou-app -n 200 2>&1 \
+              | sed 's/\x1b\[[0-9;]*m//g' | grep -v -iE "private_key|sk-ant" \
+              | grep -iE " E |error|denied|unauthenticated|forbidden|failed" | tail -40 || true
           fi
           rm -f "$RUNNER_TEMP/sa.json"
           exit "$fail"

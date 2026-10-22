@@ -10,7 +10,18 @@ async function call<I, O>(name: string, data: I): Promise<O> {
     return (await f.httpsCallable<I, O>(f.getFunctions(app, FUNCTIONS_REGION), name)(data)).data;
   } catch (err) {
     const msg = err && typeof err === 'object' && 'message' in err ? String((err as { message: unknown }).message) : '';
-    throw new Error(msg || '伺服器未能處理');
+    const code = err && typeof err === 'object' && 'code' in err ? String((err as { code: unknown }).code).replace('functions/', '') : '';
+    // 伺服器自己寫嘅中文訊息照出；其他（英文）就講清楚係咩錯，方便報返嚟
+    if (/[一-鿿]/.test(msg)) throw new Error(msg);
+    const HINT: Record<string, string> = {
+      internal: '伺服器出錯，或者呢個功能未開通',
+      'not-found': '伺服器未有呢個功能（可能未部署好）',
+      unavailable: '連唔到伺服器，請檢查網絡',
+      'deadline-exceeded': '伺服器太耐冇回應',
+      unauthenticated: '要重新登入',
+      'permission-denied': '冇權限',
+    };
+    throw new Error(`${HINT[code] ?? '伺服器未能處理'}（${code || msg || name}）`);
   }
 }
 
