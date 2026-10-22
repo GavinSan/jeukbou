@@ -339,7 +339,8 @@ export default function TableScreen(props: TableScreenProps) {
 
   /** 拉緊幾多家／被幾多家拉 */
   const pulling = (id: string) => c.state.chains.filter((ch) => ch.puller === id).length;
-  const pullers = (id: string) => c.state.chains.filter((ch) => ch.pulled === id).length;
+  // 被拉：寫埋第幾拉（被拉二）；被幾家拉就逐家寫（被拉二・一）
+  const pulledLabel = (id: string) => `被拉${c.state.chains.filter((ch) => ch.pulled === id).map((ch) => cnNum(ch.count)).join('・')}`;
 
   const every = rules.la.settleEvery;
   const settleable = rules.la.enabled && every > 0 && !ended
@@ -646,7 +647,7 @@ export default function TableScreen(props: TableScreenProps) {
               <span className="t-name"><span className="ellipsis">{name(id)}</span>{isDealer && <span className="dealer-mark">莊{c.state.streak ? c.state.streak : ''}</span>}</span>
               <RollingNumber value={settled} className={`t-score t-${tone2(settled)}`} />
               <span className="t-foot">
-                {owe[id] ? <><Chips key={`c${owe[id]}`} amount={owe[id]} pop={down} /><RollingNumber value={-owe[id]} className="t-loss" /><span className="t-la loss" title="被幾多家拉緊">{pullers(id) > 1 ? `被${pullers(id)}家拉` : '被拉'}</span></> : null}
+                {owe[id] ? <><Chips key={`c${owe[id]}`} amount={owe[id]} pop={down} /><RollingNumber value={-owe[id]} className="t-loss" /><span className="t-la loss" title="被拉緊第幾拉">{pulledLabel(id)}</span></> : null}
                 {collect[id] ? <><RollingNumber value={collect[id]} className="t-gain" /><span className="t-la gain" title="拉緊幾多家">拉{pulling(id)}家</span></> : null}
                 <span className="t-wind">{seatWind(c.state, id)}</span>
               </span>
@@ -1377,6 +1378,10 @@ function settleableCount(c: Computed, rules: Rules, ended: boolean, declined: st
     return ch.count % every === 0 && !dismissed.includes(key) && !declined.includes(key);
   }).length;
 }
+
+const CN = ['零', '一', '二', '三', '四', '五', '六', '七', '八', '九', '十'];
+/** 1–10 用中文數字（被拉二），再多就用阿拉伯數字 */
+const cnNum = (n: number) => CN[n] ?? String(n);
 
 const tone2 = (n: number) => (n > 0 ? 'gain' : n < 0 ? 'loss' : 'even');
 

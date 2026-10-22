@@ -1,10 +1,11 @@
 // 電視直播：大字、即時更新；可以用 AirPlay／Chromecast 鏡像，或者電腦接電視全螢幕播。
 // 旁邊有直播室（留言）同音樂（YouTube、YouTube Music、Spotify、Apple Music 嵌入播放）。
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { CSSProperties } from 'react';
 import type { User } from 'firebase/auth';
 import { sendChat, setSessionMusic } from '../lib/data.ts';
-import { useChat, useGroup, useSession } from '../lib/live.ts';
+import { useChat, useGroup, useProfile, useSession } from '../lib/live.ts';
+import LiveNow from '../components/LiveHome.tsx';
 import type { ChatMsg } from '../lib/live.ts';
 import { roundLabel, useSessionLive } from '../lib/sessionData.ts';
 import type { Computed } from '../lib/score.ts';
@@ -15,7 +16,7 @@ import { usePrefs } from '../lib/prefs.ts';
 import GroupIcon from '../components/GroupIcon.tsx';
 
 /** 將分享連結變成可以嵌入嘅播放器網址；唔認得就 null */
-export function embedOf(raw: string): { src: string; kind: 'youtube' | 'spotify' | 'apple' } | null {
+export function embedOf(raw: string): { src: string; kind: 'youtube' | 'spotify' | 'apple'; yt?: { id?: string; list?: string } } | null {
   let u: URL;
   try { u = new URL(raw.trim()); } catch { return null; }
   const host = u.hostname.replace(/^www\./, '');
@@ -23,13 +24,13 @@ export function embedOf(raw: string): { src: string; kind: 'youtube' | 'spotify'
   const yt = (id: string, list: string | null) => `https://www.youtube.com/embed/${id}?autoplay=1&playsinline=1&rel=0${list ? `&list=${list}` : ''}`;
   if (host === 'youtu.be') {
     const id = u.pathname.slice(1).split('/')[0];
-    return id ? { src: yt(id, u.searchParams.get('list')), kind: 'youtube' } : null;
+    return id ? { src: yt(id, u.searchParams.get('list')), kind: 'youtube', yt: { id, list: u.searchParams.get('list') ?? undefined } } : null;
   }
   if (host === 'youtube.com' || host === 'm.youtube.com' || host === 'music.youtube.com' || host === 'youtube-nocookie.com') {
     const v = u.searchParams.get('v') ?? /^\/(?:shorts|live|embed)\/([\w-]{6,})/.exec(u.pathname)?.[1];
     const list = u.searchParams.get('list');
-    if (v && v !== 'videoseries') return { src: yt(v, list), kind: 'youtube' };
-    if (list) return { src: `https://www.youtube.com/embed/videoseries?list=${list}&autoplay=1&playsinline=1`, kind: 'youtube' };
+    if (v && v !== 'videoseries') return { src: yt(v, list), kind: 'youtube', yt: { id: v, list: list ?? undefined } };
+    if (list) return { src: `https://www.youtube.com/embed/videoseries?list=${list}&autoplay=1&playsinline=1`, kind: 'youtube', yt: { list } };
     return null;
   }
   if (host === 'open.spotify.com') {
@@ -38,6 +39,75 @@ export function embedOf(raw: string): { src: string; kind: 'youtube' | 'spotify'
   }
   if (host === 'music.apple.com') return { src: `https://embed.music.apple.com${u.pathname}${u.search}`, kind: 'apple' };
   return null;
+}
+
+// ---------- YouTube：用官方播放器 API ----------
+// 先靜音自動播（瀏覽器唔俾有聲自動播），撳「開聲」先有聲；播唔到就講原因
+interface YTPlayer { playVideo(): void; mute(): void; unMute(): void; setVolume(v: number): void; destroy(): void }
+interface YTEvent { target: YTPlayer; data: number }
+interface YTNamespace { Player: new (el: HTMLElement, opts: Record<string, unknown>) => YTPlayer }
+let ytLoading: Promise<YTNamespace> | null = null;
+function loadYT(): Promise<YTNamespace> {
+  const w = window as unknown as { YT?: YTNamespace & { loaded?: number }; onYouTubeIframeAPIReady?: () => void };
+  if (w.YT?.Player && w.YT.loaded) return Promise.resolve(w.YT);
+  if (!ytLoading) {
+    ytLoading = new Promise((ok, bad) => {
+      const prev = w.onYouTubeIframeAPIReady;
+      w.onYouTubeIframeAPIReady = () => { prev?.(); if (w.YT) ok(w.YT); };
+      const el = document.createElement('script');
+      el.src = 'https://www.youtube.com/iframe_api';
+      el.async = true;
+      el.onerror = () => { ytLoading = null; bad(new Error('YouTube 載入唔到')); };
+      document.head.appendChild(el);
+      setTimeout(() => bad(new Error('YouTube 載入太耐')), 15000);
+    });
+  }
+  return ytLoading;
+}
+
+const YT_ERRORS: Record<number, string> = {
+  2: '條連結有問題（片 ID 唔啱）',
+  5: '呢部機播唔到，試下第二個瀏覽器',
+  100: '搵唔到呢條片（可能刪咗或者私人）',
+  101: '版權方唔俾喺其他網站播：揀過另一條（例如 Lyric video、播放清單）',
+  150: '版權方唔俾喺其他網站播：揀過另一條（例如 Lyric video、播放清單）',
+  153: '播放器設定出錯，重新載入再試',
+};
+
+function YouTubeMusic({ id, list, fallbackSrc }: { id?: string; list?: string; fallbackSrc: string }) {
+  const host = useRef<HTMLDivElement>(null);
+  const player = useRef<YTPlayer | null>(null);
+  const [muted, setMuted] = useState(true);
+  const [err, setErr] = useState('');
+  const [plain, setPlain] = useState(false);
+  useEffect(() => {
+    let alive = true;
+    setErr(''); setMuted(true); setPlain(false);
+    loadYT().then((YT) => {
+      if (!alive || !host.current) return;
+      const el = document.createElement('div');
+      host.current.replaceChildren(el);
+      player.current = new YT.Player(el, {
+        width: '100%', height: '100%',
+        ...(id ? { videoId: id } : {}),
+        playerVars: { autoplay: 1, mute: 1, playsinline: 1, rel: 0, ...(list ? { list, listType: 'playlist' } : {}) },
+        events: {
+          onReady: (e: YTEvent) => { e.target.mute(); e.target.playVideo(); },
+          onError: (e: YTEvent) => setErr(YT_ERRORS[e.data] ?? `播唔到（${e.data}）`),
+        },
+      });
+    }).catch(() => { if (alive) setPlain(true); });
+    return () => { alive = false; try { player.current?.destroy(); } catch { /* 已經冇咗 */ } player.current = null; };
+  }, [id, list]);
+  if (plain) return <iframe title="音樂" src={fallbackSrc} allow="autoplay; encrypted-media; fullscreen; picture-in-picture" referrerPolicy="strict-origin-when-cross-origin" />;
+  return (
+    <>
+      <div className="yt-host" ref={host} />
+      {err ? <p className="tv-music-err">⚠️ {err}</p> : muted && (
+        <button type="button" className="tv-unmute" onClick={() => { const p = player.current; if (!p) return; p.unMute(); p.setVolume(100); p.playVideo(); setMuted(false); }}>🔊 開聲</button>
+      )}
+    </>
+  );
 }
 
 export interface TvTable {
@@ -66,10 +136,13 @@ export function tvTablesOf(tables: { id: string; name: string; names: Record<str
 }
 
 /** 顯示部分（示範都用） */
-export function LiveTv({ groupName, icon, sessionName, tables, ranking, chat, music, me, backHref, onSend, onMusic }: {
+export function LiveTv({ groupName, icon, sessionName, tables, ranking, chat, music, me, backHref, onSend, onMusic, channels = [], current }: {
   groupName: string; icon?: string; sessionName: string; tables: TvTable[]; ranking: { id: string; name: string; v: number }[];
   chat: ChatMsg[]; music?: string; me: string; backHref: string;
   onSend?: (text: string) => Promise<void>; onMusic?: (url: string) => Promise<void>;
+  /** 同時有幾個 Live：可以轉台 */
+  channels?: { key: string; label: string; href: string }[];
+  current?: string;
 }) {
   const now = useNow();
   const [text, setText] = useState('');
@@ -108,6 +181,17 @@ export function LiveTv({ groupName, icon, sessionName, tables, ranking, chat, mu
         <button type="button" className="tv-btn" onClick={full} aria-label="全螢幕">⛶</button>
       </header>
 
+      {channels.length > 1 && (
+        <nav className="tv-channels" aria-label="轉台">
+          <span className="tv-channels-label">轉台</span>
+          {channels.map((c) => (
+            <Link key={c.key} to={c.href} className={`tv-channel${c.key === current ? ' on' : ''}`} ariaLabel={`睇 ${c.label}`}>
+              <i className="live-dot" aria-hidden="true" />{c.label}
+            </Link>
+          ))}
+        </nav>
+      )}
+
       <div className="tv-body">
         <main className={`tv-tables${tables.length >= 5 ? ' dense' : ''}`} style={{ '--cols': tables.length <= 1 ? 1 : tables.length <= 4 ? 2 : 3 } as CSSProperties}>
           {tables.map((t) => (
@@ -145,8 +229,10 @@ export function LiveTv({ groupName, icon, sessionName, tables, ranking, chat, mu
           )}
           {emb && (
             <section className={`tv-music ${emb.kind}`}>
-              <iframe key={emb.src} title="音樂" src={emb.src} allow="autoplay; encrypted-media; fullscreen; clipboard-write; picture-in-picture" referrerPolicy="strict-origin-when-cross-origin" />
-              <small className="tv-music-foot">冇聲？撳一下播放器個 ▶︎（好多瀏覽器唔俾自動播有聲）・<a href={music} target="_blank" rel="noreferrer">喺{emb.kind === 'youtube' ? ' YouTube' : emb.kind === 'spotify' ? ' Spotify' : ' Apple Music'} 開</a>{onMusic && <> ・<button type="button" className="textbtn small" onClick={() => onMusic('').catch(() => undefined)}>停</button></>}</small>
+              {emb.kind === 'youtube'
+                ? <YouTubeMusic key={emb.src} id={emb.yt?.id} list={emb.yt?.list} fallbackSrc={emb.src} />
+                : <iframe key={emb.src} title="音樂" src={emb.src} allow="autoplay; encrypted-media; fullscreen; clipboard-write; picture-in-picture" referrerPolicy="strict-origin-when-cross-origin" />}
+              <small className="tv-music-foot">{emb.kind === 'youtube' ? '一開始靜音播（瀏覽器規矩），撳「開聲」先有聲' : '冇聲？撳一下播放器個 ▶︎'}・<a href={music} target="_blank" rel="noreferrer">喺{emb.kind === 'youtube' ? ' YouTube' : emb.kind === 'spotify' ? ' Spotify' : ' Apple Music'} 開</a>{onMusic && <> ・<button type="button" className="textbtn small" onClick={() => onMusic('').catch(() => undefined)}>停</button></>}</small>
             </section>
           )}
 
@@ -191,6 +277,16 @@ export function LiveTv({ groupName, icon, sessionName, tables, ranking, chat, mu
 export default function LivePage({ user, groupId, sessionId }: { user: User; groupId: string; sessionId: string }) {
   const group = useGroup(groupId);
   const session = useSession(groupId, sessionId);
+  const profile = useProfile(user.uid);
+  // 自己所有牌友圈入面打緊嘅大局：可以轉台
+  const [chans, setChans] = useState<Record<string, string>>({});
+  const onLive = useCallback((k: string, on: boolean, info?: { label: string }) => setChans((m) => {
+    if (on && info) return m[k] === info.label ? m : { ...m, [k]: info.label };
+    if (!(k in m)) return m;
+    const n = { ...m };
+    delete n[k];
+    return n;
+  }), []);
   const live = useSessionLive(groupId, sessionId, group.data, session.data);
   const chat = useChat(groupId, sessionId);
   const tables = useMemo(() => tvTablesOf(live.tables, live.computed), [live.tables, live.computed]);
@@ -215,8 +311,16 @@ export default function LivePage({ user, groupId, sessionId }: { user: User; gro
     return () => { lock?.release().catch(() => undefined); };
   }, []);
   if (!group.data || !session.data) return <main className="page"><Loading /></main>;
+  const here = `${groupId}/${sessionId}`;
+  const channels = Object.entries({ [here]: `${group.data.name}・${session.data.name}`, ...chans })
+    .map(([key, label]) => ({ key, label, href: `/live/${key}` }));
   return (
+    <>
+    <LiveNow groupIds={profile.data.groups} me={user.uid} onLive={onLive} hidden />
     <LiveTv
+      key={here}
+      channels={channels}
+      current={here}
       groupName={group.data.name}
       icon={group.data.icon}
       sessionName={session.data.name}
@@ -229,5 +333,6 @@ export default function LivePage({ user, groupId, sessionId }: { user: User; gro
       onSend={(t) => sendChat(groupId, sessionId, user, t)}
       onMusic={(u) => setSessionMusic(groupId, sessionId, u)}
     />
+    </>
   );
 }

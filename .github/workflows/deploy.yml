@@ -11,6 +11,11 @@ on:
   push:
     branches: [main]
   workflow_dispatch:
+    inputs:
+      test_push:
+        description: 部署完發一個測試通知俾超級管理員（要佢部手機開咗通知）
+        type: boolean
+        default: false
 
 permissions:
   contents: read
@@ -41,6 +46,7 @@ jobs:
           SUPER_ADMIN_EMAIL: ${{ secrets.SUPER_ADMIN_EMAIL }}
           ENABLE_PUSH: ${{ vars.ENABLE_PUSH }}
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          TEST_PUSH: ${{ inputs.test_push }}
         run: |
           if [ -z "$FIREBASE_SERVICE_ACCOUNT" ]; then
             echo "::error::搵唔到 FIREBASE_SERVICE_ACCOUNT secret。去 Settings → Secrets and variables → Actions → Secrets 加返，名要一模一樣。"
@@ -114,7 +120,18 @@ jobs:
                 | while IFS= read -r line; do echo "::error title=${target}::${line}"; done
             else
               echo "::notice title=${target}::部署成功"
+              # 舊嘅 function 映像檔：Artifact Registry 自動清走一日前嘅（唔使人手去刪）
+              if [ "$target" = "functions" ]; then
+                npx --yes firebase-tools@13 functions:artifacts:setpolicy --location us-central1 --days 1 --force --project jeukbou-app --non-interactive >/dev/null 2>&1 \
+                  && echo "::notice title=functions::舊映像檔會自動清走（保留 1 日）" \
+                  || echo "::warning title=functions::設定唔到自動清走舊映像檔（服務帳戶要 Artifact Registry Administrator）"
+              fi
             fi
           done
+          # 手動跑 Deploy 揀咗 test_push：發一個測試通知俾超級管理員
+          if [ "$TEST_PUSH" = "true" ]; then
+            [ -d functions/node_modules ] || npm install --prefix functions --no-audit --no-fund --omit=dev >/dev/null
+            node scripts/push-admin.mjs || echo "::warning title=test push::發唔到測試通知"
+          fi
           rm -f "$RUNNER_TEMP/sa.json"
           exit "$fail"

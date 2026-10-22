@@ -2,6 +2,7 @@
 import { useState } from 'react';
 import type { User } from 'firebase/auth';
 import { markPaid } from '../lib/data.ts';
+import { remindPay, remindResult } from '../lib/fns.ts';
 import { useProfile } from '../lib/live.ts';
 import { useMyPay } from '../lib/pay.ts';
 import type { PayItem } from '../lib/pay.ts';
@@ -12,11 +13,20 @@ import { Link } from '../lib/router.tsx';
 
 const md = (t: number) => { const d = new Date(t); return `${d.getMonth() + 1}月${d.getDate()}日`; };
 
-export function MyPayView({ me, items, legacy, names, emails, loading, onToggle, busyKey }: {
+export function MyPayView({ me, items, legacy, names, emails, loading, onToggle, busyKey, onRemind }: {
   me: string; items: PayItem[]; legacy: { gid: string; gname: string; sid: string; sname: string; at: number; fan: number; cash: number }[];
   names: Record<string, string>; emails: Record<string, string>; loading: boolean; onToggle?: (it: PayItem, on: boolean) => void; busyKey?: string;
+  /** 催找數：回覆一句結果 */
+  onRemind?: (items: PayItem[]) => Promise<string>;
 }) {
   const [who, setWho] = useState<{ ids: string[]; amount: number } | null>(null);
+  const [nudged, setNudged] = useState<Record<string, string>>({});
+  // 一個人欠我幾場：一齊催（一個通知講晒）
+  const nudge = async (k: string) => {
+    const list = open.filter((x) => x.dir === 'get' && x.from === k);
+    setNudged((m) => ({ ...m, [k]: '…' }));
+    try { const r = await onRemind!(list); setNudged((m) => ({ ...m, [k]: r })); } catch (err) { setNudged((m) => ({ ...m, [k]: err instanceof Error ? err.message : '催唔到' })); }
+  };
   const pp = { me, names, emails };
   const open = items.filter((x) => !x.paid);
   const toPay = open.filter((x) => x.dir === 'pay');
@@ -50,7 +60,7 @@ export function MyPayView({ me, items, legacy, names, emails, loading, onToggle,
               <h2 className="section-head">每個人</h2>
               <ul className="list person-net">
                 {people.map((p) => (
-                  <li key={p.key}>
+                  <li key={p.key} className="person-net-row">
                     <button type="button" className="listrow" onClick={() => setWho({ ids: p.key.split(' + '), amount: Math.abs(p.net) })}>
                       <span className="grow exp-text">
                         <span>{p.key.split(' + ').map((id) => names[id] ?? '玩家').join(' + ')}</span>
@@ -59,6 +69,11 @@ export function MyPayView({ me, items, legacy, names, emails, loading, onToggle,
                       <b className={`num ${p.net < 0 ? 'loss' : 'gain'}`}>{money(Math.abs(p.net))}</b>
                       <span className="chev" aria-hidden="true">›</span>
                     </button>
+                    {onRemind && p.net > 0 && (
+                      <button type="button" className="pay-remind" disabled={!!nudged[p.key]} onClick={() => nudge(p.key)}>
+                        {nudged[p.key] ? (nudged[p.key] === '…' ? '催緊…' : nudged[p.key]) : `💸 催 ${p.key.split(' + ').map((id) => names[id] ?? '玩家').join(' + ')} 找數`}
+                      </button>
+                    )}
                   </li>
                 ))}
               </ul>
@@ -67,7 +82,7 @@ export function MyPayView({ me, items, legacy, names, emails, loading, onToggle,
 
           <section className="stack">
             <h2 className="section-head">未轉（{open.length}）</h2>
-            {open.length ? <PayRows items={open} pp={pp} showSession busyKey={busyKey} canToggle={(it) => it.dir === 'pay' || it.dir === 'get'} onToggle={onToggle} /> : <p className="muted">冇未過嘅數，好嘢！</p>}
+            {open.length ? <PayRows items={open} pp={pp} showSession busyKey={busyKey} canToggle={(it) => it.dir === 'pay' || it.dir === 'get'} onToggle={onToggle} onRemind={onRemind} /> : <p className="muted">冇未過嘅數，好嘢！</p>}
           </section>
 
           {legacy.length > 0 && (
@@ -92,7 +107,7 @@ export function MyPayView({ me, items, legacy, names, emails, loading, onToggle,
               <PayRows items={items.filter((x) => x.paid)} pp={pp} showSession busyKey={busyKey} canToggle={(it) => it.dir === 'pay' || it.dir === 'get'} onToggle={onToggle} />
             </section>
           )}
-          <Hint>只計已經埋咗數嘅大局（麻雀＋水＋開支合併）。喺「設定」填 Interac email，人哋找數就知轉去邊。</Hint>
+          <Hint>只計已經埋咗數嘅大局（麻雀＋水＋開支合併）。「每個人」會將同一個人幾場嘅數加埋；轉賬就逐場標記。人哋欠你錢可以撳「催找數」，佢部機會收到通知（每筆 6 個鐘最多催一次）。</Hint>
         </>
       )}
       {who && <PersonSheet ids={who.ids} pp={pp} amount={who.amount} onClose={() => setWho(null)} />}
@@ -106,6 +121,7 @@ export default function MyPayPage({ user }: { user: User }) {
   const [busy, setBusy] = useState('');
   const [error, setError] = useState('');
   const data = useMyPay(profile.loading ? null : user.uid, profile.data.groups, tick);
+  const remindText = async (items: PayItem[]) => remindResult(await remindPay(items.map((it) => ({ g: it.gid, s: it.sid, key: it.key }))));
   return (
     <>
       <MyPayView
@@ -116,6 +132,7 @@ export default function MyPayPage({ user }: { user: User }) {
         emails={data.emails}
         loading={profile.loading || data.loading}
         busyKey={busy}
+        onRemind={remindText}
         onToggle={async (it, on) => {
           setBusy(it.key); setError('');
           try { await markPaid(it.gid, it.sid, it.key, user.uid, on); setTick((t) => t + 1); } catch (err) { setError(message(err)); } finally { setBusy(''); }

@@ -49,12 +49,21 @@ export function PersonSheet({ ids, pp, amount, onClose }: { ids: string[]; pp: P
   );
 }
 
-export function PayRows({ items, pp, showSession, busyKey, onToggle, canToggle = () => true }: {
+export function PayRows({ items, pp, showSession, busyKey, onToggle, canToggle = () => true, onRemind, canRemind = (it) => it.dir === 'get' }: {
   items: PayItem[]; pp: PayPeople; showSession?: boolean; busyKey?: string; onToggle?: (it: PayItem, on: boolean) => void;
   /** 只有俾錢嗰個先標記得 */
   canToggle?: (it: PayItem) => boolean;
+  /** 催找數（收錢嗰個或者超級管理員）：回覆一句結果 */
+  onRemind?: (items: PayItem[]) => Promise<string>;
+  canRemind?: (it: PayItem) => boolean;
 }) {
   const [who, setWho] = useState<{ ids: string[]; amount: number } | null>(null);
+  const [reminded, setReminded] = useState<Record<string, string>>({});
+  const remind = async (it: PayItem) => {
+    const k = `${it.sid}-${it.key}`;
+    setReminded((m) => ({ ...m, [k]: '…' }));
+    try { const r = await onRemind!([it]); setReminded((m) => ({ ...m, [k]: r })); } catch (err) { setReminded((m) => ({ ...m, [k]: err instanceof Error ? err.message : '催唔到' })); }
+  };
   return (
     <>
       <ul className="pay-list">
@@ -77,6 +86,11 @@ export function PayRows({ items, pp, showSession, busyKey, onToggle, canToggle =
                 <Link to={`/g/${it.gid}/s/${it.sid}/pay`} className="pay-session" ariaLabel={`睇 ${it.sname || md(it.at)} 嘅數`}>
                   <span className="ellipsis">{it.gname} · {it.sname || md(it.at)}</span><span className="chev" aria-hidden="true">›</span>
                 </Link>
+              )}
+              {onRemind && !it.paid && canRemind(it) && (
+                <button type="button" className="pay-remind" disabled={!!reminded[`${it.sid}-${it.key}`]} onClick={() => remind(it)}>
+                  {reminded[`${it.sid}-${it.key}`] ? (reminded[`${it.sid}-${it.key}`] === '…' ? '催緊…' : reminded[`${it.sid}-${it.key}`]) : '💸 催找數'}
+                </button>
               )}
               {onToggle && canToggle(it) ? (
                 <button type="button" className={`tf-paid${it.paid ? ' on' : ''}`} aria-pressed={it.paid} disabled={busyKey === it.key} onClick={() => onToggle(it, !it.paid)}>

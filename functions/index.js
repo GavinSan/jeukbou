@@ -1,6 +1,6 @@
 // 雀簿推播：資料庫有變（約局、三缺一、夠腳、番數表更新、加入申請），就用 FCM 通知相關嘅人。
 // 只送 data（title/body/url/tag），由 app 嘅 service worker 顯示；同一個 tag 會取代舊通知。
-// 地區由部署時嘅 functions/.env（PUSH_REGION）決定，要同 Firestore 資料庫一樣。
+// 地區固定 us-central1（app 都係 call 呢度）；Firestore 觸發器自己會擺喺資料庫嗰區，唔使一樣。
 import { initializeApp } from 'firebase-admin/app';
 import { FieldValue, getFirestore } from 'firebase-admin/firestore';
 import { getMessaging } from 'firebase-admin/messaging';
@@ -10,7 +10,8 @@ import { HttpsError, onCall } from 'firebase-functions/v2/https';
 import { logger } from 'firebase-functions';
 
 initializeApp();
-setGlobalOptions({ region: process.env.PUSH_REGION || 'us-central1', maxInstances: 5, memory: '256MiB' });
+const REGION = 'us-central1';
+setGlobalOptions({ region: REGION, maxInstances: 5, memory: '256MiB' });
 
 const db = getFirestore();
 const DEAD = new Set(['messaging/registration-token-not-registered', 'messaging/invalid-registration-token', 'messaging/invalid-argument']);
@@ -39,13 +40,14 @@ async function groupName(g) {
   return { name: String(snap.get('name') ?? '牌友圈'), ownerId: String(snap.get('ownerId') ?? '') };
 }
 
-/** 發俾一班人；發唔到（token 過期）就清走 */
+/** 發俾一班人；發唔到（token 過期）就清走。回覆成功送出幾多部機 */
 async function send(uids, msg) {
   const ids = [...new Set(uids)].filter(Boolean);
-  if (!ids.length) return;
+  if (!ids.length) return 0;
   const lists = await Promise.all(ids.map((u) => db.collection(`users/${u}/pushTokens`).get()));
   const tokens = lists.flatMap((s) => s.docs.map((d) => ({ ref: d.ref, token: String(d.get('token') ?? '') }))).filter((t) => t.token);
-  if (!tokens.length) return;
+  if (!tokens.length) return 0;
+  let ok = 0;
   const data = { title: msg.title, body: msg.body, url: msg.url, tag: msg.tag };
   for (let i = 0; i < tokens.length; i += 500) {
     const chunk = tokens.slice(i, i + 500);
@@ -56,8 +58,16 @@ async function send(uids, msg) {
     });
     await Promise.all(res.responses.map((r, k) => (!r.success && DEAD.has(r.error?.code ?? '') ? chunk[k].ref.delete().catch(() => undefined) : null)));
     logger.info('push sent', { tag: msg.tag, ok: res.successCount, failed: res.failureCount });
+    ok += res.successCount;
   }
+  return ok;
 }
+
+/** 超級管理員：email 同部署時嘅 SUPER_ADMIN_EMAIL 一樣、又驗證咗 */
+const isAdmin = (tok) => {
+  const admin = process.env.SUPER_ADMIN_EMAIL || '';
+  return !!admin && !!tok && tok.email === admin && tok.email_verified === true;
+};
 
 const list = (v) => (Array.isArray(v) ? v.map(String) : []);
 
@@ -164,9 +174,7 @@ ${list}
 }
 
 export const scanHand = onCall({ timeoutSeconds: 60, memory: '512MiB', maxInstances: 2 }, async (req) => {
-  const admin = process.env.SUPER_ADMIN_EMAIL || '';
-  const tok = req.auth?.token;
-  if (!admin || !tok || tok.email !== admin || tok.email_verified !== true) throw new HttpsError('permission-denied', '影相計番暫時淨係超級管理員用得');
+  if (!isAdmin(req.auth?.token)) throw new HttpsError('permission-denied', '影相計番暫時淨係超級管理員用得');
   const key = process.env.ANTHROPIC_API_KEY || '';
   if (!key) throw new HttpsError('failed-precondition', '未設定 ANTHROPIC_API_KEY');
   const image = String(req.data?.image ?? '');
@@ -212,4 +220,72 @@ export const scanHand = onCall({ timeoutSeconds: 60, memory: '512MiB', maxInstan
   if (!parsed) throw new HttpsError('internal', '認唔到，試下影清楚啲');
   logger.info('scan', { used, tokens: out.usage });
   return { ...parsed, used, limit: SCAN_DAILY_LIMIT };
+});
+
+// ---------- 測試通知（超級管理員）：發一個通知俾自己所有開咗通知嘅機 ----------
+export const testPush = onCall(async (req) => {
+  if (!isAdmin(req.auth?.token)) throw new HttpsError('permission-denied', '淨係超級管理員用得');
+  const ok = await send([req.auth.uid], {
+    title: '雀簿測試通知 🀄',
+    body: '收到即係手機推播用得！撳我返 app。',
+    url: '/settings',
+    tag: 'test',
+  });
+  if (!ok) throw new HttpsError('failed-precondition', '呢個帳戶未有開咗通知嘅機：喺手機「設定 → 通知」開咗先');
+  return { ok };
+});
+
+// ---------- 催找數：收錢嗰個（或者超級管理員）撳，通知未轉錢嘅人 ----------
+// 每筆轉賬 6 個鐘最多催一次，免得煩
+const REMIND_GAP = 6 * 3600000;
+const cash = (n) => { const v = Math.round(Number(n) * 100) / 100; return `$${Number.isInteger(v) ? v : v.toFixed(2)}`; };
+const isGuestId = (id) => id.startsWith('guest-') || id.startsWith('legacy:');
+
+export const remindPay = onCall(async (req) => {
+  const uid = req.auth?.uid;
+  if (!uid) throw new HttpsError('unauthenticated', '要登入');
+  const admin = isAdmin(req.auth.token);
+  const items = Array.isArray(req.data?.items) ? req.data.items.slice(0, 30) : [];
+  if (!items.length) throw new HttpsError('invalid-argument', '冇揀邊筆');
+  const now = Date.now();
+  // 每個要俾錢嘅人：欠邊個、幾多、邊幾場
+  const owe = new Map();
+  let skipped = 0;
+  const groups = new Map();
+  for (const it of items) {
+    const g = String(it?.g ?? ''); const s = String(it?.s ?? ''); const key = String(it?.key ?? '');
+    if (!g || !s || !key || g.includes('/') || s.includes('/')) continue;
+    const ref = db.doc(`groups/${g}/sessions/${s}`);
+    const snap = await ref.get();
+    const po = snap.get('payout');
+    const t = (po?.transfers ?? []).find((x) => `${x.from}>${x.to}` === key);
+    if (!t) continue;
+    if (snap.get(`paid`)?.[key]) { skipped++; continue; }
+    const to = String(t.to).split(' + ');
+    if (!admin && !to.includes(uid)) throw new HttpsError('permission-denied', '淨係收錢嗰個先可以催');
+    const last = Number(snap.get('reminded')?.[key] ?? 0);
+    if (now - last < REMIND_GAP) { skipped++; continue; }
+    if (!groups.has(g)) groups.set(g, await groupName(g));
+    const names = po.names ?? {};
+    const toName = to.map((x) => names[x] ?? '玩家').join(' + ');
+    const created = snap.get('createdAt');
+    const day = created && typeof created.toDate === 'function' ? when(created.toDate().getTime(), snap.get('tz')).replace(/（.*$/, '') : String(snap.get('name') ?? '');
+    for (const payer of String(t.from).split(' + ').filter((x) => !isGuestId(x))) {
+      const r = owe.get(payer) ?? { total: 0, lines: [], group: groups.get(g).name };
+      r.total += Number(t.amount) || 0;
+      r.lines.push(`${day} 俾 ${toName} ${cash(t.amount)}`);
+      owe.set(payer, r);
+    }
+    await ref.update({ [`reminded.${key}`]: now });
+  }
+  let sent = 0;
+  for (const [payer, r] of owe) {
+    sent += await send([payer], {
+      title: `「${r.group}」找數提提你 💸`,
+      body: `仲未轉 ${cash(r.total)}：${r.lines.slice(0, 3).join('；')}${r.lines.length > 3 ? ` 等 ${r.lines.length} 筆` : ''}`,
+      url: '/pay',
+      tag: `pay:${payer}`,
+    });
+  }
+  return { people: owe.size, sent, skipped };
 });

@@ -1144,6 +1144,18 @@ export async function setLegacyAlias(g: string, key: string, uid: string): Promi
   await updateDoc(doc(fs(), 'groups', g), { [`aliases.${key}`]: uid || deleteField() });
 }
 
+/** 一次過配對幾個舊紀錄名（例如同一個人喺唔同場寫法唔同） */
+export async function setLegacyAliases(g: string, pairs: Record<string, string>): Promise<void> {
+  const patch: Record<string, string> = {};
+  for (const [k, uid] of Object.entries(pairs)) if (uid) patch[`aliases.${k}`] = uid;
+  if (Object.keys(patch).length) await updateDoc(doc(fs(), 'groups', g), patch);
+}
+
+/** 舊紀錄名比較：細楷、去標點，用第一個字（「ATHENA C.」=「Athena」） */
+export function legacyStem(name: string): string {
+  return name.toLowerCase().replace(/[^a-z0-9\u3400-\u9fff]+/g, ' ').trim().split(' ')[0] ?? '';
+}
+
 /** 成員認領自己（key 空白 = 取消） */
 export async function claimLegacy(g: string, uid: string, key: string): Promise<void> {
   await updateDoc(doc(fs(), 'groups', g, 'members', uid), { legacyKey: key || deleteField() });

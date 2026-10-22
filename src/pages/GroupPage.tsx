@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
+import type { ReactNode } from 'react';
 import type { User } from 'firebase/auth';
-import { PERMS, approveJoin, createMeetup, deleteMeetup, rsvpMeetup, canDo, deleteGroup, deleteSession, ensureJoinCode, rejectJoin, removeMember, resetInvite, setJoinMode, setMemberPerms, updateGroupProfile, legacyMap } from '../lib/data.ts';
+import { PERMS, settleConfigOf, approveJoin, createMeetup, deleteMeetup, rsvpMeetup, canDo, deleteGroup, deleteSession, ensureJoinCode, rejectJoin, removeMember, resetInvite, setJoinMode, setMemberPerms, updateGroupProfile, legacyMap } from '../lib/data.ts';
 import type { Perm } from '../lib/data.ts';
 import { toAvatar } from '../lib/avatar.ts';
 import GroupIcon from '../components/GroupIcon.tsx';
@@ -14,6 +15,8 @@ import { Avatar, ConfirmDelete, Hint, Loading, Sheet, TopBar, fmt, message } fro
 import { rulesOf } from '../lib/score.ts';
 import { Leaderboard } from '../components/Charts.tsx';
 import { boardRows, useHistory } from '../lib/history.ts';
+import type { SessionResult } from '../lib/history.ts';
+import { money } from '../components/SettleScreen.tsx';
 import { PlayerSheet } from '../components/BoardView.tsx';
 import { TierChip } from '../components/Tier.tsx';
 import { pointsFor, tierOf } from '../lib/stats.ts';
@@ -156,8 +159,45 @@ function GroupHeader({ g, memberCount }: { g: Group; memberCount: number }) {
   );
 }
 
+export interface WaterRow { id: string; name: string; fan: number; n: number }
+
+/** 抽水：每個保管水嘅人收咗幾多（已埋數嘅大局）；未埋數嘅另外講 */
+export function waterRowsOf(sessions: SessionResult[], name: (id: string) => string): { rows: WaterRow[]; pending: number } {
+  const acc = new Map<string, WaterRow>();
+  let pending = 0;
+  for (const s of sessions) {
+    if (!s.water || !s.waterTo) continue;
+    if (!s.closed) { pending += s.water; continue; }
+    const r = acc.get(s.waterTo) ?? { id: s.waterTo, name: name(s.waterTo), fan: 0, n: 0 };
+    r.fan += s.water;
+    r.n += 1;
+    acc.set(s.waterTo, r);
+  }
+  return { rows: [...acc.values()].sort((a, b) => b.fan - a.fan), pending };
+}
+
+export function WaterBox({ rows, pending, me, perUnit }: { rows: WaterRow[]; pending: number; me: string; perUnit: number }) {
+  const cash = (fan: number) => (perUnit > 0 ? ` ≈ ${money(fan / perUnit)}` : '');
+  return (
+    <section className="water-box" aria-label="抽水">
+      <b>水（抽水）</b>
+      {rows.length ? (
+        <ul className="list">
+          {rows.map((r) => (
+            <li key={r.id} className={`listrow${r.id === me ? ' me' : ''}`}>
+              <span className="grow">{r.id === me ? '你' : r.name} 保管<small className="muted">　{r.n} 場</small></span>
+              <b className="num">{r.fan} 番</b><small className="muted">{cash(r.fan)}</small>
+            </li>
+          ))}
+        </ul>
+      ) : <p className="muted small">已埋數嘅大局未有抽水。</p>}
+      {pending > 0 && <small className="muted">未埋數嘅大局仲有 {pending} 番水，埋咗數先計入。</small>}
+    </section>
+  );
+}
+
 /** 牌友圈設定：名、icon、簡介、公開／私人、家規；局主改得，其他人睇 */
-function GroupSettingsSheet({ g, canEdit, memberCount, onClose }: { g: Group; canEdit: boolean; memberCount: number; onClose: () => void }) {
+function GroupSettingsSheet({ g, canEdit, memberCount, onClose, water }: { g: Group; canEdit: boolean; memberCount: number; onClose: () => void; water?: ReactNode }) {
   const [name, setName] = useState(g.name);
   const [icon, setIcon] = useState(g.icon ?? '');
   const [desc, setDesc] = useState(g.description ?? '');
@@ -178,6 +218,7 @@ function GroupSettingsSheet({ g, canEdit, memberCount, onClose }: { g: Group; ca
         <div className="row"><GroupIcon icon={g.icon} name={g.name} size={44} /><h2 className="grow">{g.name}</h2></div>
         <p className="muted">{g.description || autoDescription(g)}・{g.visibility === 'public' ? '公開' : '私人'}・{memberCount} 個成員</p>
         <Hint>淨係局主改得牌友圈資料。</Hint>
+        {water}
         {links}
       </Sheet>
     );
@@ -217,6 +258,7 @@ function GroupSettingsSheet({ g, canEdit, memberCount, onClose }: { g: Group; ca
         setBusy(true); setError('');
         try { await updateGroupProfile(g, { name, icon, description: desc, visibility: vis }, memberCount); onClose(); } catch (err) { setError(message(err)); setBusy(false); }
       }}>儲存</button>
+      {water}
       {links}
     </Sheet>
   );
@@ -385,7 +427,18 @@ export default function GroupPage({ user, groupId }: { user: User; groupId: stri
         </button>
       )} />
       <GroupHeader g={g} memberCount={members.data.length} />
-      {groupSettings && <GroupSettingsSheet g={g} canEdit={canManage} memberCount={members.data.length} onClose={() => setGroupSettings(false)} />}
+      {groupSettings && (
+        <GroupSettingsSheet
+          g={g}
+          canEdit={canManage}
+          memberCount={members.data.length}
+          onClose={() => setGroupSettings(false)}
+          water={(() => {
+            const w = waterRowsOf(history.sessions, (id) => memberNames[id] ?? history.names[id] ?? '玩家');
+            return <WaterBox rows={w.rows} pending={w.pending} me={user.uid} perUnit={settleConfigOf(g).perUnit} />;
+          })()}
+        />
+      )}
 
       <section className="stack">
         <Link to={`/g/${groupId}/new`} className="btn big">

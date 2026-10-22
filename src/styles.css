@@ -2245,3 +2245,30 @@ input, textarea, [contenteditable="true"], .selectable { -webkit-user-select: te
 .tv-music { display: flex; flex-direction: column; gap: 6px; }
 .tv-music-foot { color: #93A69D; font-size: 12px; line-height: 1.4; }
 .tv-music-foot a, .tv-music-foot .textbtn { color: #5FD48F; }
+
+/* 底部 tab：手機打字時收埋（唔好跟住鍵盤飄）；裝咗落主畫面就唔好成頁彈（iPhone 會連 tab 一齊郁） */
+@media (pointer: coarse) { body.typing .tabbar { transform: translate(-50%, 140%); opacity: 0; pointer-events: none; } }
+@media (display-mode: standalone) { html, body { overscroll-behavior-y: none; } }
+
+/* 牌友圈設定：抽水 */
+.water-box { display: flex; flex-direction: column; gap: 8px; padding: 12px; border-radius: 14px; background: var(--sunk); }
+.water-box .listrow { gap: 8px; }
+.water-box .listrow.me { font-weight: 700; }
+
+/* 催找數 */
+.pay-remind { border: 1px solid color-mix(in srgb, #E0A82E 55%, var(--line)); background: color-mix(in srgb, #E0A82E 12%, var(--surface)); color: var(--ink); border-radius: 999px; padding: 4px 10px; font-size: 13px; font-weight: 700; cursor: pointer; justify-self: start; }
+.pay-remind:disabled { opacity: .75; cursor: default; font-weight: 600; }
+.person-net-row { display: flex; flex-direction: column; }
+.person-net-row .pay-remind { margin: 0 12px 10px; align-self: flex-start; }
+
+/* 電視直播：轉台、YouTube 開聲 */
+.tv-channels { display: flex; gap: 8px; align-items: center; overflow-x: auto; scrollbar-width: none; padding-bottom: 2px; }
+.tv-channels > * { flex: none; }
+.tv-channels-label { color: #93A69D; font-size: 13px; font-weight: 700; }
+.tv-channel { display: inline-flex; align-items: center; gap: 6px; padding: 6px 12px; border-radius: 999px; border: 1px solid var(--tv-line); background: var(--tv-card); color: inherit; text-decoration: none; font-size: 14px; font-weight: 600; }
+.tv-channel.on { border-color: #E23B3B; background: color-mix(in srgb, #E23B3B 18%, var(--tv-card)); }
+.yt-host { aspect-ratio: 16 / 9; border-radius: 14px; overflow: hidden; background: #000; }
+.yt-host iframe, .yt-host > div { width: 100%; height: 100%; border: 0; display: block; }
+.tv-unmute { align-self: flex-start; border: none; border-radius: 999px; padding: 8px 16px; background: #E0A82E; color: #2A1C0F; font-weight: 800; font-size: 15px; cursor: pointer; }
+.tv-music-err { margin: 0; color: #F2C14E; font-size: 13px; line-height: 1.4; }
+.water-box .listrow { padding-inline: 12px; }
