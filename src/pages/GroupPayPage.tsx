@@ -9,7 +9,7 @@ import type { PayItem } from '../lib/pay.ts';
 import { useSuperAdmin } from '../lib/admin.ts';
 import { Link } from '../lib/router.tsx';
 import { Hint, Loading, TopBar, message } from '../ui.tsx';
-import { PayRows } from '../components/PayList.tsx';
+import { DebtCards, PayRows } from '../components/PayList.tsx';
 import { money } from '../components/SettleScreen.tsx';
 import { SettingsButton } from '../components/Settings.tsx';
 
@@ -87,8 +87,13 @@ export default function GroupPayPage({ user, groupId }: { user: User; groupId: s
           )}
 
           <section className="stack">
+            <h2 className="section-head">邊個要找數</h2>
+            {open.length ? <DebtCards items={open} pp={pp} onRemind={onRemind} canRemind={canRemind} /> : <p className="muted">全部找清，好嘢！</p>}
+          </section>
+
+          <section className="stack">
             <h2 className="section-head">未轉（{open.length}）</h2>
-            {open.length ? <PayRows items={open} pp={pp} showSession busyKey={busy} canToggle={canToggle} onToggle={toggle} onRemind={onRemind} canRemind={canRemind} /> : <p className="muted">全部找清，好嘢！</p>}
+            {open.length ? <PayRows items={open} pp={pp} showSession busyKey={busy} canToggle={canToggle} onToggle={toggle} /> : null}
           </section>
 
           {(paid.length > 0 || cleared.length > 0) && (

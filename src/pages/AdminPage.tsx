@@ -11,10 +11,47 @@ import {
 } from '../lib/adminData.ts';
 import type { AdminGroup, AdminUser } from '../lib/adminData.ts';
 import { Link } from '../lib/router.tsx';
+import { sendBroadcast } from '../lib/fns.ts';
 import { ConfirmDelete, Loading, TopBar, message, useConfirm } from '../ui.tsx';
 
-type Tab = 'overview' | 'groups' | 'users' | 'data';
-const TABS: [Tab, string][] = [['overview', '總覽'], ['groups', '牌友圈'], ['users', '用家'], ['data', '資料']];
+type Tab = 'overview' | 'groups' | 'users' | 'push' | 'data';
+const TABS: [Tab, string][] = [['overview', '總覽'], ['groups', '牌友圈'], ['users', '用家'], ['push', '發通知'], ['data', '資料']];
+
+type Broadcast = (m: { title: string; body: string; target: string }) => Promise<{ people: number; ok: number }>;
+
+/** 發通知：打字，揀全部人定某個牌友圈 */
+function PushComposer({ groups, onSend }: { groups: AdminGroup[]; onSend: Broadcast }) {
+  const [target, setTarget] = useState('all');
+  const [title, setTitle] = useState('');
+  const [body, setBody] = useState('');
+  const [busy, setBusy] = useState(false);
+  const [note, setNote] = useState('');
+  const [confirmUI, ask] = useConfirm();
+  const who = target === 'all' ? '所有用家' : `「${groups.find((g) => g.id === target)?.name ?? '牌友圈'}」全部成員`;
+  return (
+    <section className="stack">
+      <h2>發通知</h2>
+      <p className="muted small">發去開咗通知嘅手機（app 閂咗都收到）。冇開通知嘅人收唔到。</p>
+      <label className="field"><span>發俾</span>
+        <select className="input" value={target} onChange={(e) => setTarget(e.target.value)}>
+          <option value="all">所有用家</option>
+          {groups.map((g) => <option key={g.id} value={g.id}>{g.name}（{g.members.length} 人）</option>)}
+        </select>
+      </label>
+      <label className="field"><span>標題</span><input className="input" value={title} maxLength={60} onChange={(e) => setTitle(e.target.value)} placeholder="例如 新功能：催找數 💸" /></label>
+      <label className="field"><span>內容</span><textarea className="input" rows={3} maxLength={200} value={body} onChange={(e) => setBody(e.target.value)} placeholder="例如 而家可以一撳催晒欠你錢嘅人" /></label>
+      <button type="button" className="btn big" disabled={busy || !title.trim()} onClick={() => ask({
+        title: '發通知', detail: `發俾${who}：「${title.trim()}」`, action: '發出',
+        run: async () => {
+          setBusy(true); setNote('');
+          try { const r = await onSend({ title: title.trim(), body: body.trim(), target }); setNote(`已發出：${r.people} 人、${r.ok} 部機收到`); setTitle(''); setBody(''); } catch (err) { setNote(message(err)); } finally { setBusy(false); }
+        },
+      })}>發出</button>
+      {note && <p className="muted small" role="status">{note}</p>}
+      {confirmUI}
+    </section>
+  );
+}
 const md = (t: number) => (t ? new Date(t).toLocaleDateString('zh-HK', { year: 'numeric', month: 'numeric', day: 'numeric' }) : '—');
 
 function useAdminData(on: boolean, tick: number) {
@@ -35,12 +72,12 @@ export default function AdminPage({ user }: { user: User }) {
   if (!admin) {
     return <main className="page"><TopBar back="/settings" title="超級管理員" /><p className="muted">只有超級管理員可以使用此頁。</p></main>;
   }
-  return <AdminView me={user.uid} groups={groups} users={users} error={error} onRefresh={() => setTick((t) => t + 1)} />;
+  return <AdminView me={user.uid} groups={groups} users={users} error={error} onRefresh={() => setTick((t) => t + 1)} onBroadcast={sendBroadcast} />;
 }
 
 /** Dashboard 本體（demo 都用） */
-export function AdminView({ me, groups, users, error, onRefresh }: {
-  me: string; groups: AdminGroup[] | null; users: AdminUser[] | null; error: string; onRefresh: () => void;
+export function AdminView({ me, groups, users, error, onRefresh, onBroadcast }: {
+  me: string; groups: AdminGroup[] | null; users: AdminUser[] | null; error: string; onRefresh: () => void; onBroadcast?: Broadcast;
 }) {
   const [tab, setTab] = useState<Tab>(() => {
     const h = location.hash.slice(1) as Tab;
@@ -65,6 +102,7 @@ export function AdminView({ me, groups, users, error, onRefresh }: {
               {tab === 'overview' && <Overview groups={groups} users={users} onGo={pick} />}
               {tab === 'groups' && <Groups groups={groups} users={users} me={me} onChanged={onRefresh} onData={toData} />}
               {tab === 'users' && <Users users={users} groups={groups} onChanged={onRefresh} onData={toData} />}
+              {tab === 'push' && (onBroadcast ? <PushComposer groups={groups} onSend={onBroadcast} /> : <p className="muted">未接駁。</p>)}
               {tab === 'data' && <DataBrowser path={dataPath} setPath={setDataPath} />}
             </>
           )}

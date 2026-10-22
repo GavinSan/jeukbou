@@ -1,7 +1,10 @@
 // 大局總覽：每張枱最新一鋪、統計、全場排名、最新動態、加枱
 import { useEffect, useMemo, useRef, useState } from 'react';
 import type { ReactNode } from 'react';
-import type { Draw, TableDoc } from '../lib/data.ts';
+import type { Draw, PullPush, TableDoc } from '../lib/data.ts';
+import { drawNext } from '../lib/data.ts';
+import { sfx } from '../lib/sound.ts';
+import { buzz } from '../lib/haptics.ts';
 import { DrawBoard, DrawSetup } from './RegroupDraw.tsx';
 import type { DrawTable } from './RegroupDraw.tsx';
 import { Link } from '../lib/router.tsx';
@@ -30,6 +33,8 @@ export interface SessionScreenProps {
   onDeleteSession?: () => Promise<void>;
   /** 呢局抽唔抽水（打牌嘅人揀） */
   water?: { on: boolean; onToggle: (on: boolean) => Promise<void> };
+  /** 有人夠拉時推播通知邊個 */
+  pullPush?: { value: PullPush; onChange: (v: PullPush) => Promise<void> };
   /** 埋數狀態 */
   closedNote?: ReactNode;
   notice?: ReactNode;
@@ -45,7 +50,7 @@ export interface SessionScreenProps {
     candidates: { id: string; name: string }[];
     onStart: (d: Draw) => Promise<void>;
     onApprove: () => Promise<void>;
-    onPick: (tile: number, player: string) => Promise<'ok' | 'taken' | 'done-already'>;
+    onPick: (tile: number, player: string) => Promise<'ok' | 'taken' | 'done-already' | 'not-turn'>;
     onAuto: () => Promise<void>;
     onCancel: () => Promise<void>;
     onApply: (plan: { keep: string | null; seats: string[]; names: Record<string, string>; name: string }[], endTables: string[]) => Promise<void>;
@@ -64,7 +69,7 @@ function quickTags(c: Computed): string[] {
   return out;
 }
 
-export default function SessionScreen({ title, back, tables, computed, tableHref, invite, liveHref, rulesHref, onDeleteSession, water: waterCtl, closedNote, notice, candidates = [], onAddTable, me = null, onClosedAdd, regroup: rg }: SessionScreenProps) {
+export default function SessionScreen({ title, back, tables, computed, tableHref, invite, liveHref, rulesHref, onDeleteSession, water: waterCtl, pullPush, closedNote, notice, candidates = [], onAddTable, me = null, onClosedAdd, regroup: rg }: SessionScreenProps) {
   const now = useNow();
   const [adding, setAdding] = useState(false);
   const [delSession, setDelSession] = useState(false);
@@ -86,6 +91,18 @@ export default function SessionScreen({ title, back, tables, computed, tableHref
     if (autoOpened.current === key) return;
     if (draw.players.some((p) => p.id === me) || draw.by === me) { autoOpened.current = key; setBoardOpen(true); }
   }, [draw, me]);
+  // 輪住揀：到我嗰陣彈個板出嚟、響一聲、震一下（每次輪到一次）
+  const turnKey = useRef('');
+  const myTurn = !!draw && !!draw.strict && draw.status === 'picking' && !!me && drawNext(draw) === me;
+  useEffect(() => {
+    if (!draw || !myTurn) return;
+    const key = `${draw.id}-${Object.keys(draw.picks).length}`;
+    if (turnKey.current === key) return;
+    turnKey.current = key;
+    setBoardOpen(true);
+    sfx.chips();
+    buzz('win');
+  }, [myTurn, draw]);
   // 底部中間「＋ 開枱」：網址帶 #add-table 就打開加枱
   const canAdd = !!onAddTable;
   useEffect(() => {
@@ -195,6 +212,25 @@ export default function SessionScreen({ title, back, tables, computed, tableHref
         </div>
       )}
 
+      {liveHref && (
+        <Link to={liveHref} className="link-card live-link">
+          <span className="live-pill"><i className="live-dot" aria-hidden="true" />LIVE</span>
+          <span className="grow"><b>電視直播</b><small>大字分數、全場排名、直播室、音樂；可以投去電視</small></span>
+          <span className="chev" aria-hidden="true">›</span>
+        </Link>
+      )}
+      {pullPush && (
+        <div className="water-toggle">
+          <span className="grow">夠拉通知<small className="muted">　有人被拉三、六…推播俾</small></span>
+          <select className="inline-select" value={pullPush.value} aria-label="夠拉通知邊個" onChange={(e) => { pullPush.onChange(e.target.value as PullPush).catch((err) => alert(message(err))); }}>
+            <option value="off">唔通知</option>
+            <option value="table">同枱嘅人</option>
+            <option value="session">成個大局</option>
+            <option value="group">成個牌友圈</option>
+          </select>
+        </div>
+      )}
+
       <section className="stack">
         {tables.map((t) => {
           const c = computed[t.id];
@@ -253,9 +289,9 @@ export default function SessionScreen({ title, back, tables, computed, tableHref
         {onAddTable && <button type="button" className="btn plain" onClick={() => { setAdding(true); setPicked([]); setError(''); }}>加一張枱</button>}
         {rg && !draw && openTables.length >= 1 && (rg.canForce || seatedMe) && <button type="button" className="btn plain" onClick={() => { setError(''); setDrawSetup(true); }}>{openTables.length} 張枱一齊執位</button>}
         {rg && draw && (
-          <button type="button" className="link-card draw-live" onClick={() => setBoardOpen(true)}>
+          <button type="button" className={`link-card draw-live${myTurn ? ' my-turn' : ''}`} onClick={() => setBoardOpen(true)}>
             <span className="draw-live-dot" aria-hidden="true" />
-            <span className="grow"><b>一齊執位進行中</b><small>{draw.status === 'propose' ? '等每張枱同意' : draw.status === 'picking' ? `揀緊牌：${Object.keys(draw.picks).length}/${draw.tiles.length}` : '揀晒，等確認'}</small></span>
+            <span className="grow"><b>{myTurn ? '到你揀位！' : '一齊執位進行中'}</b><small>{draw.status === 'propose' ? '等每張枱同意' : draw.status === 'picking' ? `揀緊牌：${Object.keys(draw.picks).length}/${draw.tiles.length}` : '揀晒，等確認'}</small></span>
             <span className="chev" aria-hidden="true">›</span>
           </button>
         )}

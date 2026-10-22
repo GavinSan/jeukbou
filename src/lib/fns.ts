@@ -1,7 +1,7 @@
-// Cloud Functions（callable）：測試通知、催找數。地區同伺服器一樣（us-central1）。
+// Cloud Functions（callable）：測試通知、催找數。地區同伺服器一樣（多倫多 northamerica-northeast2）。
 import { app } from '../firebase.ts';
 
-export const FUNCTIONS_REGION = (import.meta.env.VITE_FUNCTIONS_REGION as string | undefined)?.trim() || 'us-central1';
+export const FUNCTIONS_REGION = (import.meta.env.VITE_FUNCTIONS_REGION as string | undefined)?.trim() || 'northamerica-northeast2';
 
 async function call<I, O>(name: string, data: I): Promise<O> {
   if (!app) throw new Error('未設定 Firebase');
@@ -17,7 +17,18 @@ async function call<I, O>(name: string, data: I): Promise<O> {
 /** 超級管理員：發一個測試通知俾自己所有開咗通知嘅機 */
 export const sendTestPush = () => call<Record<string, never>, { ok: number }>('testPush', {});
 
-/** 催找數：收錢嘅人（或者超級管理員）提未轉錢嘅人；每筆 6 個鐘最多一次 */
+/** 超級管理員：打字發通知俾所有人（target = 'all'）或者一個牌友圈（target = 牌友圈 id） */
+export const sendBroadcast = (m: { title: string; body: string; target: string }) =>
+  call<typeof m, { people: number; ok: number }>('adminBroadcast', m);
+
+/** 一齊執位輪住揀：通知輪到嗰個（伺服器自己睇輪到邊個，同一個人只通知一次） */
+export const drawTurn = (m: { g: string; s: string }) => call<typeof m, { ok: number }>('drawTurn', m);
+
+/** 有人夠拉：推播俾同枱／大局／牌友圈（跟大局設定） */
+export const pullAlert = (m: { g: string; s: string; t: string; lines: string[] }) =>
+  call<typeof m, { ok: number }>('pullAlert', m);
+
+/** 催找數：收錢嘅人（或者超級管理員）提未轉錢嘅人；每筆 24 個鐘最多一次 */
 export const remindPay = (items: { g: string; s: string; key: string }[]) =>
   call<{ items: typeof items }, { people: number; sent: number; skipped: number }>('remindPay', { items });
 

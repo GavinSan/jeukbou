@@ -7,7 +7,7 @@ import { useProfile } from '../lib/live.ts';
 import { useMyPay } from '../lib/pay.ts';
 import type { PayItem } from '../lib/pay.ts';
 import { Hint, Loading, TopBar, fmt, message } from '../ui.tsx';
-import { PayRows, PersonSheet } from '../components/PayList.tsx';
+import { DebtCards, PayRows, PersonSheet } from '../components/PayList.tsx';
 import { money } from '../components/SettleScreen.tsx';
 import { Link } from '../lib/router.tsx';
 
@@ -20,28 +20,11 @@ export function MyPayView({ me, items, legacy, names, emails, loading, onToggle,
   onRemind?: (items: PayItem[]) => Promise<string>;
 }) {
   const [who, setWho] = useState<{ ids: string[]; amount: number } | null>(null);
-  const [nudged, setNudged] = useState<Record<string, string>>({});
-  // 一個人欠我幾場：一齊催（一個通知講晒）
-  const nudge = async (k: string) => {
-    const list = open.filter((x) => x.dir === 'get' && x.from === k);
-    setNudged((m) => ({ ...m, [k]: '…' }));
-    try { const r = await onRemind!(list); setNudged((m) => ({ ...m, [k]: r })); } catch (err) { setNudged((m) => ({ ...m, [k]: err instanceof Error ? err.message : '催唔到' })); }
-  };
   const pp = { me, names, emails };
   const open = items.filter((x) => !x.paid);
   const toPay = open.filter((x) => x.dir === 'pay');
   const toGet = open.filter((x) => x.dir === 'get');
   const sum = (l: PayItem[]) => l.reduce((a, x) => a + x.amount, 0);
-  // 每個人：我總共要俾佢／佢要俾我幾多
-  const byPerson = new Map<string, { key: string; net: number; n: number }>();
-  for (const x of open) {
-    const k = x.dir === 'pay' ? x.to : x.from;
-    const row = byPerson.get(k) ?? { key: k, net: 0, n: 0 };
-    row.net += x.dir === 'pay' ? -x.amount : x.amount;
-    row.n += 1;
-    byPerson.set(k, row);
-  }
-  const people = [...byPerson.values()].sort((a, b) => a.net - b.net);
   const unpaidSessions = new Set(open.map((x) => `${x.gid}/${x.sid}`)).size;
 
   return (
@@ -55,34 +38,22 @@ export function MyPayView({ me, items, legacy, names, emails, loading, onToggle,
             <div className="pay-card"><small>未找大局</small><b className="num">{unpaidSessions}</b><span>場</span></div>
           </section>
 
-          {people.length > 0 && (
+          {toGet.length > 0 && (
             <section className="stack">
-              <h2 className="section-head">每個人</h2>
-              <ul className="list person-net">
-                {people.map((p) => (
-                  <li key={p.key} className="person-net-row">
-                    <button type="button" className="listrow" onClick={() => setWho({ ids: p.key.split(' + '), amount: Math.abs(p.net) })}>
-                      <span className="grow exp-text">
-                        <span>{p.key.split(' + ').map((id) => names[id] ?? '玩家').join(' + ')}</span>
-                        <small className="muted">{p.net < 0 ? '你要俾佢' : '佢要俾你'} · {p.n} 筆{emails[p.key.split(' + ')[0]] ? ` · ${emails[p.key.split(' + ')[0]]}` : ''}</small>
-                      </span>
-                      <b className={`num ${p.net < 0 ? 'loss' : 'gain'}`}>{money(Math.abs(p.net))}</b>
-                      <span className="chev" aria-hidden="true">›</span>
-                    </button>
-                    {onRemind && p.net > 0 && (
-                      <button type="button" className="pay-remind" disabled={!!nudged[p.key]} onClick={() => nudge(p.key)}>
-                        {nudged[p.key] ? (nudged[p.key] === '…' ? '催緊…' : nudged[p.key]) : `💸 催 ${p.key.split(' + ').map((id) => names[id] ?? '玩家').join(' + ')} 找數`}
-                      </button>
-                    )}
-                  </li>
-                ))}
-              </ul>
+              <h2 className="section-head">要俾你</h2>
+              <DebtCards items={toGet} pp={pp} label={(n) => `${n} 要俾你`} tone="gain" onRemind={onRemind} canRemind={(it) => it.dir === 'get'} onPerson={(ids, amount) => setWho({ ids, amount })} />
+            </section>
+          )}
+          {toPay.length > 0 && (
+            <section className="stack">
+              <h2 className="section-head">你要俾</h2>
+              <DebtCards items={toPay} pp={pp} label={(n) => `${n} 要俾`} onPerson={(ids, amount) => setWho({ ids, amount })} />
             </section>
           )}
 
           <section className="stack">
             <h2 className="section-head">未轉（{open.length}）</h2>
-            {open.length ? <PayRows items={open} pp={pp} showSession busyKey={busyKey} canToggle={(it) => it.dir === 'pay' || it.dir === 'get'} onToggle={onToggle} onRemind={onRemind} /> : <p className="muted">冇未過嘅數，好嘢！</p>}
+            {open.length ? <PayRows items={open} pp={pp} showSession busyKey={busyKey} canToggle={(it) => it.dir === 'pay' || it.dir === 'get'} onToggle={onToggle} /> : <p className="muted">冇未過嘅數，好嘢！</p>}
           </section>
 
           {legacy.length > 0 && (
@@ -107,7 +78,7 @@ export function MyPayView({ me, items, legacy, names, emails, loading, onToggle,
               <PayRows items={items.filter((x) => x.paid)} pp={pp} showSession busyKey={busyKey} canToggle={(it) => it.dir === 'pay' || it.dir === 'get'} onToggle={onToggle} />
             </section>
           )}
-          <Hint>只計已經埋咗數嘅大局（麻雀＋水＋開支合併）。「每個人」會將同一個人幾場嘅數加埋；轉賬就逐場標記。人哋欠你錢可以撳「催找數」，佢部機會收到通知（每筆 6 個鐘最多催一次）。</Hint>
+          <Hint>只計已經埋咗數嘅大局（麻雀＋水＋開支合併）。同一班人幾場嘅數會合埋一張卡，撳開睇邊日幾多；轉賬就喺「未轉」逐筆標記。人哋欠你錢可以撳「催找數」，佢部機會收到通知（每筆 24 個鐘最多催一次）。</Hint>
         </>
       )}
       {who && <PersonSheet ids={who.ids} pp={pp} amount={who.amount} onClose={() => setWho(null)} />}

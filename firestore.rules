@@ -165,16 +165,34 @@ service cloud.firestore {
           // 已埋數：今日人物唔可以再改（局主除外）
           && (!request.resource.data.diff(resource.data).affectedKeys().hasAny(['people', 'skipTeams']) || resource.data.get('closed', null) == null || can(g, 'records'))
           // 已轉／未轉：局主、場主改得晒；其他人淨係改到自己份（俾錢或者收錢嗰邊有自己）
-          && (!request.resource.data.diff(resource.data).affectedKeys().hasAny(['paid', 'lastPaid']) || paidOk());
+          && (!request.resource.data.diff(resource.data).affectedKeys().hasAny(['paid', 'lastPaid']) || paidOk())
+          // 直播室禁言：場主、局主（同超級管理員）先改得
+          && (!request.resource.data.diff(resource.data).affectedKeys().hasAny(['chatBlock']) || isOwner(g) || resource.data.createdBy == request.auth.uid);
         allow delete: if can(g, 'records');
 
-        // 直播室留言：同圈成員睇同留；自己或者局主刪
+        // 直播室留言：同圈成員睇同留；自己或者局主刪。
+        // 防洗版：每次留言要同時更新 chatLast/{自己}，同上一次相隔最少 2 秒；被禁言（未到時間）就唔准
         match /chat/{c} {
+          function lastPath() {
+            return /databases/$(database)/documents/groups/$(g)/sessions/$(s)/chatLast/$(request.auth.uid);
+          }
+          function notBlocked() {
+            let b = get(/databases/$(database)/documents/groups/$(g)/sessions/$(s)).data.get('chatBlock', {});
+            return !(request.auth.uid in b) || b[request.auth.uid] < request.time.toMillis();
+          }
           allow read: if isMember(g);
           allow create: if isMember(g) && request.resource.data.by == request.auth.uid
-            && request.resource.data.text is string && request.resource.data.text.size() <= 200;
+            && request.resource.data.text is string && request.resource.data.text.size() <= 200
+            && notBlocked()
+            && getAfter(lastPath()).data.at == request.time
+            && (!exists(lastPath()) || get(lastPath()).data.at < request.time - duration.value(2, 's'));
           allow update: if false;
           allow delete: if isOwner(g) || (signedIn() && resource.data.by == request.auth.uid);
+        }
+
+        match /chatLast/{u} {
+          allow read: if isMember(g);
+          allow create, update: if isMember(g) && request.auth.uid == u && request.resource.data.keys().hasOnly(['at']) && request.resource.data.at == request.time;
         }
 
         // 換人請求：同局成員都睇到、發到、答到

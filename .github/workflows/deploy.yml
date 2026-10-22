@@ -122,9 +122,11 @@ jobs:
               echo "::notice title=${target}::部署成功"
               # 舊嘅 function 映像檔：Artifact Registry 自動清走一日前嘅（唔使人手去刪）
               if [ "$target" = "functions" ]; then
-                npx --yes firebase-tools@13 functions:artifacts:setpolicy --location us-central1 --days 1 --force --project jeukbou-app --non-interactive >/dev/null 2>&1 \
-                  && echo "::notice title=functions::舊映像檔會自動清走（保留 1 日）" \
-                  || echo "::warning title=functions::設定唔到自動清走舊映像檔（服務帳戶要 Artifact Registry Administrator）"
+                for loc in northamerica-northeast2 us-central1; do
+                  npx --yes firebase-tools@13 functions:artifacts:setpolicy --location "$loc" --days 1 --force --project jeukbou-app --non-interactive >/dev/null 2>&1 \
+                    && echo "::notice title=functions::${loc} 舊映像檔會自動清走（保留 1 日）" \
+                    || echo "::warning title=functions::${loc} 設定唔到自動清走舊映像檔"
+                done
               fi
             fi
           done

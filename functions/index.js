@@ -1,6 +1,6 @@
 // 雀簿推播：資料庫有變（約局、三缺一、夠腳、番數表更新、加入申請），就用 FCM 通知相關嘅人。
 // 只送 data（title/body/url/tag），由 app 嘅 service worker 顯示；同一個 tag 會取代舊通知。
-// 地區固定 us-central1（app 都係 call 呢度）；Firestore 觸發器自己會擺喺資料庫嗰區，唔使一樣。
+// 地區固定多倫多 northamerica-northeast2（同 Firestore 一樣；app 都係 call 呢度）。
 import { initializeApp } from 'firebase-admin/app';
 import { FieldValue, getFirestore } from 'firebase-admin/firestore';
 import { getMessaging } from 'firebase-admin/messaging';
@@ -10,7 +10,7 @@ import { HttpsError, onCall } from 'firebase-functions/v2/https';
 import { logger } from 'firebase-functions';
 
 initializeApp();
-const REGION = 'us-central1';
+const REGION = 'northamerica-northeast2';
 setGlobalOptions({ region: REGION, maxInstances: 5, memory: '256MiB' });
 
 const db = getFirestore();
@@ -226,7 +226,7 @@ export const scanHand = onCall({ timeoutSeconds: 60, memory: '512MiB', maxInstan
 export const testPush = onCall(async (req) => {
   if (!isAdmin(req.auth?.token)) throw new HttpsError('permission-denied', '淨係超級管理員用得');
   const ok = await send([req.auth.uid], {
-    title: '雀簿測試通知 🀄',
+    title: '測試通知 🀄',
     body: '收到即係手機推播用得！撳我返 app。',
     url: '/settings',
     tag: 'test',
@@ -236,19 +236,25 @@ export const testPush = onCall(async (req) => {
 });
 
 // ---------- 催找數：收錢嗰個（或者超級管理員）撳，通知未轉錢嘅人 ----------
-// 每筆轉賬 6 個鐘最多催一次，免得煩
-const REMIND_GAP = 6 * 3600000;
+// 每筆轉賬 24 個鐘最多催一次，免得煩
+const REMIND_GAP = 24 * 3600000;
 const cash = (n) => { const v = Math.round(Number(n) * 100) / 100; return `$${Number.isInteger(v) ? v : v.toFixed(2)}`; };
 const isGuestId = (id) => id.startsWith('guest-') || id.startsWith('legacy:');
+const NAG = ['仲唔找數？俾人催啦 😤', '找數啦大佬 💸', '有人等緊你啲錢 👀', '數還數，路還路 🀄'];
+/** 日／月（多倫多時間） */
+const dm = (ms) => {
+  const p = Object.fromEntries(new Intl.DateTimeFormat('en-US', { timeZone: 'America/Toronto', month: 'numeric', day: 'numeric' }).formatToParts(new Date(ms)).map((x) => [x.type, x.value]));
+  return `${p.day}/${p.month}`;
+};
 
 export const remindPay = onCall(async (req) => {
   const uid = req.auth?.uid;
   if (!uid) throw new HttpsError('unauthenticated', '要登入');
   const admin = isAdmin(req.auth.token);
-  const items = Array.isArray(req.data?.items) ? req.data.items.slice(0, 30) : [];
+  const items = Array.isArray(req.data?.items) ? req.data.items.slice(0, 40) : [];
   if (!items.length) throw new HttpsError('invalid-argument', '冇揀邊筆');
   const now = Date.now();
-  // 每個要俾錢嘅人：欠邊個、幾多、邊幾場
+  // 每個要俾錢嘅人：欠邊個、邊日、幾多
   const owe = new Map();
   let skipped = 0;
   const groups = new Map();
@@ -260,7 +266,7 @@ export const remindPay = onCall(async (req) => {
     const po = snap.get('payout');
     const t = (po?.transfers ?? []).find((x) => `${x.from}>${x.to}` === key);
     if (!t) continue;
-    if (snap.get(`paid`)?.[key]) { skipped++; continue; }
+    if (snap.get('paid')?.[key]) { skipped++; continue; }
     const to = String(t.to).split(' + ');
     if (!admin && !to.includes(uid)) throw new HttpsError('permission-denied', '淨係收錢嗰個先可以催');
     const last = Number(snap.get('reminded')?.[key] ?? 0);
@@ -269,23 +275,98 @@ export const remindPay = onCall(async (req) => {
     const names = po.names ?? {};
     const toName = to.map((x) => names[x] ?? '玩家').join(' + ');
     const created = snap.get('createdAt');
-    const day = created && typeof created.toDate === 'function' ? when(created.toDate().getTime(), snap.get('tz')).replace(/（.*$/, '') : String(snap.get('name') ?? '');
+    const day = created && typeof created.toDate === 'function' ? dm(created.toDate().getTime()) : String(snap.get('name') ?? '');
     for (const payer of String(t.from).split(' + ').filter((x) => !isGuestId(x))) {
-      const r = owe.get(payer) ?? { total: 0, lines: [], group: groups.get(g).name };
+      const r = owe.get(payer) ?? { total: 0, by: new Map(), group: groups.get(g).name };
       r.total += Number(t.amount) || 0;
-      r.lines.push(`${day} 俾 ${toName} ${cash(t.amount)}`);
+      const lines = r.by.get(toName) ?? [];
+      lines.push(`${day} ${cash(t.amount)}`);
+      r.by.set(toName, lines);
       owe.set(payer, r);
     }
     await ref.update({ [`reminded.${key}`]: now });
   }
   let sent = 0;
   for (const [payer, r] of owe) {
+    const parts = [...r.by].map(([name, lines]) => `${name} 等緊你（${lines.join('、')}）`);
     sent += await send([payer], {
-      title: `「${r.group}」找數提提你 💸`,
-      body: `仲未轉 ${cash(r.total)}：${r.lines.slice(0, 3).join('；')}${r.lines.length > 3 ? ` 等 ${r.lines.length} 筆` : ''}`,
+      title: NAG[Math.floor(Math.random() * NAG.length)],
+      body: `「${r.group}」一共 ${cash(r.total)}：${parts.join('；')}`,
       url: '/pay',
       tag: `pay:${payer}`,
     });
   }
   return { people: owe.size, sent, skipped };
+});
+
+// ---------- 超級管理員發通知：打字，發俾所有人或者一個牌友圈 ----------
+export const adminBroadcast = onCall(async (req) => {
+  if (!isAdmin(req.auth?.token)) throw new HttpsError('permission-denied', '淨係超級管理員用得');
+  const title = String(req.data?.title ?? '').trim().slice(0, 60);
+  const body = String(req.data?.body ?? '').trim().slice(0, 200);
+  const target = String(req.data?.target ?? 'all');
+  if (!title) throw new HttpsError('invalid-argument', '要有標題');
+  let uids = [];
+  let url = '/';
+  if (target === 'all') {
+    uids = (await db.collection('users').listDocuments()).map((d) => d.id);
+  } else {
+    if (target.includes('/')) throw new HttpsError('invalid-argument', '牌友圈唔啱');
+    uids = (await members(target)).map((m) => m.uid);
+    url = `/g/${target}`;
+  }
+  const ok = await send(uids, { title, body, url, tag: `admin:${Date.now()}` });
+  logger.info('broadcast', { target, people: uids.length, ok });
+  return { people: uids.length, ok };
+});
+
+// ---------- 夠拉通知：有人被拉三、六…，跟大局設定通知同枱／成個大局／成個牌友圈 ----------
+export const pullAlert = onCall(async (req) => {
+  const uid = req.auth?.uid;
+  if (!uid) throw new HttpsError('unauthenticated', '要登入');
+  const g = String(req.data?.g ?? ''); const s = String(req.data?.s ?? ''); const t = String(req.data?.t ?? '');
+  if (!g || !s || !t || [g, s, t].some((x) => x.includes('/'))) throw new HttpsError('invalid-argument', '資料唔啱');
+  const lines = (Array.isArray(req.data?.lines) ? req.data.lines : []).slice(0, 6).map((x) => String(x).slice(0, 80)).filter(Boolean);
+  if (!lines.length) return { ok: 0 };
+  const [sess, table] = await Promise.all([db.doc(`groups/${g}/sessions/${s}`).get(), db.doc(`groups/${g}/sessions/${s}/tables/${t}`).get()]);
+  if (!sess.exists || !table.exists) throw new HttpsError('not-found', '搵唔到');
+  const live = list(table.get('liveUsers'));
+  if (!live.includes(uid) && !isAdmin(req.auth.token)) throw new HttpsError('permission-denied', '要坐喺呢張枱');
+  const mode = String(sess.get('pullPush') ?? 'off');
+  let uids = [];
+  if (mode === 'table') uids = live;
+  else if (mode === 'session') uids = (await db.collection(`groups/${g}/sessions/${s}/tables`).get()).docs.flatMap((d) => list(d.get('liveUsers')));
+  else if (mode === 'group') uids = (await members(g)).map((m) => m.uid);
+  else return { ok: 0 };
+  const ok = await send(uids.filter((u) => u !== uid), {
+    title: `${String(table.get('name') ?? '枱')} 夠拉！找唔找？`,
+    body: lines.join('；'),
+    url: `/g/${g}/s/${s}/t/${t}`,
+    tag: `${g}:${s}:${t}:pull`,
+  });
+  return { ok };
+});
+
+// ---------- 一齊執位：輪到你揀 ----------
+export const drawTurn = onCall(async (req) => {
+  const uid = req.auth?.uid;
+  if (!uid) throw new HttpsError('unauthenticated', '要登入');
+  const g = String(req.data?.g ?? ''); const s = String(req.data?.s ?? '');
+  if (!g || !s || g.includes('/') || s.includes('/')) throw new HttpsError('invalid-argument', '資料唔啱');
+  const mem = await db.doc(`groups/${g}/members/${uid}`).get();
+  if (!mem.exists && !isAdmin(req.auth.token)) throw new HttpsError('permission-denied', '唔係成員');
+  const ref = db.doc(`groups/${g}/sessions/${s}`);
+  const next = await db.runTransaction(async (tx) => {
+    const d = (await tx.get(ref)).get('draw');
+    if (!d || !d.strict || d.status !== 'picking') return null;
+    const done = new Set(Object.values(d.picks ?? {}));
+    const n = list(d.order).find((id) => !done.has(id));
+    if (!n || n.startsWith('guest-') || d.notified === n) return null;
+    tx.update(ref, { 'draw.notified': n });
+    return n;
+  });
+  if (!next) return { ok: 0 };
+  const { name } = await groupName(g);
+  const ok = await send([next], { title: '到你揀位 🀄', body: `「${name}」一齊執位，輪到你揀牌，快啲入嚟揀！`, url: `/g/${g}/s/${s}`, tag: `${g}:${s}:draw` });
+  return { ok };
 });

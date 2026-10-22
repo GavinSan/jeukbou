@@ -449,7 +449,7 @@ for (const scheme of ['light', 'dark']) {
       await page.goto(`${base}/demo/pay`, { waitUntil: 'networkidle' });
       await page.waitForTimeout(600);
       await page.screenshot({ path: `${out}/mypay.png`, fullPage: true });
-      await page.locator('.person-net button, .person-net .listrow').first().click();
+      await page.locator('.debt-head').first().click();
       await page.waitForTimeout(300);
       await page.screenshot({ path: `${out}/pay-person.png` });
       await page.goto(`${base}/demo/settle`, { waitUntil: 'networkidle' });

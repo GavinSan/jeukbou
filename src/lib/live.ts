@@ -2,7 +2,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { collection, doc, limit, onSnapshot, orderBy, query, where } from 'firebase/firestore';
 import type { DocumentData } from 'firebase/firestore';
-import { fs } from './data.ts';
+import { fs, tableNameUpper } from './data.ts';
 import type { Dice, ExpenseDoc, Meetup, FanTableLog, Group, JoinRequest, Member, TeamDoc, PairDoc, Session, StoredEvent, SwapRequest, TableDoc } from './data.ts';
 
 export interface Live<T> {
@@ -73,6 +73,8 @@ const toSession = (id: string, d: DocumentData): Session => ({
   id, name: String(d.name ?? ''), createdBy: String(d.createdBy ?? ''), createdAt: d.createdAt ?? null, rules: d.rules ?? undefined,
   rulesLog: Array.isArray(d.rulesLog) ? d.rulesLog.map((x: DocumentData) => ({ at: Number(x.at ?? 0), rules: x.rules ?? {} })) : undefined,
   waterTo: d.waterTo ? String(d.waterTo) : undefined, noWater: !!d.noWater,
+  pullPush: ['table', 'session', 'group'].includes(d.pullPush) ? d.pullPush : 'off',
+  chatBlock: d.chatBlock && typeof d.chatBlock === 'object' ? Object.fromEntries(Object.entries(d.chatBlock).map(([k, v]) => [k, Number(v) || 0])) : {},
   closed: d.closed ?? null,
   legacy: d.legacy ?? null,
   payout: d.payout && Array.isArray(d.payout.transfers) ? { v: Number(d.payout.v ?? 1), at: Number(d.payout.at ?? 0), currency: String(d.payout.currency ?? ''), transfers: d.payout.transfers.map((t: DocumentData) => ({ from: String(t.from), to: String(t.to), amount: Number(t.amount) })), names: d.payout.names ?? {} } : null,
@@ -105,7 +107,8 @@ const toPair = (id: string, d: DocumentData): PairDoc => ({
 const toDice = (d: DocumentData | undefined): Dice | null =>
   d && Array.isArray(d.values) ? { values: d.values.map(Number), by: String(d.by ?? ''), at: Number(d.at ?? 0), n: Number(d.n ?? 0) } : null;
 export const toTable = (id: string, d: DocumentData): TableDoc => ({
-  id, name: String(d.name ?? ''), order: Number(d.order ?? 0), seats: Array.isArray(d.seats) ? d.seats.map(String) : [], names: d.names ?? {},
+  // 舊枱叫「第 1 枱」：顯示做「第壹枱」
+  id, name: String(d.name ?? '').replace(/^第\s*(\d+)\s*枱$/, (_, n: string) => tableNameUpper(Number(n) - 1)), order: Number(d.order ?? 0), seats: Array.isArray(d.seats) ? d.seats.map(String) : [], names: d.names ?? {},
   dice: toDice(d.dice),
   liveUsers: Array.isArray(d.liveUsers) ? d.liveUsers.map(String) : undefined,
   declined: Array.isArray(d.declined) ? d.declined.map(String) : [],

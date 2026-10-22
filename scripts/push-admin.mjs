@@ -18,7 +18,7 @@ const tokens = snap.docs.map((d) => String(d.get('token') ?? '')).filter(Boolean
 if (!tokens.length) { console.log('::warning title=test push::超級管理員未有開咗通知嘅機（手機「設定 → 通知」開咗先）'); process.exit(0); }
 const res = await getMessaging().sendEachForMulticast({
   tokens,
-  data: { title: '雀簿測試通知 🀄', body: '新版本已經上線，收到即係手機推播用得！', url: '/settings', tag: 'test' },
+  data: { title: '測試通知 🀄', body: '新版本已經上線，收到即係手機推播用得！', url: '/settings', tag: 'test' },
   webpush: { headers: { Urgency: 'high', TTL: '3600' } },
 });
 console.log(`::notice title=test push::發咗俾 ${tokens.length} 部機，成功 ${res.successCount}，失敗 ${res.failureCount}`);

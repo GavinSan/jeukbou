@@ -107,3 +107,86 @@ export function PayRows({ items, pp, showSession, busyKey, onToggle, canToggle =
     </>
   );
 }
+
+const dm = (t: number) => { const d = new Date(t); return `${d.getDate()}/${d.getMonth() + 1}`; };
+
+/** 欠數卡：同一班人（例如 A + C）要俾嘅數合埋一張卡；撳開分收錢嘅人，再逐日列返。
+ *  一個掣一次過催晒（收錢嗰個或者超級管理員先有） */
+export function DebtCards({ items, pp, onRemind, canRemind = () => false, onPerson, label, tone = 'loss' }: {
+  items: PayItem[]; pp: PayPeople;
+  onRemind?: (items: PayItem[]) => Promise<string>;
+  canRemind?: (it: PayItem) => boolean;
+  /** 撳收錢嘅人：睇 Interac email */
+  onPerson?: (ids: string[], amount: number) => void;
+  /** 卡頭：「A + C 要找」 */
+  label?: (fromName: string) => string;
+  /** 總數顏色：要收 = gain、要俾 = loss */
+  tone?: 'gain' | 'loss';
+}) {
+  const [open, setOpen] = useState<Record<string, boolean>>({});
+  const [nudged, setNudged] = useState<Record<string, string>>({});
+  const cards = new Map<string, { from: string; total: number; to: Map<string, { to: string; total: number; rows: PayItem[] }> }>();
+  for (const it of items) {
+    const c = cards.get(it.from) ?? { from: it.from, total: 0, to: new Map() };
+    c.total += it.amount;
+    const r = c.to.get(it.to) ?? { to: it.to, total: 0, rows: [] };
+    r.total += it.amount;
+    r.rows.push(it);
+    c.to.set(it.to, r);
+    cards.set(it.from, c);
+  }
+  const list = [...cards.values()].sort((a, b) => b.total - a.total);
+  if (!list.length) return null;
+  return (
+    <div className="debt-cards">
+      {list.map((c) => {
+        const fromName = nameOfKey(c.from, pp);
+        const isOpen = !!open[c.from];
+        const all = [...c.to.values()].flatMap((r) => r.rows);
+        const nudgeable = onRemind ? all.filter((it) => !it.paid && canRemind(it)) : [];
+        const st = nudged[c.from];
+        return (
+          <section key={c.from} className={`debt-card${isOpen ? ' open' : ''}`}>
+            <button type="button" className="debt-head" aria-expanded={isOpen} onClick={() => setOpen((m) => ({ ...m, [c.from]: !isOpen }))}>
+              <span className="grow debt-title">
+                <b>{label ? label(fromName) : `${fromName} 要找數`}</b>
+                <small className="muted">{c.to.size > 1 ? `俾 ${c.to.size} 個人・` : `俾 ${nameOfKey([...c.to.keys()][0], pp)}・`}{all.length} 筆</small>
+              </span>
+              <b className={`num debt-total ${tone}`}>{money(c.total)}</b>
+              <svg className="debt-chev" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M6 9l6 6 6-6" /></svg>
+            </button>
+            {isOpen && (
+              <div className="debt-body">
+                {[...c.to.values()].sort((a, b) => b.total - a.total).map((r) => (
+                  <div key={r.to} className="debt-to">
+                    <button type="button" className="debt-to-head" onClick={() => onPerson?.(r.to.split(' + '), r.total)}>
+                      <span className="grow">{fromName} → <b>{nameOfKey(r.to, pp)}</b></span>
+                      <b className="num">{money(r.total)}</b>
+                    </button>
+                    <ul className="debt-rows">
+                      {[...r.rows].sort((a, b) => a.at - b.at).map((it) => (
+                        <li key={`${it.sid}-${it.key}`}>
+                          <Link to={`/g/${it.gid}/s/${it.sid}/pay`} className="debt-row" ariaLabel={`睇 ${it.sname || dm(it.at)} 嘅數`}>
+                            <span className="debt-date num">{dm(it.at)}</span>
+                            <span className="grow ellipsis muted">{it.gname}・{it.sname}</span>
+                            <span className="num">{money(it.amount)}</span>
+                          </Link>
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                ))}
+              </div>
+            )}
+            {nudgeable.length > 0 && (
+              <button type="button" className="pay-remind debt-remind" disabled={!!st} onClick={async () => {
+                setNudged((m) => ({ ...m, [c.from]: '…' }));
+                try { const t = await onRemind!(nudgeable); setNudged((m) => ({ ...m, [c.from]: t })); } catch (err) { setNudged((m) => ({ ...m, [c.from]: err instanceof Error ? err.message : '催唔到' })); }
+              }}>{st ? (st === '…' ? '催緊…' : st) : `💸 催 ${fromName} 找數`}</button>
+            )}
+          </section>
+        );
+      })}
+    </div>
+  );
+}

@@ -116,6 +116,10 @@ export interface Session {
   waterTo?: string;
   /** 呢局唔抽水（打牌嘅人揀） */
   noWater?: boolean;
+  /** 直播室禁言：uid → 幾時解禁（毫秒） */
+  chatBlock?: Record<string, number>;
+  /** 有人夠拉（被拉三、六…）通知邊個：off／呢張枱／成個大局／成個牌友圈 */
+  pullPush?: PullPush;
   /** 已埋數 */
   closed?: { by: string; at: number } | null;
   /** 申請埋數（非場主）：要晒有帳戶嘅玩家同意 */
@@ -156,7 +160,15 @@ export interface Draw {
   /** propose = 等其他枱同意；picking = 揀緊；done = 揀晒 */
   status: 'propose' | 'picking' | 'done';
   approvals: string[];
+  /** 由高分到低分輪住揀：輪到先揀得（場主可以幫冇電話嘅人揀，但唔可以跳位） */
+  strict?: boolean;
 }
+
+/** 輪到邊個揀（未揀嘅人入面排最前） */
+export const drawNext = (d: Pick<Draw, 'order' | 'picks'>): string | undefined => {
+  const done = new Set(Object.values(d.picks));
+  return d.order.find((id) => !done.has(id));
+};
 
 /** 約局：約將來嘅日子同時間，大家應去唔去 */
 export interface Meetup {
@@ -223,7 +235,16 @@ export function meetupMood(n: number, tables = 1): string {
 export async function sendChat(g: string, s: string, user: User, text: string): Promise<void> {
   const t = text.trim().slice(0, 200);
   if (!t) return;
-  await setDoc(doc(collection(fs(), 'groups', g, 'sessions', s, 'chat')), { by: user.uid, name: displayName(user), text: t, at: serverTimestamp() });
+  // 同一次寫埋 chatLast：規則用嚟限每 2 秒最多一句
+  const b = writeBatch(fs());
+  b.set(doc(collection(fs(), 'groups', g, 'sessions', s, 'chat')), { by: user.uid, name: displayName(user), text: t, at: serverTimestamp() });
+  b.set(doc(fs(), 'groups', g, 'sessions', s, 'chatLast', user.uid), { at: serverTimestamp() });
+  await b.commit();
+}
+
+/** 直播室禁言（場主、局主、超級管理員）：until = 幾時解禁（毫秒）；0 = 即刻解禁 */
+export async function setChatBlock(g: string, s: string, uid: string, until: number): Promise<void> {
+  await updateDoc(doc(fs(), 'groups', g, 'sessions', s), { [`chatBlock.${uid}`]: until > Date.now() ? until : deleteField() });
 }
 
 export async function setSessionMusic(g: string, s: string, url: string): Promise<void> {
@@ -255,7 +276,7 @@ export async function approveDraw(g: string, s: string, uid: string, seatsOf: Re
 }
 
 /** 揀牌：用 transaction，兩個人同時撳同一隻，只會有一個成功 */
-export async function pickTile(g: string, s: string, tile: number, player: string): Promise<'ok' | 'taken' | 'done-already'> {
+export async function pickTile(g: string, s: string, tile: number, player: string): Promise<'ok' | 'taken' | 'done-already' | 'not-turn'> {
   const ref = doc(fs(), 'groups', g, 'sessions', s);
   return runTransaction(fs(), async (tx) => {
     const snap = await tx.get(ref);
@@ -263,6 +284,7 @@ export async function pickTile(g: string, s: string, tile: number, player: strin
     if (!d || d.status !== 'picking') return 'taken';
     if (d.picks[String(tile)]) return 'taken';
     if (Object.values(d.picks).includes(player)) return 'done-already';
+    if (d.strict && drawNext(d) !== player) return 'not-turn';
     const picks = { ...d.picks, [String(tile)]: player };
     const done = Object.keys(picks).length >= d.tiles.length;
     tx.update(ref, { [`draw.picks.${tile}`]: player, ...(done ? { 'draw.status': 'done' } : {}) });
@@ -370,7 +392,7 @@ export interface SettleConfig {
   rounding: MoneyRounding;
 }
 
-export const DEFAULT_SETTLE: SettleConfig = { currency: 'CAD', perUnit: 6, waterTo: '', rounding: 'up' };
+export const DEFAULT_SETTLE: SettleConfig = { currency: 'CAD', perUnit: 6, waterTo: '', rounding: 'none' };
 
 export function settleConfigOf(g: Group | null | undefined): SettleConfig {
   const raw = (g?.settle ?? {}) as Partial<SettleConfig> & { roundUp?: boolean };
@@ -1047,6 +1069,11 @@ const sessionDoc = (g: string, s: string) => doc(fs(), 'groups', g, 'sessions', 
 
 export async function setSessionWaterTo(g: string, s: string, uid: string): Promise<void> {
   await updateDoc(sessionDoc(g, s), { waterTo: uid });
+}
+
+export type PullPush = 'off' | 'table' | 'session' | 'group';
+export async function setSessionPullPush(g: string, s: string, v: PullPush): Promise<void> {
+  await updateDoc(sessionDoc(g, s), { pullPush: v });
 }
 
 export async function setSessionNoWater(g: string, s: string, noWater: boolean): Promise<void> {

@@ -43,7 +43,7 @@ interface Entry {
   dealer?: 'one' | 'none';
 }
 
-type More = null | 'menu' | 'falseWin' | 'special' | 'draw' | 'end' | 'swap' | 'reseat';
+type More = null | 'menu' | 'falseWin' | 'special' | 'draw' | 'end' | 'swap' | 'reseat' | 'people';
 
 export interface Candidate {
   id: string;
@@ -86,6 +86,10 @@ export interface TableScreenProps {
   canEnter?: boolean;
   /** 紀錄表欄位次序：上一張枱最後嘅欄（執位之後同一班人坐返同一欄） */
   colOrder?: string[];
+  /** 有人啱啱夠拉（被拉三、六…）：通知其他人（跟大局設定） */
+  onPullAlert?: (lines: string[]) => void;
+  /** 完咗場：重開（撤回完場，拉住嘅數返晒嚟）；blocked = 點解唔得 */
+  reopen?: { blocked: string | null; run: () => Promise<void> };
 }
 
 /** 紀錄表起始欄：自己排第一（之後跟座位次序），上一張枱有嘅人坐返佢之前嗰欄 */
@@ -158,6 +162,8 @@ export default function TableScreen(props: TableScreenProps) {
   const [spPlay, setSpPlay] = useState(0);
   const [chaseKind, setChaseKind] = useState<'fan' | 'other'>('fan');
   const [repeat, setRepeat] = useState(0);
+  // 一台花／一台草：再撳同一張卡 = 多一台（花最多 2 台、草最多 6 台）
+  const [taps, setTaps] = useState(1);
   const [instant, setInstant] = useState(false);
   /** 暗槓／天槓唔記得開：反轉做罰，加倍 */
   const [forgot, setForgot] = useState(false);
@@ -273,7 +279,7 @@ export default function TableScreen(props: TableScreenProps) {
     if (isNew && last?.type === 'win') {
       setWinHold(true);
       window.clearTimeout(holdTimer.current);
-      holdTimer.current = window.setTimeout(() => setWinHold(false), 1300);
+      holdTimer.current = window.setTimeout(() => setWinHold(false), 700);
     }
     const art = last ? artOf(last) : null;
     if (art && last?.type === 'special') {
@@ -377,8 +383,11 @@ export default function TableScreen(props: TableScreenProps) {
 
   const push = (event: LogEvent, done: string) =>
     run(async () => {
-      if (event.type !== 'undo' && event.type !== 'edit') applyEvent(c.state, event, rules);
+      const r = event.type !== 'undo' && event.type !== 'edit' ? applyEvent(c.state, event, rules) : null;
       await onPush(event);
+      // 啱啱夠拉：話俾其他人知（推播，跟大局設定）
+      const asks = r?.prompts.filter((p) => p.type === 'maySettle') ?? [];
+      if (asks.length && props.onPullAlert) props.onPullAlert(asks.map((p) => `${name(p.pulled)} 被 ${name(p.puller)} 拉${cnNum(p.count)}（欠 ${p.owed}）`));
     }, done);
 
   // ---------- 食糊 ----------
@@ -500,18 +509,19 @@ export default function TableScreen(props: TableScreenProps) {
     const per = e.winners.map((x) => {
       const vals = pairs.filter((q) => q.w === x.player).map((q) => q.v);
       const total = vals.reduce((a, b) => a + b, 0);
+      // 自摸：每家幾番、共幾番（莊家俾多啲就逐家寫）
       if (e.loser === null) {
         const same = vals.length > 0 && vals.every((v) => v === vals[0]);
-        return { id: x.player, text: same ? `每家 ${vals[0]} 番` : `共 ${total} 番` };
+        return { id: x.player, text: `${same ? vals[0] : vals.join('/')}番 共${total}番` };
       }
-      return { id: x.player, text: `${total} 番` };
+      return { id: x.player, text: `${total}番` };
     });
     const who = per.map((x) => name(x.id)).join('、');
     const amount = per.length === 1 ? per[0].text : per.map((x) => `${name(x.id)} ${x.text}`).join('、');
-    const tag = per.length === 2 ? '雙響：' : per.length === 3 ? '三響：' : '';
+    const tag = per.length === 2 ? '雙響 ' : per.length === 3 ? '三響 ' : '';
     return (
       <>
-        {e.loser === null ? `${who} 自摸 ${amount}` : per.length === 1 ? `${who} 食 ${name(e.loser)} ${amount}` : `${who} 食 ${name(e.loser)}（${tag}${amount}）`}
+        {e.loser === null ? `${who} 自摸 ${amount}` : per.length === 1 ? `${who} 食 ${name(e.loser)} ${amount}` : `${who} 食 ${name(e.loser)} ${tag}${amount}`}
         {z && <small className="lg-fan">（{z.replace('・', '')}）</small>}
       </>
     );
@@ -577,10 +587,10 @@ export default function TableScreen(props: TableScreenProps) {
     setSpPlay((n) => n + 1);
     setWho(forWho);
     setForgot(false);
+    setTaps(1);
     if (art === 'chase') { const r = suggestRepeat(lastStep?.event, chaseKind); setRepeat(r); setInstant(r > 0); }
     else { setRepeat(0); setInstant(false); }
     if (art === 'false') sfx.falseWin();
-    else if (art === 'heaven') sfx.special('kong');
     else if (art) sfx.special(art);
     setMore('special');
   }
@@ -604,7 +614,7 @@ export default function TableScreen(props: TableScreenProps) {
         </div>
       ))}
 
-      {!held && settleable.map((ch) => (
+      {!winHold && settleable.map((ch) => (
         <div key={ch.puller + ch.pulled} className="banner settle-ask">
           <span className="grow">第 {ch.count} 拉：{name(ch.pulled)} 欠 {name(ch.puller)} <b className="num">{ch.owed}</b>，由 {name(ch.pulled)} 決定是否找數。</span>
           <button type="button" className="btn danger" disabled={busy} onClick={() => push({ type: 'settle', puller: ch.puller, pulled: ch.pulled }, '已找數')}>找數</button>
@@ -674,6 +684,12 @@ export default function TableScreen(props: TableScreenProps) {
       </section>
 
       {viewOnly && !ended && <p className="banner calm">你唔喺呢張枱，只可以睇。坐喺呢張枱嘅人先可以入數同擲骰。</p>}
+      {ended && props.reopen && (
+        <section className="reopen-card">
+          <div className="grow"><b>已完場</b><small className="muted">{props.reopen.blocked ?? '撳錯完場？重開會撤回「完場」，之前拉住嘅數返晒嚟，照打落去。'}</small></div>
+          <button type="button" className="btn plain" disabled={busy || !!props.reopen.blocked} onClick={() => ask({ title: '重開呢張枱', detail: '撤回「完場」：完場時結算咗嘅拉會返返去拉住，可以繼續打。', action: '重開', run: () => run(() => props.reopen!.run(), '已重開') })}>重開</button>
+        </section>
+      )}
       {roundsDone && !viewOnly && (
         <section className="rounds-done" aria-label="打完圈數">
           <div className="rounds-head">
@@ -717,6 +733,12 @@ export default function TableScreen(props: TableScreenProps) {
             <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" aria-hidden="true"><path d="M3.5 9c2-2 4-2 6 0s4 2 6 0 4-2 5 0" /><path d="M3.5 15c2-2 4-2 6 0s4 2 6 0 4-2 5 0" /></svg>
             <span>流局</span>
           </button>
+          {(props.onSwap || props.onReseat) && (
+            <button type="button" className="act icon-act" onClick={() => { unlock(); setError(''); setMore('people'); }}>
+              <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M7 7h11l-3-3M17 17H6l3 3" /></svg>
+              <span>換人</span>
+            </button>
+          )}
           <button type="button" className="act icon-act end" onClick={() => { unlock(); setError(''); setMore('end'); }}>
             <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M6 21V4" /><path d="M6 4.5h11l-2.5 4 2.5 4H6" /></svg>
             <span>完場</span>
@@ -1004,6 +1026,19 @@ export default function TableScreen(props: TableScreenProps) {
               {props.onDeleteTable && <button type="button" className="textbtn loss center-text" onClick={() => { setMore(null); setDelTable(true); }}>刪除此枱（局主）</button>}
             </>
           )}
+          {more === 'people' && (
+            <>
+              <h2>換人・換位</h2>
+              <div className="choices">
+                {props.onSwap && <button type="button" className="choice" onClick={() => { setSwapOut(''); setSwapIn(''); setGuestName(''); setMore('swap'); }}>換人<small>有人走、有人入</small></button>}
+                {props.onReseat && (
+                  <button type="button" className="choice" disabled={!(c.steps.length === 0 || roundsDone)} onClick={() => setMore('reseat')}>
+                    {c.steps.length === 0 ? '掉位' : '換位'}<small>{c.steps.length === 0 || roundsDone ? '抽風牌或自己揀' : '打完圈先換得位'}</small>
+                  </button>
+                )}
+              </div>
+            </>
+          )}
           {more === 'falseWin' && (
             <>
               <h2>誰詐糊？</h2>
@@ -1028,7 +1063,8 @@ export default function TableScreen(props: TableScreenProps) {
               : art === 'heaven' ? sp.heaven : art === 'kong' ? sp.kong : art === 'flower' ? sp.flower : art === 'grass' ? sp.grass
               : art === 'triple' ? sp.triple : art === 'dice123' ? sp.dice123 : art === 'pong' ? sp.pong : item?.amount ?? 0;
             const forgotOf = (art: Art | '') => (art === 'heaven' ? sp.heavenForgot : sp.kongForgot);
-            const base = amountOf(spArt);
+            const many = spArt === 'flower' || spArt === 'grass';
+            const base = amountOf(spArt) * (many ? taps : 1);
             const amount = penalty ? forgotOf(spArt) : base;
             const dir = penalty ? 'pay' : item?.dir;
             const pick = (art: Art) => {
@@ -1038,15 +1074,23 @@ export default function TableScreen(props: TableScreenProps) {
                 const on = !forgot;
                 setForgot(on);
                 setSpPlay((n) => n + 1);
-                if (on) { sfx.special('forgot'); buzz('hit'); } else sfx.special(art === 'heaven' ? 'kong' : art);
+                if (on) { sfx.special('forgot'); buzz('hit'); } else sfx.special(art);
+                return;
+              }
+              if (art === spArt && (art === 'flower' || art === 'grass')) {
+                const max = TAP_MAX[art];
+                setTaps((n) => (n >= max ? 1 : n + 1));
+                setSpPlay((n) => n + 1);
+                sfx.special(art);
+                buzz('tap');
                 return;
               }
               setSpArt(art);
               setForgot(false);
+              setTaps(1);
               setSpPlay((n) => n + 1);
               if (art === 'chase') { const r = suggestRepeat(lastStep?.event, chaseKind); setRepeat(r); setInstant(r > 0); sfx.tap(); }
-              // 每款撳落去都有自己把聲（天槓留返入數先播全套）
-              else if (art === 'heaven') sfx.special('kong');
+              // 每款撳落去都有自己把聲
               else if (art === 'false') sfx.falseWin();
               else sfx.special(art);
             };
@@ -1061,9 +1105,10 @@ export default function TableScreen(props: TableScreenProps) {
                   {SPECIAL_ITEMS.map((it) => {
                     const flipped = spArt === it.art && forgot && (it.art === 'kong' || it.art === 'heaven');
                     const a = amountOf(it.art);
+                    const tapped = spArt === it.art && (it.art === 'flower' || it.art === 'grass') && taps > 1;
                     const note = it.art === 'chase' ? (spArt === 'chase' ? `付每家 ${amount}` : it.note)
                       : flipped ? `罰每家 ${forgotOf(it.art)}`
-                      : `${it.dir === 'collect' ? '收' : '付'}每家 ${a}`;
+                      : `${it.dir === 'collect' ? '收' : '付'}每家 ${tapped ? a * taps : a}`;
                     return (
                       <button
                         key={it.art + (spArt === it.art ? spPlay : 0)}
@@ -1075,12 +1120,14 @@ export default function TableScreen(props: TableScreenProps) {
                       >
                         <SpecialArt art={flipped ? 'forgot' : it.art} heat={it.art === 'chase' && spArt === 'chase' && instant ? repeat : 0} />
                         <span className="sp-label">{flipped ? `${it.label}唔記得開` : it.label}</span>
+                        {tapped && <span key={taps} className="sp-count">×{taps}</span>}
                         <span className="sp-note">{note}</span>
                       </button>
                     );
                   })}
                 </div>
                 {canForget && !forgot && <p className="small muted center-text">{`再撳一下張卡 = 唔記得開（罰每家 ${forgotOf(spArt)}）`}</p>}
+                {many && <p className="small muted center-text">{`再撳一下張卡 = 多一台（最多 ${TAP_MAX[spArt as 'flower' | 'grass']} 台，每台 ${amountOf(spArt)}）`}</p>}
                 {isChase && (
                   <div className="stack tight">
                     <div className="row">
@@ -1135,10 +1182,10 @@ export default function TableScreen(props: TableScreenProps) {
                     if (!item) return;
                     if (item.art === 'false') { push({ type: 'falseWin', player: who }, '已入數'); return; }
                     const rep = instant ? repeat : 0;
-                    const label = isChase ? `被追（${chaseKind === 'fan' ? '番子' : '非番子'}${instant ? (rep > 0 ? `，即摸 ${rep + 1} 隻` : '，即摸') : ''}）` : penalty ? `${item.label}唔記得開（罰）` : item.label;
+                    const label = isChase ? `被追（${chaseKind === 'fan' ? '番子' : '非番子'}${instant ? (rep > 0 ? `，即摸 ${rep + 1} 隻` : '，即摸') : ''}）` : penalty ? `${item.label}唔記得開（罰）` : many && taps > 1 ? `${item.label} ×${taps}` : item.label;
                     push({
                       type: 'special', player: who, label, amount, direction: penalty ? 'pay' : item.dir,
-                      meta: isChase ? { art: 'chase', chase: chaseKind, repeat: rep, instant } : penalty ? { art: item.art, penalty: true } : { art: item.art },
+                      meta: isChase ? { art: 'chase', chase: chaseKind, repeat: rep, instant } : penalty ? { art: item.art, penalty: true } : many && taps > 1 ? { art: item.art, repeat: taps - 1 } : { art: item.art },
                     }, '已入數');
                   }}
                 >
@@ -1378,6 +1425,9 @@ function settleableCount(c: Computed, rules: Rules, ended: boolean, declined: st
     return ch.count % every === 0 && !dismissed.includes(key) && !declined.includes(key);
   }).length;
 }
+
+/** 一台花最多撳 2 台、一台草最多 6 台 */
+const TAP_MAX = { flower: 2, grass: 6 } as const;
 
 const CN = ['零', '一', '二', '三', '四', '五', '六', '七', '八', '九', '十'];
 /** 1–10 用中文數字（被拉二），再多就用阿拉伯數字 */
