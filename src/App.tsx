@@ -78,6 +78,33 @@ export default function App() {
     document.addEventListener('focusout', off);
     return () => { document.removeEventListener('focusin', on); document.removeEventListener('focusout', off); };
   }, []);
+  // iOS 26 嘅 bug：鍵盤收埋之後 visualViewport.offsetTop 唔還原，底部 tab 會卡喺半空（鍵盤頂嗰度）。
+  // 自己計真正睇到嘅底部，將底部嘅嘢移返落去；收鍵盤時再碌一碌叫 iOS 還原
+  useEffect(() => {
+    const vv = window.visualViewport;
+    if (!vv) return;
+    const root = document.documentElement;
+    const fix = () => {
+      const typing = document.body.classList.contains('typing');
+      const shift = typing ? 0 : Math.round(vv.offsetTop + vv.height - window.innerHeight);
+      root.style.setProperty('--vv-shift', `${Math.abs(shift) < 2 ? 0 : shift}px`);
+    };
+    const nudge = () => {
+      if (document.body.classList.contains('typing')) return;
+      for (const ms of [60, 350, 800]) setTimeout(() => { if (vv.offsetTop > 0) window.scrollTo(window.scrollX, window.scrollY); fix(); }, ms);
+    };
+    vv.addEventListener('resize', fix);
+    vv.addEventListener('scroll', fix);
+    document.addEventListener('focusout', nudge);
+    window.addEventListener('pageshow', fix);
+    fix();
+    return () => {
+      vv.removeEventListener('resize', fix);
+      vv.removeEventListener('scroll', fix);
+      document.removeEventListener('focusout', nudge);
+      window.removeEventListener('pageshow', fix);
+    };
+  }, []);
   // 電視直播可以打橫，其他頁手機打橫就叫人轉返直向
   const tv = path.startsWith('/live/') || path === '/demo/live' || path.startsWith('/demo/live/');
   useEffect(() => { document.body.classList.toggle('tv-mode', tv); }, [tv]);

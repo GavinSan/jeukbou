@@ -2551,3 +2551,6 @@ input, textarea, [contenteditable="true"], .selectable { -webkit-user-select: te
 :root[data-skin="glass"] .tile { background: rgba(255, 255, 255, .88); -webkit-backdrop-filter: blur(10px); backdrop-filter: blur(10px); box-shadow: 0 0 0 1px rgba(255, 255, 255, .6), 0 10px 24px rgba(0, 0, 0, .35); border-radius: 16px; }
 :root[data-skin="chachaan"] .tile { border-radius: 6px; box-shadow: 0 4px 0 #D6332B, 0 6px 0 #9E2019, 0 9px 14px rgba(0, 0, 0, .2); }
 :root[data-skin="chachaan"] .felt { background: repeating-linear-gradient(90deg, rgba(255, 255, 255, .05) 0 20px, transparent 20px 40px), radial-gradient(120% 90% at 50% 40%, #2E8B74, #1E6655); }
+
+/* iOS 26：收鍵盤後畫面位移冇還原，底部固定嘅嘢跟住 --vv-shift 移返去真正底部（App.tsx 計） */
+.tabbar, .toast, .dock { translate: 0 var(--vv-shift, 0px); }
