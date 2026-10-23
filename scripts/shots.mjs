@@ -477,7 +477,7 @@ for (const scheme of ['light', 'dark']) {
         await page.waitForTimeout(500);
         await page.screenshot({ path: `${out}/skin-${sk}-settle.png` });
       }
-      for (const sk of ['teahouse', 'neon', 'clay', 'paper', 'pixel', 'palace', 'jade']) {
+      for (const sk of ['teahouse', 'neon', 'clay', 'paper', 'pixel', 'palace', 'jade', 'obsidian', 'sapphire', 'ruby', 'amethyst', 'rosegold', 'marble']) {
         await page.goto(`${base}/demo/t/0?skin=${sk}`, { waitUntil: 'networkidle' });
         await page.waitForTimeout(900);
         await page.screenshot({ path: `${out}/skin-${sk}-table.png` });

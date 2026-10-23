@@ -11,16 +11,49 @@ export interface Live<T> {
   error: string | null;
 }
 
-function useLiveDoc<T>(path: string[] | null, map: (id: string, d: DocumentData) => T): Live<T | null> {
+// 上次讀到嘅文件存喺手機（localStorage）：再開 app 即刻有嘢睇，伺服器嘅新資料到咗先更新
+const SNAP = 'jeukbou-doc:';
+const snapMemo = new Map<string, unknown>();
+function snapGet<T>(key: string): T | undefined {
+  if (snapMemo.has(key)) return snapMemo.get(key) as T;
+  try {
+    const raw = localStorage.getItem(SNAP + key);
+    if (raw) { const v = JSON.parse(raw) as T; snapMemo.set(key, v); return v; }
+  } catch { /* 冇就算 */ }
+  return undefined;
+}
+function snapSet(key: string, v: unknown) {
+  snapMemo.set(key, v);
+  try {
+    const raw = JSON.stringify(v);
+    if (raw.length < 200000) localStorage.setItem(SNAP + key, raw); else localStorage.removeItem(SNAP + key);
+  } catch { /* 存唔到就算 */ }
+}
+/** 登出時清走手機入面嘅快取 */
+export function clearSnapCache() {
+  snapMemo.clear();
+  try { for (const k of Object.keys(localStorage)) if (k.startsWith(SNAP) || k.startsWith('jeukbou-hist:')) localStorage.removeItem(k); } catch { /* 唔緊要 */ }
+}
+
+function useLiveDoc<T>(path: string[] | null, map: (id: string, d: DocumentData) => T, persist = false): Live<T | null> {
   const key = path ? path.join('/') : '';
-  const [state, setState] = useState<Live<T | null>>({ data: null, loading: !!path, error: null });
+  const cached = () => (persist && key ? snapGet<T>(key) : undefined);
+  const [state, setState] = useState<Live<T | null>>(() => {
+    const c = cached();
+    return c !== undefined ? { data: c, loading: false, error: null } : { data: null, loading: !!path, error: null };
+  });
   useEffect(() => {
     if (!path) { setState({ data: null, loading: false, error: null }); return; }
-    setState((s) => ({ ...s, loading: true }));
+    const c = cached();
+    setState((s) => (c !== undefined ? { data: c, loading: false, error: null } : { ...s, loading: true }));
     const [first, ...rest] = path;
     return onSnapshot(
       doc(fs(), first, ...rest),
-      (snap) => setState({ data: snap.exists() ? map(snap.id, snap.data()) : null, loading: false, error: null }),
+      (snap) => {
+        const data = snap.exists() ? map(snap.id, snap.data()) : null;
+        if (persist && !snap.metadata.fromCache) snapSet(key, data);
+        setState({ data, loading: false, error: null });
+      },
       (err) => setState({ data: null, loading: false, error: err.code === 'permission-denied' ? '你不是此牌友圈的成員' : err.message }),
     );
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -151,7 +184,7 @@ const toProfile = (_id: string, d: DocumentData): Profile => ({
 });
 
 export function useProfile(uid: string | null): Live<Profile> {
-  const r = useLiveDoc(uid ? ['users', uid] : null, toProfile);
+  const r = useLiveDoc(uid ? ['users', uid] : null, toProfile, true);
   return { data: r.data ?? { groups: [], pending: {}, avatar: null, payEmail: '', firstName: '', lastName: '', birthday: '', nudgedAt: 0 }, loading: r.loading, error: r.error };
 }
 
@@ -170,7 +203,7 @@ export const useJoinRequests = (g: string | null) => useLiveList(g ? ['groups', 
 export const useMyMember = (g: string, uid: string) => useLiveDoc(['groups', g, 'members', uid], toMember);
 export const useMyJoinRequest = (g: string, uid: string) => useLiveDoc(['groups', g, 'joinRequests', uid], toJoinRequest);
 
-export const useGroup = (g: string | null) => useLiveDoc(g ? ['groups', g] : null, toGroup);
+export const useGroup = (g: string | null) => useLiveDoc(g ? ['groups', g] : null, toGroup, true);
 export const useMembers = (g: string | null) => useLiveList(g ? ['groups', g, 'members'] : null, null, toMember);
 export const useSessions = (g: string | null) => useLiveList(g ? ['groups', g, 'sessions'] : null, 'createdAt', toSession);
 export const useSession = (g: string, s: string) => useLiveDoc(['groups', g, 'sessions', s], toSession);

@@ -317,7 +317,7 @@ export default function Demo() {
       ['/demo/live', '電視直播', '一版睇晒全部枱、東南西北、冧莊、直播室（撳名禁言）、音樂、轉台'],
       ['/demo/rules', '家規', '番數表、抽水、拉'],
       ['/demo/install', '加主畫面教學', 'iPhone Safari、其他瀏覽器、Android'],
-      ['/demo/skins', '風格', '12 款風格，各有光暗同質感（3 款 👑 豪華）'],
+      ['/demo/skins', '風格', '18 款風格，各有光暗同質感（9 款 👑 豪華）'],
       ['/demo/admin', '超級管理員', '用戶、牌友圈、發通知'],
       ['/demo/legacy', '舊紀錄', '匯入嘅舊數'],
       ['/demo/players', '對應玩家', '舊紀錄名配對成員、一鍵配對'],
@@ -406,6 +406,7 @@ export default function Demo() {
           })()}
           sessionHref={() => '/demo'}
           rankHref="/demo/rank"
+          settingsHref="/demo/skins"
         />
         <NoticeBar />
       </>

@@ -352,16 +352,41 @@ export interface MyHistory {
 }
 
 /** 讀晒自己所有牌友圈（一次，唔即時跟） */
+// 上次計好嘅戰績存喺手機：主頁、段位即刻顯示，之後喺背後同伺服器對過
+const HIST = 'jeukbou-hist:';
+function histGet(uid: string, groupIds: string[]): GroupResults[] | null {
+  try {
+    const raw = localStorage.getItem(HIST + uid);
+    if (!raw) return null;
+    const all = JSON.parse(raw) as GroupResults[];
+    const want = new Set(groupIds);
+    return all.filter((g) => want.has(g.gid));
+  } catch { return null; }
+}
+function histSet(uid: string, groups: GroupResults[]) {
+  try { localStorage.setItem(HIST + uid, JSON.stringify(groups)); } catch { /* 太大存唔到就算 */ }
+}
+
 export function useMyHistory(uid: string | null, groupIds: string[]): MyHistory {
   const key = `${uid}|${groupIds.join(',')}`;
-  const [state, setState] = useState<MyHistory>({ loading: true, groups: [], mine: [] });
+  const fromCache = (): MyHistory | null => {
+    if (!uid || !groupIds.length) return null;
+    const g = histGet(uid, groupIds);
+    return g && g.length ? { loading: false, groups: g, mine: mySessions(g, uid) } : null;
+  };
+  const [state, setState] = useState<MyHistory>(() => fromCache() ?? { loading: true, groups: [], mine: [] });
   useEffect(() => {
     if (!uid) return;
     let alive = true;
-    setState((s) => ({ ...s, loading: true }));
-    Promise.all(groupIds.map((g) => loadGroup(g).catch(() => null))).then((list) => {
+    const c = fromCache();
+    setState((s) => c ?? { ...s, loading: true });
+    let failed = false;
+    Promise.all(groupIds.map((g) => loadGroup(g).catch(() => { failed = true; return null; }))).then((list) => {
       if (!alive) return;
       const groups = list.filter((x): x is GroupResults => !!x);
+      // 有牌友圈讀唔到（例如冇網）：唔好用唔齊嘅結果蓋咗手機入面嗰份
+      if (failed && c) { setState({ ...c, loading: false }); return; }
+      if (!failed) histSet(uid, groups);
       setState({ loading: false, groups, mine: mySessions(groups, uid) });
     });
     return () => { alive = false; };

@@ -89,7 +89,9 @@ export const meetupCreated = onDocumentCreated('groups/{g}/meetups/{m}', async (
   });
 });
 
-// 應約人數變：三缺一 → 催未應嘅人；夠腳 → 話俾去嘅人知
+// 應約有變：
+// 1) 有人加入（去）、或者由去改做唔去：通知已經去緊嘅人（改嗰個除外），講邊個加入／甩底、而家幾多人、仲差幾多
+// 2) 變咗三缺一（多咗人或者有人甩底都係）：催未應嘅人
 export const meetupUpdated = onDocumentUpdated('groups/{g}/meetups/{m}', async (event) => {
   const before = event.data?.before.data();
   const after = event.data?.after.data();
@@ -97,28 +99,39 @@ export const meetupUpdated = onDocumentUpdated('groups/{g}/meetups/{m}', async (
   const { g, m: id } = event.params;
   const was = list(before.going);
   const now = list(after.going);
-  if (now.length === was.length) return;
+  const joined = now.filter((u) => !was.includes(u));
+  const left = was.filter((u) => !now.includes(u));
+  if (!joined.length && !left.length) return;
   if (Number(after.at) < Date.now()) return;
   const { name } = await groupName(g);
   const at = when(Number(after.at), after.tz);
+  const where = after.place ? `・${after.place}` : '';
   const tag = `${g}:meetup:${id}`;
   const url = `/g/${g}#meetups`;
-  // 三缺一（第一枱或者之後嗰枱都係）：人數增加到 4 嘅倍數差一個
-  if (now.length > was.length && now.length % 4 === 3) {
+  const nm = (u) => after.names?.[u] ?? before.names?.[u] ?? '玩家';
+  const n = now.length;
+  const want = Math.max(1, Number(after.tables ?? 1)) * 4;
+  const lack = n < want ? want - n : (4 - (n % 4)) % 4;
+  const changed = new Set([...joined, ...left]);
+
+  const heads = [];
+  if (joined.length) heads.push(`${joined.map(nm).join('、')} 加入咗`);
+  if (left.length) heads.push(`${left.map(nm).join('、')} 改咗唔去`);
+  const full = n > 0 && n % 4 === 0 && joined.length > 0;
+  const title = full
+    ? `「${name}」夠腳！${n > 4 ? `夠 ${n / 4} 枱 ` : ''}開枱 🀄`
+    : `「${name}」約局：${heads.join('，')}`;
+  const body = `${full ? `${heads.join('，')}。` : ''}${at}${where}：而家 ${n} 個人去${lack ? `，仲差 ${lack} 個` : '，夠腳'}。`;
+  // 每次變動用新 tag：唔會靜靜雞取代咗上一個通知
+  await send(now.filter((u) => !changed.has(u)), { title, body, url, tag: `${tag}:rsvp:${Date.now()}` });
+
+  if (n % 4 === 3) {
     const answered = new Set([...now, ...list(after.maybe), ...list(after.no)]);
     const mem = await members(g);
     await send(mem.map((x) => x.uid).filter((u) => !answered.has(u)), {
-      title: `「${name}」${now.length > 4 ? `第 ${Math.ceil(now.length / 4)} 枱` : ''}三缺一！就差你 🔥`,
-      body: `${at}${after.place ? `・${after.place}` : ''}：${now.map((u) => after.names?.[u] ?? '玩家').join('、')} 已經去，仲差一個。`,
-      url, tag,
-    });
-  } else if (now.length % 4 === 0 && now.length > was.length) {
-    const joined = new Set(now.filter((u) => !was.includes(u)));
-    const tables = now.length / 4;
-    await send(now.filter((u) => !joined.has(u)), {
-      title: `「${name}」夠腳！${tables > 1 ? `夠 ${tables} 枱 ` : ''}開枱 🀄`,
-      body: `${at}${after.place ? `・${after.place}` : ''}，${now.length} 個人去。`,
-      url, tag,
+      title: `「${name}」${n > 4 ? `第 ${Math.ceil(n / 4)} 枱` : ''}三缺一！就差你 🔥`,
+      body: `${at}${where}：${now.map(nm).join('、')} 已經去，仲差一個。`,
+      url, tag: `${tag}:need:${Date.now()}`,
     });
   }
 });
