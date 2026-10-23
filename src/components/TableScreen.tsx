@@ -11,7 +11,7 @@ import { TrendChart } from './Charts.tsx';
 import Celebrate from './Celebrate.tsx';
 import { FanPicker } from './FanTable.tsx';
 import { AirPlaySheet } from './AirPlay.tsx';
-import { roundLabel } from '../lib/sessionData.ts';
+import { ScaleFit, TvFelt } from './TvFelt.tsx';
 import type { ScanResult } from '../lib/scan.ts';
 import type { FanTable } from '../lib/fanTable.ts';
 import { money } from './SettleScreen.tsx';
@@ -677,7 +677,8 @@ export default function TableScreen(props: TableScreenProps) {
               {isWinner && <span className="t-badge win">{entry?.loser === null ? '摸' : '食'}</span>}
               {isLoser && <span className="t-badge lose">銃</span>}
               {entry && ghost !== 0 && <span key={`g${ghost}`} className={`ghost ${ghost > 0 ? 'gain' : 'loss'}`}>{fmt(ghost)}</span>}
-              <span className="t-name"><span className="ellipsis">{name(id)}</span>{isDealer && <span className="dealer-mark">莊{c.state.streak ? c.state.streak : ''}</span>}</span>
+              {isDealer && <span className="dealer-mark tv-dealer-mark">莊{c.state.streak ? c.state.streak : ''}</span>}
+              <span className={`t-name${name(id).length > 6 ? ' long' : ''}`}><span className="t-name-text">{name(id)}</span></span>
               <RollingNumber value={settled} className={`t-score t-${tone2(settled)}`} />
               <span className="t-foot">
                 {owe[id] ? <><Chips key={`c${owe[id]}`} amount={owe[id]} pop={down} /><RollingNumber value={-owe[id]} className="t-loss" /><span className="t-la loss" title="被拉緊第幾拉">{pulledLabel(id)}</span></> : null}
@@ -1055,10 +1056,7 @@ export default function TableScreen(props: TableScreenProps) {
           {more === 'airplay' && props.tvHref && (
             <AirPlaySheet
               tvHref={props.tvHref}
-              groupName={subtitle ?? ''}
-              title={table.name}
-              round={roundLabel(c)}
-              players={seats.map((id, i) => ({ id, name: name(id), wind: ['東', '南', '西', '北'][i], v: totalOf(c, id), dealer: c.info.dealer === id, streak: c.info.dealer === id ? c.state.streak : 0 }))}
+              preview={<ScaleFit base={380}><TvFelt c={c} names={table.names} me={me} /></ScaleFit>}
             />
           )}
           {more === 'menu' && (

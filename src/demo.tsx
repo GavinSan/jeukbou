@@ -4,8 +4,7 @@ import { useEffect, useMemo, useState } from 'react';
 import type { TableEvent } from './engine/table.ts';
 import { withRules } from './engine/rules.ts';
 import type { Dice, Draw, StoredEvent, TableDoc, LogEvent } from './lib/data.ts';
-import { computeTable, describe, emptyPlay } from './lib/score.ts';
-import { roundLabel } from './lib/sessionData.ts';
+import { computeTable, emptyPlay } from './lib/score.ts';
 import type { Computed } from './lib/score.ts';
 import { Link, match, usePath } from './lib/router.tsx';
 import { SkinPicker } from './components/Settings.tsx';
@@ -48,7 +47,6 @@ import TeamsEditor from './components/Teams.tsx';
 import { NoticeBar } from './components/Watch.tsx';
 import { markSeen, pushNotice } from './lib/notify.ts';
 import { InstallSteps } from './components/InstallGuide.tsx';
-import TableStage, { tvAnimOn } from './components/TableStage.tsx';
 
 const TABLES: TableDoc[] = [
   { id: 't0', name: '第壹枱', order: 0, seats: ['gavin', 'athena', 'ivan', 'viola'], names: { gavin: 'Gavin', athena: 'Athena', ivan: 'Ivan', viola: 'Viola' } },
@@ -295,26 +293,6 @@ export default function Demo() {
     return out;
   }, [events, rules, tables, testTables]);
 
-  if (path === '/demo/tv') {
-    const t = tables[0];
-    const c = computed[t.id];
-    if (!c) return null;
-    const W = ['東', '南', '西', '北'];
-    const name = (id: string) => t.names[id] ?? '玩家';
-    const last = c.steps[c.steps.length - 1];
-    return (
-      <TableStage
-        groupName="不打不相識"
-        icon="🀄"
-        title="10月18日 屋企局・第 1 枱"
-        round={roundLabel(c)}
-        last={last ? describe(last.event, name) : '未開始'}
-        players={c.state.seats.map((id, i) => ({ id, name: name(id), wind: W[i], photo: null, v: (c.state.settled[id] ?? 0) + (c.pending[id] ?? 0), dealer: c.info.dealer === id, streak: c.info.dealer === id ? c.state.streak : 0 }))}
-        anim={tvAnimOn()}
-        backHref="/demo/t/0"
-      />
-    );
-  }
   if (path === '/demo/cases') {
     const C: [string, string, string][] = [
       ['/demo/home', '主頁', '戰績、3 個 Live 牌友圈、日曆、加主畫面提示、補資料提示'],
@@ -711,7 +689,7 @@ export default function Demo() {
         subtitle="示範"
         candidates={[{ id: 'kit', name: 'Kit' }, { id: 'mandy', name: 'Mandy' }]}
         onPush={push}
-        tvHref="/demo/tv"
+        tvHref="/demo/live"
         onScan={async () => {
           // 示範：假結果（真嘅要 super admin 喺真牌友圈用）
           await new Promise((r) => setTimeout(r, 1200));

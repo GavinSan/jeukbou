@@ -1,11 +1,9 @@
-// AirPlay 說明：預覽電視畫面、背景動畫開關、點樣射上電視，撳掣入電視模式
+// AirPlay 說明：預覽電視畫面、點樣射上電視，撳掣入電視模式（即係 Live）
 import { useState } from 'react';
 import { go } from '../lib/router.tsx';
-import TableStage, { setTvAnim, tvAnimOn } from './TableStage.tsx';
-import type { StagePlayer } from './TableStage.tsx';
+import type { ReactNode } from 'react';
 
-export function AirPlaySheet({ tvHref, groupName, title, round, players }: { tvHref: string; groupName: string; title: string; round: string; players: StagePlayer[] }) {
-  const [anim, setAnim] = useState(tvAnimOn);
+export function AirPlaySheet({ tvHref, preview }: { tvHref: string; preview: ReactNode }) {
   const [how, setHow] = useState(false);
   return (
     <div className="airplay">
@@ -14,15 +12,11 @@ export function AirPlaySheet({ tvHref, groupName, title, round, players }: { tvH
         AirPlay
       </h2>
       <div className="airplay-tv" aria-hidden="true">
-        <div className="airplay-screen"><TableStage preview anim={false} groupName={groupName} title={title} round={round} players={players} /></div>
+        <div className="airplay-screen">{preview}</div>
         <i className="airplay-stand" />
       </div>
       <p className="center-text">將麻雀枱射上電視，分數會即時更新。</p>
       <p className="airplay-note">♫ 其他 App 嘅音樂會喺電視度播。</p>
-      <label className="airplay-row">
-        <span className="grow">背景動畫</span>
-        <button type="button" role="switch" className="switch" aria-checked={anim} aria-label="背景動畫" onClick={() => { setAnim(!anim); setTvAnim(!anim); }} />
-      </label>
       {how && (
         <ol className="airplay-how">
           <li>撳下面「開電視模式」，再<b>打橫部機</b>。</li>
