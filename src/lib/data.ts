@@ -1073,6 +1073,13 @@ export async function setSkinMode(skin: string, mode: 'auto' | 'open' | 'closed'
   await setDoc(doc(fs(), 'config', 'skins'), { modes: { [skin]: mode } }, { merge: true });
 }
 
+/** 超級管理員：一款風格點開放。default = 預設；open = 全部人；closed = 暫停；grant = 要授權；數字 = 升到第幾個段位 */
+export async function setSkinRule(skin: string, rule: 'default' | 'open' | 'closed' | 'grant' | number): Promise<void> {
+  const mode = rule === 'open' ? 'open' : rule === 'closed' ? 'closed' : 'auto';
+  const tier = rule === 'grant' ? -2 : typeof rule === 'number' ? rule : null;
+  await setDoc(doc(fs(), 'config', 'skins'), { modes: { [skin]: mode }, tiers: { [skin]: tier === null ? deleteField() : tier } }, { merge: true });
+}
+
 /** 超級管理員：開／收一款豪華風格俾某個用家 */
 export async function setSkinGrant(uid: string, skin: string, on: boolean): Promise<void> {
   await setDoc(doc(fs(), 'skinGrants', uid), { skins: on ? arrayUnion(skin) : arrayRemove(skin) }, { merge: true });

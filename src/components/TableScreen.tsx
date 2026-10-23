@@ -1010,7 +1010,7 @@ export default function TableScreen(props: TableScreenProps) {
               </div>
               {pickedNote && <p className="small muted">{pickedNote}</p>}
               {preview.error && <p className="error">{preview.error}</p>}
-              <button type="button" className="btn big" disabled={busy || !draft || !!preview.error} onClick={() => draft && push(draft, '已入數')}>
+              <button type="button" className="btn big dock-go" disabled={busy || !draft || !!preview.error} onClick={() => draft && push(draft, '已入數')}>
                 入數{draft ? (() => {
                   // 今鋪本身（番 + 底 + 莊…）同之前拉住嘅分開講，易對數
                   const all = sum(preview.lines.filter((l) => l.kind === 'pending' || l.kind === 'instant' || (l.kind === 'settle' && !/斷拉|劈|找數/.test(l.note ?? ''))));

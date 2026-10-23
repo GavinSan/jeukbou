@@ -69,7 +69,7 @@ function SkinAccessSync({ uid }: { uid: string }) {
   const grants = useSkinGrants(uid);
   useEffect(() => {
     if (admin === null || cfg.loading || grants.loading) return;
-    updateSkinAccess({ admin, modes: cfg.data?.modes ?? {}, grants: grants.data ?? [], known: true });
+    updateSkinAccess({ admin, modes: cfg.data?.modes ?? {}, tiers: cfg.data?.tiers ?? {}, grants: grants.data ?? [], known: true });
   }, [admin, cfg.loading, grants.loading, cfg.data, grants.data]);
   return null;
 }

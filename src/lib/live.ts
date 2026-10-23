@@ -307,6 +307,8 @@ export const toTeamDoc = toTeam;
 /** 風格開放設定（超級管理員改；人人讀得） */
 export const useSkinConfig = (on: boolean) => useLiveDoc(on ? ['config', 'skins'] : null, (_id, d) => ({
   modes: d.modes && typeof d.modes === 'object' ? Object.fromEntries(Object.entries(d.modes).filter(([, v]) => v === 'auto' || v === 'open' || v === 'closed')) as Record<string, 'auto' | 'open' | 'closed'> : {},
+  /** 超級管理員改咗嘅解鎖段位：TIERS 位置；-2 = 要授權 */
+  tiers: d.tiers && typeof d.tiers === 'object' ? Object.fromEntries(Object.entries(d.tiers).filter(([, v]) => typeof v === 'number' && Number.isInteger(v) && v >= -2 && v <= 9)) as Record<string, number> : {},
 }), true);
 /** 超級管理員開咗俾我嘅豪華風格 */
 export const useSkinGrants = (uid: string | null) => useLiveDoc(uid ? ['skinGrants', uid] : null, (_id, d) => (Array.isArray(d.skins) ? d.skins.map(String) : []) as string[], true);

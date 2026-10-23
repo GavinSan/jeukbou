@@ -1,8 +1,10 @@
 // 約局：約將來嘅日子同時間；大家應「去／唔去」，人數用鬼馬講法（三缺一、二缺二…）；可以發通知問有冇人打
-import { useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import type { Meetup } from '../lib/data.ts';
 import { meetupHost, meetupMood } from '../lib/data.ts';
 import { Sheet, message, useConfirm } from '../ui.tsx';
+import { Link } from '../lib/router.tsx';
+import { useGroup, useMeetups } from '../lib/live.ts';
 
 const WEEK = ['日', '一', '二', '三', '四', '五', '六'];
 export const meetupWhen = (t: number) => {
@@ -40,7 +42,6 @@ export function MeetupCard({ m, me, onRsvp, onDelete, canDelete, onPing, onEdit 
         <span className="meetup-when"><b>{meetupWhen(m.at)}</b>{soon && <span className="tag new">就嚟</span>}{want > 1 && <span className="tag instant">想開 {want} 枱</span>}</span>
         <span className="meetup-acts">
           {onEdit && <button type="button" className="textbtn small" onClick={() => setEditing(true)}>改</button>}
-          {canDelete && <button type="button" className="textbtn loss small" onClick={() => ask({ title: '取消約局', detail: `${meetupWhen(m.at)} 嘅約局會刪除。`, action: '取消約局', run: onDelete })}>取消</button>}
         </span>
       </div>
       {(m.place || m.note) && <p className="meetup-note">{[m.place && `📍 ${m.place}`, m.note].filter(Boolean).join('　')}</p>}
@@ -60,10 +61,14 @@ export function MeetupCard({ m, me, onRsvp, onDelete, canDelete, onPing, onEdit 
         </button>
       )}
       {note && <p className="small gain">{note}</p>}
-      <small className="muted"><span className="meetup-host">局主：{nm(host)}</span>{host !== m.by && `（${m.byName || '開局嗰個'} 唔去咗，由${host === me ? '你' : '佢'}接手）`}</small>
+      <div className="meetup-foot">
+        <small className="muted grow"><span className="meetup-host">局主：{nm(host)}</span>{host !== m.by && `（${m.byName || '開局嗰個'} 唔去咗，由${host === me ? '你' : '佢'}接手）`}</small>
+        {/* 取消約局：開局嗰個喺「改」入面；局主、管理員就喺呢度（遠離「改」，唔會撳錯；撳咗仲會問多次） */}
+        {canDelete && !onEdit && <button type="button" className="textbtn loss small" onClick={() => ask({ title: '取消約局', detail: `${meetupWhen(m.at)} 嘅約局會刪除，所有人嘅應約都會冇咗。`, action: '取消約局', run: onDelete })}>取消約局</button>}
+      </div>
       {error && <p className="error">{error}</p>}
       {confirmUI}
-      {editing && onEdit && <MeetupSheet initial={m} onSave={onEdit} onClose={() => setEditing(false)} />}
+      {editing && onEdit && <MeetupSheet initial={m} onSave={onEdit} onClose={() => setEditing(false)} onDelete={canDelete ? onDelete : undefined} />}
     </div>
   );
 }
@@ -72,7 +77,8 @@ export type MeetupInput = { at: number; place: string; note: string; tables: num
 const MAX_TABLES = 10;
 
 /** 約局表格：開新約局，或者（傳 initial）改返自己開嘅約局 */
-export function MeetupSheet({ onSave, onClose, existing = [], initial }: { onSave: (m: MeetupInput) => Promise<void>; onClose: () => void; existing?: Meetup[]; initial?: Meetup }) {
+export function MeetupSheet({ onSave, onClose, existing = [], initial, onDelete }: { onSave: (m: MeetupInput) => Promise<void>; onClose: () => void; existing?: Meetup[]; initial?: Meetup; onDelete?: () => Promise<void> }) {
+  const [confirmUI, ask] = useConfirm();
   const pad = (x: number) => String(x).padStart(2, '0');
   const start = initial ? new Date(initial.at) : (() => { const d = new Date(Date.now() + 86400000); d.setHours(20, 0, 0, 0); return d; })();
   const [date, setDate] = useState(`${start.getFullYear()}-${pad(start.getMonth() + 1)}-${pad(start.getDate())}`);
@@ -110,6 +116,10 @@ export function MeetupSheet({ onSave, onClose, existing = [], initial }: { onSav
         setBusy(true); setError('');
         try { await onSave({ at, place, note, tables }); onClose(); } catch (err) { setError(message(err)); setBusy(false); }
       }}>{!ok ? '揀返將來嘅時間' : initial ? `改做 ${meetupWhen(at)}` : `約 ${meetupWhen(at)}`}</button>
+      {initial && onDelete && (
+        <button type="button" className="textbtn loss center-text meet-del" onClick={() => ask({ title: '取消約局', detail: `${meetupWhen(initial.at)} 嘅約局會刪除，所有人嘅應約都會冇咗。`, action: '取消約局', run: async () => { await onDelete(); onClose(); } })}>取消呢個約局</button>
+      )}
+      {confirmUI}
     </Sheet>
   );
 }
@@ -140,5 +150,59 @@ export function MeetupsView({ list, me, ownerOrAdmin, onCreate, onRsvp, onDelete
       )) : <button type="button" className="meetup-empty" onClick={() => setOpen(true)}>未有約局。約定日子時間，等大家揀「去」定「唔去」，夠腳就知；人多可以開幾張枱。</button>}
       {open && <MeetupSheet onSave={onCreate} onClose={() => setOpen(false)} existing={list} />}
     </section>
+  );
+}
+
+/** 主頁：自己所有牌友圈將來嘅約局（最近嗰幾個），撳入去牌友圈應約 */
+export interface HomeMeetup { g: string; gname: string; m: Meetup }
+
+export function HomeMeetupsView({ items, me, hrefOf }: { items: HomeMeetup[]; me: string; hrefOf: (x: HomeMeetup) => string }) {
+  if (!items.length) return null;
+  return (
+    <section className="stack home-meetups">
+      <h2 className="section-head">約局</h2>
+      <div className="list">
+        {items.map((x) => {
+          const n = x.m.going.length;
+          const want = Math.max(1, x.m.tables ?? 1);
+          const mine = x.m.going.includes(me) ? 'going' : x.m.no.includes(me) ? 'no' : null;
+          return (
+            <Link key={`${x.g}-${x.m.id}`} to={hrefOf(x)} className="listrow home-meetup">
+              <span className="grow">
+                <b>{meetupWhen(x.m.at)}</b>
+                <small className="muted">{x.gname}{x.m.place ? `・📍 ${x.m.place}` : ''}</small>
+                <small className={n % 4 === 3 ? 'hm-hot' : 'muted'}>{n} 人・{meetupMood(n, want)}</small>
+              </span>
+              <span className={`tag ${mine === 'going' ? 'new' : mine === 'no' ? 'instant' : 'stay'}`}>{mine === 'going' ? '你會去' : mine === 'no' ? '你唔去' : '未應'}</span>
+              <span className="chev" aria-hidden="true">›</span>
+            </Link>
+          );
+        })}
+      </div>
+    </section>
+  );
+}
+
+function GroupMeetupFeed({ g, onData }: { g: string; onData: (g: string, items: HomeMeetup[]) => void }) {
+  const group = useGroup(g);
+  const meetups = useMeetups(g);
+  const name = group.data?.name ?? '';
+  useEffect(() => {
+    const now = Date.now();
+    onData(g, meetups.data.filter((m) => m.at > now - 3600000).map((m) => ({ g, gname: name, m })));
+  }, [g, name, meetups.data, onData]);
+  return null;
+}
+
+/** 主頁約局：聽晒自己牌友圈，排時間，顯示最近 3 個 */
+export function HomeMeetups({ groupIds, me }: { groupIds: string[]; me: string }) {
+  const [all, setAll] = useState<Record<string, HomeMeetup[]>>({});
+  const onData = useCallback((g: string, items: HomeMeetup[]) => setAll((a) => (JSON.stringify(a[g]) === JSON.stringify(items) ? a : { ...a, [g]: items })), []);
+  const items = groupIds.flatMap((g) => all[g] ?? []).sort((a, b) => a.m.at - b.m.at).slice(0, 3);
+  return (
+    <>
+      {groupIds.map((g) => <GroupMeetupFeed key={g} g={g} onData={onData} />)}
+      <HomeMeetupsView items={items} me={me} hrefOf={(x) => `/g/${x.g}#meetups`} />
+    </>
   );
 }

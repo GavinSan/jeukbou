@@ -25,7 +25,7 @@ import type { ExpenseDoc, PairDoc, PullPush, SettleConfig } from './lib/data.ts'
 import { sessionSummary } from './lib/totals.ts';
 import { DEFAULT_FAN_TABLE } from './lib/fanTable.ts';
 import type { JoinMode, JoinRequest, Meetup } from './lib/data.ts';
-import { MeetupsView } from './components/Meetups.tsx';
+import { MeetupsView, HomeMeetupsView } from './components/Meetups.tsx';
 import { AddSheet, GroupRowView, SearchAdd } from './pages/Groups.tsx';
 import { DashboardView, ResumeRow } from './pages/Home.tsx';
 import { RankView } from './pages/RankPage.tsx';
@@ -401,6 +401,7 @@ export default function Demo() {
                 {Object.entries(OTHER_LIVE).map(([k, x]) => (
                   <LiveCardView key={k} groupName={x.name} icon={x.icon} sessionName={x.session} href={`/demo/live/${k}`} tvHref={`/demo/live/${k}`} me="gavin" tables={x.tables.map(card)} />
                 ))}
+                <HomeMeetupsView items={meets.map((m) => ({ g: 'demo', gname: '不打不相識', m }))} me="gavin" hrefOf={() => '/demo/group#meetups'} />
               </>
             );
           })()}
