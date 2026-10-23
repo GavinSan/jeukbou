@@ -135,8 +135,8 @@ export default function TablePage({ user, groupId, sessionId, tableId }: { user:
       onPush={(event) => appendEvent(groupId, sessionId, tableId, tableEvents.length + 1, user.uid, event)}
       onSwap={async (out, incoming, guest) => {
         const outName = table.names[out] ?? '玩家';
-        // 訪客冇帳戶：即刻換（喺其他枱就兩邊對調）
-        if (guest || isGuest(incoming.id)) {
+        // 訪客冇帳戶、或者超級管理員安排：即刻換（喺其他枱就兩邊對調）
+        if (guest || isGuest(incoming.id) || admin) {
           // 對調：先改對面枱（規則要我仲坐喺呢張枱先准），再改呢張
           if (incoming.table) await applySwap(groupId, sessionId, incoming.table.id, user.uid, incoming.id, out, outName, { pair: tableId });
           await applySwap(groupId, sessionId, tableId, user.uid, out, incoming.id, incoming.name);
@@ -153,6 +153,7 @@ export default function TablePage({ user, groupId, sessionId, tableId }: { user:
         if (tableEvents.length === 0) await reseat(groupId, sessionId, tableId, seats);
         else await appendEvent(groupId, sessionId, tableId, tableEvents.length + 1, user.uid, { type: 'reseat', seats });
       }}
+      swapDirect={admin}
       tvHref={`/live/${groupId}/${sessionId}?t=${tableId}`}
       onDice={async () => { await rollDice(groupId, sessionId, tableId, user.uid, (table.dice?.n ?? 0) + 1); }}
       onScan={admin ? async (file) => (await import('../lib/scan.ts')).scanHand(file, fanTableOf(group.data)) : undefined}

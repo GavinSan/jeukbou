@@ -1,7 +1,7 @@
 // 電視直播：大字、即時更新；可以用 AirPlay／Chromecast 鏡像，或者電腦接電視全螢幕播。
 // 旁邊有直播室（留言）同音樂（YouTube、YouTube Music、Spotify、Apple Music 嵌入播放）。
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { ScaleFit, TvFelt } from '../components/TvFelt.tsx';
+import { FallingTiles, ScaleFit, TvFelt, setTvAnim, tvAnimOn } from '../components/TvFelt.tsx';
 import type { CSSProperties } from 'react';
 import type { User } from 'firebase/auth';
 import { sendChat, setChatBlock, setSessionMusic } from '../lib/data.ts';
@@ -45,7 +45,7 @@ export function embedOf(raw: string): { src: string; kind: 'youtube' | 'spotify'
 
 // ---------- YouTube：用官方播放器 API ----------
 // 先靜音自動播（瀏覽器唔俾有聲自動播），撳「開聲」先有聲；播唔到就講原因
-interface YTPlayer { playVideo(): void; mute(): void; unMute(): void; setVolume(v: number): void; destroy(): void }
+interface YTPlayer { playVideo(): void; mute(): void; unMute(): void; setVolume(v: number): void; destroy(): void; getVideoData?(): { title?: string; author?: string } }
 interface YTEvent { target: YTPlayer; data: number }
 interface YTNamespace { Player: new (el: HTMLElement, opts: Record<string, unknown>) => YTPlayer }
 let ytLoading: Promise<YTNamespace> | null = null;
@@ -76,7 +76,7 @@ const YT_ERRORS: Record<number, string> = {
   153: '播放器設定出錯，重新載入再試',
 };
 
-function YouTubeMusic({ id, list, fallbackSrc }: { id?: string; list?: string; fallbackSrc: string }) {
+function YouTubeMusic({ id, list, fallbackSrc, onTitle }: { id?: string; list?: string; fallbackSrc: string; onTitle?: (t: string) => void }) {
   const host = useRef<HTMLDivElement>(null);
   const player = useRef<YTPlayer | null>(null);
   const [muted, setMuted] = useState(true);
@@ -96,6 +96,8 @@ function YouTubeMusic({ id, list, fallbackSrc }: { id?: string; list?: string; f
         events: {
           onReady: (e: YTEvent) => { e.target.mute(); e.target.playVideo(); },
           onError: (e: YTEvent) => setErr(YT_ERRORS[e.data] ?? `播唔到（${e.data}）`),
+          // 播緊就攞首歌個名（播放清單轉歌都會更新）
+          onStateChange: (e: YTEvent) => { if (e.data === 1) { const d = e.target.getVideoData?.(); if (d?.title) onTitle?.(d.author ? `${d.title}・${d.author}` : d.title); } },
         },
       });
     }).catch(() => { if (alive) setPlain(true); });
@@ -201,6 +203,28 @@ export function LiveTv({ groupName, icon, sessionName, tables, ranking, chat, mu
     if (el && stick.current) el.scrollTop = el.scrollHeight;
   }, [chat.length, chatOpen]);
   const emb = music ? embedOf(music) : null;
+  // 播緊咩歌：YouTube 由播放器攞；Spotify 用佢公開嘅 oEmbed；Apple Music 由連結個名估
+  const [nowPlaying, setNowPlaying] = useState('');
+  useEffect(() => {
+    setNowPlaying('');
+    if (!music || !emb) return;
+    if (emb.kind === 'apple') {
+      try {
+        const seg = new URL(music).pathname.split('/').filter(Boolean);
+        const slug = seg.length >= 3 ? decodeURIComponent(seg[seg.length - 2]) : '';
+        setNowPlaying(slug ? slug.replace(/-/g, ' ') : 'Apple Music');
+      } catch { setNowPlaying('Apple Music'); }
+      return;
+    }
+    if (emb.kind === 'spotify') {
+      let alive = true;
+      fetch(`https://open.spotify.com/oembed?url=${encodeURIComponent(music)}`).then((r) => r.json()).then((j: { title?: string }) => { if (alive) setNowPlaying(j.title || 'Spotify'); }).catch(() => { if (alive) setNowPlaying('Spotify'); });
+      return () => { alive = false; };
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [music]);
+  // 背景動畫（只記喺呢部機）
+  const [anim, setAnim] = useState(tvAnimOn);
   const clock = new Date(now).toLocaleTimeString('zh-HK', { hour: '2-digit', minute: '2-digit' });
   // 枱面格仔：按畫面闊高揀最大嘅排法（電視打橫、手機打直都塞得滿）
   const [vw, setVw] = useState(() => (typeof window === 'undefined' ? { w: 1280, h: 720 } : { w: window.innerWidth, h: window.innerHeight }));
@@ -212,11 +236,11 @@ export function LiveTv({ groupName, icon, sessionName, tables, ranking, chat, mu
   const { cols, rows } = useMemo(() => {
     const n = Math.max(1, tables.length);
     const W = vw.w - 24;
-    const H = vw.h - 110;
+    const H = vw.h - 84;
     let best = { cols: 1, rows: n, k: 0 };
     for (let c = 1; c <= n; c++) {
       const r = Math.ceil(n / c);
-      const k = Math.min(W / c / 340, H / r / 400);
+      const k = Math.min(W / c / 340, H / r / 432);
       if (k > best.k) best = { cols: c, rows: r, k };
     }
     return best;
@@ -250,6 +274,20 @@ export function LiveTv({ groupName, icon, sessionName, tables, ranking, chat, mu
 
   return (
     <div className="tv fit airplay" ref={root} style={{ '--cols': cols, '--rows': rows } as CSSProperties}>
+      {anim && <FallingTiles />}
+      {/* 直播室：透明疊喺左下角，淨係最新 3 句 */}
+      {panel !== 'chat' && chat.length > 0 && (
+        <div className="tv-chat-float" aria-live="polite">
+          {chat.slice(-3).map((m) => <p key={m.id}><b>{m.name}</b>{m.text}</p>)}
+        </div>
+      )}
+      {/* 播緊嘅歌：右下角 */}
+      {emb && (
+        <button type="button" className="tv-now" onClick={() => { setPanel('music'); setMusicOpen(true); }} aria-label="音樂">
+          <span className="tv-now-eq" aria-hidden="true"><i /><i /><i /></span>
+          <span className="tv-now-text">{nowPlaying || (emb.kind === 'youtube' ? 'YouTube' : emb.kind === 'spotify' ? 'Spotify' : 'Apple Music')}</span>
+        </button>
+      )}
       <header className="tv-head">
         <Link to={backHref} className="tv-back" ariaLabel="返回">‹</Link>
         <GroupIcon icon={icon} name={groupName} size={40} />
@@ -259,11 +297,12 @@ export function LiveTv({ groupName, icon, sessionName, tables, ranking, chat, mu
         <button type="button" className={`tv-btn${panel === 'music' ? ' on' : ''}`} onClick={() => { setPanel((p) => (p === 'music' ? null : 'music')); setMusicOpen(true); }} aria-label="音樂">♫</button>
         <button type="button" className={`tv-btn${panel === 'rank' ? ' on' : ''}`} onClick={() => setPanel((p) => (p === 'rank' ? null : 'rank'))} aria-label="全場排名">🏆</button>
         <button type="button" className={`tv-btn${panel === 'chat' ? ' on' : ''}`} onClick={() => { setPanel((p) => (p === 'chat' ? null : 'chat')); setChatOpen(true); }} aria-label="直播室">💬{unread > 0 && <i className="tv-btn-dot">{unread}</i>}</button>
+        <button type="button" className={`tv-btn${anim ? ' on' : ''}`} onClick={() => { setAnim(!anim); setTvAnim(!anim); }} aria-label="背景動畫">✨</button>
         <button type="button" className="tv-btn" onClick={full} aria-label="全螢幕">⛶</button>
       </header>
 
       {/* 轉台：長期顯示自己睇緊邊個 Live；有其他 Live 就撳得轉 */}
-      {chans.length > 0 && (
+      {chans.length > 1 && (
         <nav className="tv-channels" aria-label="轉台">
           <span className="tv-channels-label">{chans.length > 1 ? '轉台' : '睇緊'}</span>
           {chans.map((c) => (c.key === current || !c.href
@@ -310,7 +349,7 @@ export function LiveTv({ groupName, icon, sessionName, tables, ranking, chat, mu
           {emb && (
             <section className={`tv-music ${emb.kind}`}>
               {emb.kind === 'youtube'
-                ? <YouTubeMusic key={emb.src} id={emb.yt?.id} list={emb.yt?.list} fallbackSrc={emb.src} />
+                ? <YouTubeMusic key={emb.src} id={emb.yt?.id} list={emb.yt?.list} fallbackSrc={emb.src} onTitle={setNowPlaying} />
                 : <iframe key={emb.src} title="音樂" src={emb.src} allow="autoplay; encrypted-media; fullscreen; clipboard-write; picture-in-picture" referrerPolicy="strict-origin-when-cross-origin" />}
               <small className="tv-music-foot">{emb.kind === 'youtube' ? '一開始靜音播（瀏覽器規矩），撳「開聲」先有聲' : '冇聲？撳一下播放器個 ▶︎'}・<a href={music} target="_blank" rel="noreferrer">喺{emb.kind === 'youtube' ? ' YouTube' : emb.kind === 'spotify' ? ' Spotify' : ' Apple Music'} 開</a>{onMusic && <> ・<button type="button" className="textbtn small" onClick={() => onMusic('').catch(() => undefined)}>停</button></>}</small>
             </section>

@@ -2851,3 +2851,35 @@ body.entering .page { padding-bottom: calc(66vh + 24px); }
   .tv.airplay .live-pill.big { margin-right: auto; }
   .tv.airplay .tv-channels { flex-wrap: nowrap; overflow-x: auto; scrollbar-width: none; }
 }
+
+/* ---------- Live（AirPlay）round 2：成個畫面、背景動畫、枱一樣大、透明直播室、播緊嘅歌 ---------- */
+.tv.airplay { position: fixed; inset: 0; z-index: 45; width: 100vw; max-width: none; margin: 0; --u: 1vmin;
+  padding: max(10px, env(safe-area-inset-top)) max(14px, env(safe-area-inset-right)) max(10px, env(safe-area-inset-bottom)) max(14px, env(safe-area-inset-left)) !important; gap: 6px; }
+:root:has(.demo-bar) .tv.airplay { top: 44px; height: calc(100dvh - 44px); }
+.tv.airplay > .tv-head, .tv.airplay > .tv-channels, .tv.airplay > .tv-body { position: relative; z-index: 2; }
+.tv.airplay .stage-fall { z-index: 0; }
+.tv.airplay .stage-fall span { border-color: rgba(234, 242, 238, .12); color: rgba(234, 242, 238, .14); }
+.tv.airplay .tv-head { gap: 10px; min-height: 52px; }
+.tv.airplay .tv-head .group-icon, .tv.airplay .tv-head img { max-width: 40px; max-height: 40px; }
+.tv.airplay .tv-title b { font-size: clamp(16px, 2vw, 24px); }
+.tv.airplay .tv-title small { font-size: clamp(11px, 1.2vw, 14px); }
+.tv.airplay .tv-clock { font-size: clamp(16px, 2vw, 26px); }
+.tv.airplay .tv-btn { width: 40px; height: 40px; font-size: 17px; }
+/* 每張枱一樣大：固定高度，ScaleFit 用同一個比例 */
+.tv-felt { height: 400px; grid-template-rows: repeat(3, minmax(0, 1fr)) !important; align-items: stretch; }
+.tv-felt .tile { height: 100%; justify-content: space-between; }
+.tv-felt-title { height: 22px; line-height: 22px; }
+/* 直播室：透明，左下角，最新 3 句 */
+.tv-chat-float { position: fixed; z-index: 35; left: max(16px, env(safe-area-inset-left)); bottom: max(16px, env(safe-area-inset-bottom)); max-width: min(42vw, 520px); display: flex; flex-direction: column; gap: 4px; pointer-events: none; }
+.tv-chat-float p { margin: 0; color: #fff; font-size: clamp(13px, 1.6vw, 20px); line-height: 1.35; text-shadow: 0 1px 3px rgba(0, 0, 0, .9), 0 0 12px rgba(0, 0, 0, .6); animation: chatIn .4s ease-out both; overflow-wrap: anywhere; }
+.tv-chat-float p:nth-last-child(3) { opacity: .55; } .tv-chat-float p:nth-last-child(2) { opacity: .8; }
+.tv-chat-float b { color: #7CF2B0; margin-right: 6px; }
+@keyframes chatIn { from { opacity: 0; transform: translateY(8px); } }
+/* 播緊嘅歌：右下角 */
+.tv-now { position: fixed; z-index: 35; right: max(16px, env(safe-area-inset-right)); bottom: max(16px, env(safe-area-inset-bottom)); max-width: min(40vw, 460px); display: flex; align-items: center; gap: 8px; padding: 6px 12px; border-radius: 999px; border: 1px solid rgba(255, 255, 255, .18); background: rgba(10, 18, 15, .45); color: #EAF2EE; font: inherit; font-size: clamp(12px, 1.4vw, 16px); cursor: pointer; backdrop-filter: blur(6px); -webkit-backdrop-filter: blur(6px); }
+.tv-now-text { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.tv-now-eq { display: inline-flex; align-items: flex-end; gap: 2px; height: 14px; flex: none; }
+.tv-now-eq i { width: 3px; background: #7CF2B0; border-radius: 1px; animation: eq 1s ease-in-out infinite; }
+.tv-now-eq i:nth-child(2) { animation-delay: -.3s; } .tv-now-eq i:nth-child(3) { animation-delay: -.6s; }
+@keyframes eq { 0%, 100% { height: 4px; } 50% { height: 14px; } }
+@media (prefers-reduced-motion: reduce) { .tv-now-eq i, .tv-chat-float p { animation: none; } .tv-now-eq i { height: 10px; } }

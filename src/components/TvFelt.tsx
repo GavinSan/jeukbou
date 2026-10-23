@@ -1,7 +1,7 @@
 // 電視（AirPlay）用嘅枱面：同枱頁一模一樣嘅綠絨布同四隻牌（東下、南右、西上、北左），
 // 淨係睇唔撳；分數一變就飄「+N」。ScaleFit 將佢放大縮細塞滿個格（幾多張枱都一版睇晒）。
 import { useEffect, useLayoutEffect, useRef, useState } from 'react';
-import type { ReactNode } from 'react';
+import type { CSSProperties, ReactNode } from 'react';
 import type { Computed } from '../lib/score.ts';
 import { seatWind } from '../engine/table.ts';
 import { Chips, RollingNumber, fmt } from '../ui.tsx';
@@ -46,7 +46,7 @@ export function TvFelt({ c, names, title, me }: { c: Computed; names: Record<str
   const fx = useDeltas(Object.fromEntries(seats.map((id) => [id, (c.state.settled[id] ?? 0) + (c.pending[id] ?? 0)])));
   return (
     <div className="tv-felt-wrap">
-      {title && <div className="tv-felt-title">{title}</div>}
+      <div className="tv-felt-title">{title ?? '\u00a0'}</div>
       <section className="felt tv-felt" aria-label={title ?? '枱面'}>
         {seats.map((id, i) => {
           const settled = c.state.settled[id] ?? 0;
@@ -98,6 +98,22 @@ export function ScaleFit({ base = 380, children }: { base?: number; children: Re
   return (
     <div className="scale-fit" ref={box}>
       <div className="scale-fit-inner" ref={inner} style={{ width: base, transform: `translate(-50%, -50%) scale(${k})` }}>{children}</div>
+    </div>
+  );
+}
+
+// ---------- 背景：慢慢飄落嘅麻雀牌 ----------
+const ANIM_KEY = 'jeukbou-tv-anim';
+export const tvAnimOn = () => { try { return localStorage.getItem(ANIM_KEY) !== '0'; } catch { return true; } };
+export const setTvAnim = (on: boolean) => { try { localStorage.setItem(ANIM_KEY, on ? '1' : '0'); } catch { /* 唔緊要 */ } };
+const FALL = ['中', '發', '東', '南', '西', '北', '一', '九', '萬', '筒', '索', '白', '春', '梅', '五', '八', '蘭', '三'];
+
+export function FallingTiles() {
+  return (
+    <div className="stage-fall" aria-hidden="true">
+      {FALL.map((t, i) => (
+        <span key={i} style={{ '--x': `${(i * 37) % 100}%`, '--d': `${16 + ((i * 7) % 10)}s`, '--delay': `${-((i * 3.3) % 16)}s`, '--r': `${((i * 53) % 60) - 30}deg`, '--s': `${0.8 + ((i * 13) % 6) / 10}` } as CSSProperties}>{t}</span>
+      ))}
     </div>
   );
 }
