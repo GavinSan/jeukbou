@@ -342,7 +342,7 @@ for (const scheme of ['light', 'dark']) {
       await page.waitForTimeout(400);
       await page.screenshot({ path: `${out}/airplay-sheet.png` });
       await page.setViewportSize({ width: 1280, height: 720 });
-      await page.goto(`${base}/demo/tv`, { waitUntil: 'networkidle' });
+      await page.goto(`${base}/demo/live`, { waitUntil: 'networkidle' });
       await page.waitForTimeout(800);
       await page.screenshot({ path: `${out}/tv-stage.png` });
       await page.setViewportSize({ width: 844, height: 390 });
