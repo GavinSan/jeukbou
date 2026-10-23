@@ -2554,3 +2554,15 @@ input, textarea, [contenteditable="true"], .selectable { -webkit-user-select: te
 
 /* iOS 26：收鍵盤後畫面位移冇還原，底部固定嘅嘢跟住 --vv-shift 移返去真正底部（App.tsx 計） */
 .tabbar, .toast, .dock { translate: 0 var(--vv-shift, 0px); }
+
+/* 揀風格：三張豪華卡永遠用自己個樣（唔俾而家用緊嘅風格蓋咗底色，例如報紙、玻璃） */
+.skin-pick .skin-card.premium { -webkit-backdrop-filter: none !important; backdrop-filter: none !important; border-width: 1.5px !important; border-style: solid !important; }
+.skin-pick .skin-card.skin-palace { background: linear-gradient(150deg, #1A140A, #0B0906) !important; color: #F3DFA2 !important; border-color: #B8892E !important; }
+.skin-pick .skin-card.skin-jade { background: linear-gradient(150deg, #0E6A50, #063A2C) !important; color: #F4F1E6 !important; border-color: #C9A24B !important; }
+.skin-pick .skin-card.skin-porcelain { background: radial-gradient(90% 120% at 100% 0%, #DCE5F7, transparent 60%), #FBFCFE !important; color: #1F3F8F !important; border-color: #C9A24B !important; }
+.skin-pick .skin-card.premium small { color: inherit !important; }
+
+/* 報紙：揀咗嘅 tab 用墨線底，唔用成舊黑色 */
+:root[data-skin="paper"] .tab-lens { background: transparent; box-shadow: inset 0 -3px 0 var(--ink); border-radius: 0; }
+:root[data-skin="paper"] .tab.active { color: var(--ink); }
+:root[data-skin="paper"] .tab.active svg { stroke-width: 2.4; }
