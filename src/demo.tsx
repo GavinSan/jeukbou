@@ -25,7 +25,7 @@ import type { ExpenseDoc, PairDoc, PullPush, SettleConfig } from './lib/data.ts'
 import { sessionSummary } from './lib/totals.ts';
 import { DEFAULT_FAN_TABLE } from './lib/fanTable.ts';
 import type { JoinMode, JoinRequest, Meetup } from './lib/data.ts';
-import { MeetupsView } from './components/Meetups.tsx';
+import { MeetupsView, HomeMeetupsView } from './components/Meetups.tsx';
 import { AddSheet, GroupRowView, SearchAdd } from './pages/Groups.tsx';
 import { DashboardView, ResumeRow } from './pages/Home.tsx';
 import { RankView } from './pages/RankPage.tsx';
@@ -401,6 +401,7 @@ export default function Demo() {
                 {Object.entries(OTHER_LIVE).map(([k, x]) => (
                   <LiveCardView key={k} groupName={x.name} icon={x.icon} sessionName={x.session} href={`/demo/live/${k}`} tvHref={`/demo/live/${k}`} me="gavin" tables={x.tables.map(card)} />
                 ))}
+                <HomeMeetupsView items={meets.map((m) => ({ g: 'demo', gname: '不打不相識', m }))} me="gavin" hrefOf={() => '/demo/group#meetups'} />
               </>
             );
           })()}
@@ -477,7 +478,7 @@ export default function Demo() {
         <TopBar back="/demo/home" title="試風格" />
         <p className="muted small">揀一款，之後去其他示範頁睇吓。只係改呢部機，隨時可以喺「設定」轉返。</p>
         <p className="muted small">示範：當你係「雀士」，基本款升到段位先用得；豪華款要超級管理員開通（示範入面開咗「翡翠」俾你）。</p>
-        <SkinPicker access={{ tier: 3, admin: false, modes: {}, grants: ['jade'], known: true }} />
+        <SkinPicker access={{ tier: 3, admin: false, modes: {}, tiers: {}, grants: ['jade'], known: true }} />
         <div className="list">
           {[['/demo/home', '主頁'], ['/demo', '大局'], ['/demo/t/0', '枱'], ['/demo/settle', '埋數'], ['/demo/board', '龍虎榜'], ['/demo/rank', '段位']].map(([href, label]) => (
             <Link key={href} to={href} className="listrow"><span className="grow">{label}</span><span className="chev" aria-hidden="true">›</span></Link>

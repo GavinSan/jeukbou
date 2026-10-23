@@ -2727,3 +2727,27 @@ input, textarea, [contenteditable="true"], .selectable { -webkit-user-select: te
 .meet-tables .btn { min-height: 48px; padding: 0; font-size: 22px; }
 .meet-tables b { text-align: center; font-size: 22px; }
 .meetup-acts { display: inline-flex; gap: 6px; }
+
+/* 入數 dock：內容多（例如有莊嗰行）都唔好擠扁快捷番數；入數掣永遠喺底見到 */
+.dock { max-height: min(66vh, 640px); }
+.dock > * { flex-shrink: 0; }
+.dock .dock-go { position: sticky; bottom: 0; z-index: 2; }
+body.entering .page { padding-bottom: calc(66vh + 24px); }
+
+/* 約局：取消掣遠離「改」；主頁約局 */
+.meetup-foot { display: flex; align-items: center; gap: 8px; }
+.meet-del { margin-top: 4px; }
+.home-meetup .grow { display: flex; flex-direction: column; gap: 1px; min-width: 0; }
+.home-meetup small { font-size: 12.5px; }
+.home-meetup .hm-hot { color: var(--meet-hot, #C2410C); font-weight: 700; }
+
+/* 管理：風格設定（每款一行：名 + 揀）、用家可以摺埋 */
+.skin-rules .skin-rule { display: flex; align-items: center; gap: 10px; padding: 8px 14px; border-top: 1px solid var(--line); }
+.skin-rules .skin-rule:first-child { border-top: none; }
+.skin-select { width: auto; max-width: 58%; min-height: 38px; padding: 4px 28px 4px 10px; font-size: 14px; }
+.skin-user { border-top: 1px solid var(--line); }
+.skin-user:first-child { border-top: none; }
+.skin-user-head { display: flex; align-items: center; gap: 8px; width: 100%; padding: 10px 14px; border: none; background: none; color: inherit; font: inherit; text-align: left; cursor: pointer; }
+.skin-user-head svg { color: var(--muted); transition: transform .2s ease; flex: none; }
+.skin-user.open .skin-user-head svg { transform: rotate(180deg); }
+.skin-user .skin-chips { padding: 0 14px 12px; }

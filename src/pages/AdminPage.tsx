@@ -12,9 +12,9 @@ import {
 import type { AdminGroup, AdminUser } from '../lib/adminData.ts';
 import { Link } from '../lib/router.tsx';
 import { sendBroadcast, sendTestPush } from '../lib/fns.ts';
-import { listSkinGrants, setSkinGrant, setSkinMode } from '../lib/data.ts';
-import { SKINS, SKIN_TIER } from '../lib/prefs.ts';
-import type { SkinMode } from '../lib/prefs.ts';
+import { listSkinGrants, setSkinGrant, setSkinRule } from '../lib/data.ts';
+import { SKINS, SKIN_TIER, TIER_NAMES } from '../lib/prefs.ts';
+import type { Skin, SkinMode } from '../lib/prefs.ts';
 import { useSkinConfig } from '../lib/live.ts';
 import { ConfirmDelete, Loading, TopBar, message, useConfirm } from '../ui.tsx';
 
@@ -406,14 +406,14 @@ function DataBrowser({ path, setPath }: { path: string; setPath: (p: string) => 
   );
 }
 
-const MODE_LABEL: Record<SkinMode, string> = { auto: '預設', open: '全部人開放', closed: '暫停' };
-
-/** 風格：每款點開放；豪華款開俾邊個用家 */
+/** 風格：每款點開放（要升到邊個段位／要授權／全部人／暫停）；豪華款開俾邊個用家 */
 function SkinAdmin({ users }: { users: AdminUser[] }) {
   const cfg = useSkinConfig(true);
   const modes = cfg.data?.modes ?? {};
+  const tiers = cfg.data?.tiers ?? {};
   const [grants, setGrants] = useState<Record<string, string[]> | null>(null);
   const [q, setQ] = useState('');
+  const [openUser, setOpenUser] = useState<string | null>(null);
   const [busy, setBusy] = useState('');
   const [error, setError] = useState('');
   useEffect(() => { listSkinGrants().then(setGrants).catch((err) => setError(message(err))); }, []);
@@ -424,50 +424,81 @@ function SkinAdmin({ users }: { users: AdminUser[] }) {
   };
   const shown = users.filter((u) => !q || `${u.name} ${u.email}`.toLowerCase().includes(q.toLowerCase()))
     .sort((a, b) => (grants?.[b.uid]?.length ?? 0) - (grants?.[a.uid]?.length ?? 0) || a.name.localeCompare(b.name));
+  // 而家嘅設定 → select 嘅值
+  const valueOf = (key: Skin): string => {
+    const mode = (modes[key] ?? 'auto') as SkinMode;
+    if (mode === 'open') return 'open';
+    if (mode === 'closed') return 'closed';
+    const t = tiers[key];
+    if (t === undefined) return 'default';
+    return t === -2 ? 'grant' : `t${t}`;
+  };
+  const defaultText = (key: Skin, isPremium: boolean) => (isPremium ? '要授權' : SKIN_TIER[key] ? `升到${SKIN_TIER[key]!.name}` : '一開始就有');
   return (
     <div className="stack">
       <h2 className="section-head">每款風格點開放</h2>
-      <p className="muted small">預設：基本款升到段位先用得、豪華款要你開俾個別用家。「全部人開放」唔理段位同授權；「暫停」就冇人用得（你自己照用得）。</p>
-      <div className="list">
+      <p className="muted small">揀要升到邊個段位先用得、要你授權、全部人都用得或者暫停。豪華款揀咗段位之後，升到就自動開放；你授權過嘅人照用得。你自己全部都用得。</p>
+      <div className="list skin-rules">
         {SKINS.filter((k) => k.key !== 'classic').map((k) => {
-          const mode = (modes[k.key] ?? 'auto') as SkinMode;
-          const need = SKIN_TIER[k.key];
+          const v = valueOf(k.key);
           return (
-            <div key={k.key} className="listrow">
-              <span className="grow exp-text"><span>{k.name}{k.premium ? ' 👑' : ''}</span><small className="muted">{k.premium ? '豪華：要授權' : need ? `升到「${need.name}」` : '一開始就有'}</small></span>
-              <div className="seg" role="radiogroup" aria-label={`${k.name} 開放設定`}>
-                {(['auto', 'open', 'closed'] as SkinMode[]).map((m) => (
-                  <button key={m} type="button" role="radio" aria-checked={mode === m} aria-pressed={mode === m} disabled={busy === k.key} onClick={() => run(k.key, () => setSkinMode(k.key, m))}>{MODE_LABEL[m]}</button>
-                ))}
-              </div>
-            </div>
+            <label key={k.key} className="skin-rule">
+              <span className="grow ellipsis">{k.premium ? '👑 ' : ''}{k.name}</span>
+              <select
+                className="input skin-select"
+                value={v}
+                disabled={busy === k.key}
+                aria-label={`${k.name} 點開放`}
+                onChange={(e) => {
+                  const x = e.target.value;
+                  const rule = x === 'default' || x === 'open' || x === 'closed' || x === 'grant' ? x : Number(x.slice(1));
+                  run(k.key, () => setSkinRule(k.key, rule));
+                }}
+              >
+                <option value="default">預設（{defaultText(k.key, !!k.premium)}）</option>
+                <option value="open">全部人用得</option>
+                {TIER_NAMES.map((t, i) => (i === 0 ? null : <option key={t} value={`t${i}`}>升到{t}</option>))}
+                <option value="grant">要我授權</option>
+                <option value="closed">暫停</option>
+              </select>
+            </label>
           );
         })}
       </div>
 
       <h2 className="section-head">豪華風格開俾邊個</h2>
-      <p className="muted small">未開通嘅用家睇得到豪華風格，但用唔到。撳個名就開／收。</p>
+      <p className="muted small">撳個名打開，再撳風格開／收。</p>
       <input className="input" value={q} onChange={(e) => setQ(e.target.value)} placeholder="搵用家（名或 email）" />
       {!grants ? <Loading /> : (
         <div className="list">
-          {shown.map((u) => (
-            <div key={u.uid} className="listrow skin-grant-row">
-              <span className="grow exp-text"><span className="ellipsis">{u.name || '（冇名）'}</span><small className="muted ellipsis">{u.email}</small></span>
-              <div className="skin-chips">
-                {premium.map((k) => {
-                  const on = grants[u.uid]?.includes(k.key) ?? false;
-                  const id = `${u.uid}:${k.key}`;
-                  return (
-                    <button key={k.key} type="button" className={`skin-chip${on ? ' on' : ''}`} aria-pressed={on} disabled={busy === id}
-                      onClick={() => run(id, async () => {
-                        await setSkinGrant(u.uid, k.key, !on);
-                        setGrants((g) => ({ ...(g ?? {}), [u.uid]: on ? (g?.[u.uid] ?? []).filter((x) => x !== k.key) : [...(g?.[u.uid] ?? []), k.key] }));
-                      })}>{k.name}</button>
-                  );
-                })}
+          {shown.map((u) => {
+            const mine = grants[u.uid] ?? [];
+            const open = openUser === u.uid;
+            return (
+              <div key={u.uid} className={`skin-user${open ? ' open' : ''}`}>
+                <button type="button" className="skin-user-head" aria-expanded={open} onClick={() => setOpenUser(open ? null : u.uid)}>
+                  <span className="grow exp-text"><span className="ellipsis">{u.name || '（冇名）'}</span><small className="muted ellipsis">{u.email}</small></span>
+                  {mine.length > 0 && <span className="more-count">{mine.length}</span>}
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M6 9l6 6 6-6" /></svg>
+                </button>
+                {open && (
+                  <div className="skin-chips">
+                    {premium.map((k) => {
+                      const on = mine.includes(k.key);
+                      const id = `${u.uid}:${k.key}`;
+                      return (
+                        <button key={k.key} type="button" className={`skin-chip${on ? ' on' : ''}`} aria-pressed={on} disabled={busy === id}
+                          onClick={() => run(id, async () => {
+                            await setSkinGrant(u.uid, k.key, !on);
+                            setGrants((g) => ({ ...(g ?? {}), [u.uid]: on ? (g?.[u.uid] ?? []).filter((x) => x !== k.key) : [...(g?.[u.uid] ?? []), k.key] }));
+                          })}>{on ? '✓ ' : ''}{k.name}</button>
+                      );
+                    })}
+                  </div>
+                )}
               </div>
-            </div>
-          ))}
+            );
+          })}
         </div>
       )}
       {error && <p className="error">{error}</p>}

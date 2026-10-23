@@ -119,18 +119,22 @@ export const SKIN_TIER: Partial<Record<Skin, { i: number; name: string }>> = {
   neon: { i: 3, name: '雀士' }, glass: { i: 3, name: '雀士' },
   brutal: { i: 4, name: '雀豪' }, pixel: { i: 5, name: '雀霸' },
 };
+/** 段位名（同 stats.ts 嘅 TIERS 一樣次序；放喺度免得 prefs 依賴 stats） */
+export const TIER_NAMES = ['雀蛋', '雀仔', '雀友', '雀士', '雀豪', '雀霸', '雀王', '雀聖', '雀神', '雀仙'];
 export interface SkinAccess {
   /** 而家段位（TIERS 嘅位置），未知係 -1 */
   tier: number;
   admin: boolean;
   modes: Record<string, SkinMode>;
+  /** 超級管理員改咗嘅解鎖段位（TIERS 位置；-2 = 要授權）；冇就用預設 */
+  tiers: Record<string, number>;
   /** 超級管理員開俾呢個用家嘅豪華風格 */
   grants: string[];
   /** 已經由伺服器讀過（未讀到之前唔鎖，免得錯鎖） */
   known: boolean;
 }
 const ACCESS_KEY = 'jeukbou-skin-access';
-const NO_ACCESS: SkinAccess = { tier: -1, admin: false, modes: {}, grants: [], known: false };
+const NO_ACCESS: SkinAccess = { tier: -1, admin: false, modes: {}, tiers: {}, grants: [], known: false };
 function loadAccess(): SkinAccess {
   try { const raw = localStorage.getItem(ACCESS_KEY); if (raw) return { ...NO_ACCESS, ...JSON.parse(raw) }; } catch { /* 冇就算 */ }
   return NO_ACCESS;
@@ -145,9 +149,12 @@ export function skinLock(key: Skin, a: SkinAccess = access): string | null {
   if (mode === 'closed') return '暫停開放';
   if (mode === 'open') return null;
   const def = SKINS.find((x) => x.key === key);
-  if (def?.premium) return a.grants.includes(key) ? null : '豪華風格：要管理員開通';
-  const need = SKIN_TIER[key];
-  if (!need) return null;
+  const granted = a.grants.includes(key);
+  // 超級管理員改咗要幾高段位（或者要授權）就跟佢；冇就用預設
+  const set = a.tiers?.[key];
+  if (set === -2 || (set === undefined && def?.premium)) return granted ? null : `${def?.premium ? '豪華風格：' : ''}要管理員開通`;
+  const need = set !== undefined && set >= 0 ? { i: set, name: TIER_NAMES[set] ?? '' } : SKIN_TIER[key];
+  if (!need || granted) return null;
   if (a.tier < 0) return null;
   return a.tier >= need.i ? null : `升到「${need.name}」先用得`;
 }
