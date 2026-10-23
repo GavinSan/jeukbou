@@ -2785,14 +2785,14 @@ body.entering .page { padding-bottom: calc(66vh + 24px); }
   border: calc(.25 * var(--u)) solid rgba(234, 240, 255, .14); color: rgba(234, 240, 255, .16); font-family: var(--font-kai); font-size: calc(3 * var(--u)); transform: rotate(var(--r)) scale(var(--s));
   animation: stageFall var(--d) linear var(--delay) infinite; }
 @keyframes stageFall { from { transform: translateY(0) rotate(var(--r)) scale(var(--s)); } to { transform: translateY(125vh) rotate(calc(var(--r) + 40deg)) scale(var(--s)); } }
-.stage-back { position: absolute; z-index: 3; left: max(12px, env(safe-area-inset-left)); bottom: max(12px, env(safe-area-inset-bottom)); padding: 8px 14px; border-radius: 999px; background: rgba(255, 255, 255, .12); color: #fff; text-decoration: none; font-weight: 700; transition: opacity .4s; }
+.stage-back { position: absolute; z-index: 3; right: max(12px, env(safe-area-inset-right)); bottom: max(12px, env(safe-area-inset-bottom)); padding: 8px 14px; border-radius: 999px; background: rgba(255, 255, 255, .12); color: #fff; text-decoration: none; font-weight: 700; transition: opacity .4s; }
 .stage-back.hide { opacity: 0; pointer-events: none; }
 .stage-rotate { display: none; }
 @media (orientation: portrait) {
   .stage:not(.preview) .stage-grid { grid-template-columns: repeat(2, calc(44 * var(--u))); grid-auto-rows: calc(48 * var(--u)); }
   .stage:not(.preview) .stage-head { grid-template-columns: 1fr; justify-items: center; }
   .stage:not(.preview) .stage-clock { display: none; }
-  .stage:not(.preview) .stage-rotate { display: block; position: absolute; z-index: 3; left: 50%; bottom: calc(14px + env(safe-area-inset-bottom)); transform: translateX(-50%); padding: 8px 14px; border-radius: 999px; background: rgba(43, 111, 255, .9); color: #fff; font-size: 13px; font-weight: 700; white-space: nowrap; }
+  .stage:not(.preview) .stage-rotate { display: block; position: absolute; z-index: 3; left: 50%; top: calc(150px + env(safe-area-inset-top)); transform: translateX(-50%); padding: 8px 14px; border-radius: 999px; background: rgba(43, 111, 255, .9); color: #fff; font-size: 13px; font-weight: 700; white-space: nowrap; }
 }
 @media (prefers-reduced-motion: reduce) { .stage-fall span, .stage-delta { animation: none; } .stage-fall { display: none; } }
 
