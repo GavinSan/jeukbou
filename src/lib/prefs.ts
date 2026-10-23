@@ -82,10 +82,13 @@ export function usePrefs(): Prefs {
 /** 套用風格：網址有 ?skin= 就用網址（示範用），否則用設定 */
 export function applySkin(skin: Skin) {
   let s: string = skin;
+  let forced = false;
   try {
     const q = new URLSearchParams(window.location.search).get('skin');
-    if (q && SKINS.some((x) => x.key === q)) s = q;
+    if (q && SKINS.some((x) => x.key === q)) { s = q; forced = true; }
   } catch { /* 唔緊要 */ }
+  // 未解鎖嘅風格：照留住個設定，但暫時用返綠絨（網址 ?skin= 係示範／測試用，唔理）
+  if (!forced && skinLock(s as Skin, access)) s = 'classic';
   const k = SKINS.find((x) => x.key === s) ?? SKINS[0];
   const root = document.documentElement;
   root.dataset.skin = k.key;
@@ -105,3 +108,64 @@ export function applySkin(skin: Skin) {
 }
 
 const SKIN_FONTS: Partial<Record<Skin, string>> = { pixel: 'Press+Start+2P', paper: 'Noto+Serif+TC:wght@700;900' };
+
+// ---------- 風格解鎖 ----------
+/** 每款風格開放方式（超級管理員設定）：auto＝基本款跟段位、豪華款要授權；open＝全部人用得；closed＝暫停 */
+export type SkinMode = 'auto' | 'open' | 'closed';
+/** 基本款要幾高段位先用得（TIERS 嘅位置同名） */
+export const SKIN_TIER: Partial<Record<Skin, { i: number; name: string }>> = {
+  teahouse: { i: 1, name: '雀仔' }, chachaan: { i: 1, name: '雀仔' },
+  paper: { i: 2, name: '雀友' }, clay: { i: 2, name: '雀友' },
+  neon: { i: 3, name: '雀士' }, glass: { i: 3, name: '雀士' },
+  brutal: { i: 4, name: '雀豪' }, pixel: { i: 5, name: '雀霸' },
+};
+export interface SkinAccess {
+  /** 而家段位（TIERS 嘅位置），未知係 -1 */
+  tier: number;
+  admin: boolean;
+  modes: Record<string, SkinMode>;
+  /** 超級管理員開俾呢個用家嘅豪華風格 */
+  grants: string[];
+  /** 已經由伺服器讀過（未讀到之前唔鎖，免得錯鎖） */
+  known: boolean;
+}
+const ACCESS_KEY = 'jeukbou-skin-access';
+const NO_ACCESS: SkinAccess = { tier: -1, admin: false, modes: {}, grants: [], known: false };
+function loadAccess(): SkinAccess {
+  try { const raw = localStorage.getItem(ACCESS_KEY); if (raw) return { ...NO_ACCESS, ...JSON.parse(raw) }; } catch { /* 冇就算 */ }
+  return NO_ACCESS;
+}
+let access: SkinAccess = loadAccess();
+const accessListeners = new Set<() => void>();
+
+/** 用唔用得：null＝用得；否則係原因（顯示俾用家睇） */
+export function skinLock(key: Skin, a: SkinAccess = access): string | null {
+  if (key === 'classic' || a.admin || !a.known) return null;
+  const mode = a.modes[key] ?? 'auto';
+  if (mode === 'closed') return '暫停開放';
+  if (mode === 'open') return null;
+  const def = SKINS.find((x) => x.key === key);
+  if (def?.premium) return a.grants.includes(key) ? null : '豪華風格：要管理員開通';
+  const need = SKIN_TIER[key];
+  if (!need) return null;
+  if (a.tier < 0) return null;
+  return a.tier >= need.i ? null : `升到「${need.name}」先用得`;
+}
+
+/** 更新解鎖資料（段位喺主頁／段位頁／設定計；管理員、開放設定、授權喺 App 讀） */
+export function updateSkinAccess(patch: Partial<SkinAccess>) {
+  const next = { ...access, ...patch };
+  if (JSON.stringify(next) === JSON.stringify(access)) return;
+  access = next;
+  try { localStorage.setItem(ACCESS_KEY, JSON.stringify(access)); } catch { /* 存唔到就算 */ }
+  accessListeners.forEach((l) => l());
+  applySkin(current.skin);
+}
+export function resetSkinAccess() {
+  access = NO_ACCESS;
+  try { localStorage.removeItem(ACCESS_KEY); } catch { /* 唔緊要 */ }
+  accessListeners.forEach((l) => l());
+}
+export function useSkinAccess(): SkinAccess {
+  return useSyncExternalStore((l) => { accessListeners.add(l); return () => accessListeners.delete(l); }, () => access, () => access);
+}

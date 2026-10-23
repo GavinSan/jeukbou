@@ -27,7 +27,9 @@ const LivePage = lazyPage(() => import('./pages/LivePage.tsx'));
 const GroupPayPage = lazyPage(() => import('./pages/GroupPayPage.tsx'));
 import TabBar, { HOME_DEMO_TABS, appTabs } from './components/TabBar.tsx';
 import { navContext } from './lib/nav.ts';
-import { applySkin, prefs, usePrefs } from './lib/prefs.ts';
+import { applySkin, prefs, updateSkinAccess, usePrefs } from './lib/prefs.ts';
+import { useSkinConfig, useSkinGrants } from './lib/live.ts';
+import { useSuperAdminState } from './lib/admin.ts';
 import { GroupWatchers, NoticeBar } from './components/Watch.tsx';
 import { UpdateWatcher } from './lib/update.tsx';
 import { registerPush } from './lib/push.ts';
@@ -60,6 +62,18 @@ function Routes({ user, refresh }: { user: User; refresh: () => void }) {
   return <Home user={user} refresh={refresh} />;
 }
 
+/** 風格解鎖：超級管理員、開放設定、我嘅豪華授權（段位喺主頁／段位頁／設定計） */
+function SkinAccessSync({ uid }: { uid: string }) {
+  const admin = useSuperAdminState(uid);
+  const cfg = useSkinConfig(true);
+  const grants = useSkinGrants(uid);
+  useEffect(() => {
+    if (admin === null || cfg.loading || grants.loading) return;
+    updateSkinAccess({ admin, modes: cfg.data?.modes ?? {}, grants: grants.data ?? [], known: true });
+  }, [admin, cfg.loading, grants.loading, cfg.data, grants.data]);
+  return null;
+}
+
 export default function App() {
   const [user, setUser] = useState<User | null | undefined>(undefined);
   // 改名之後 Firebase 嘅 user 係同一個物件，要手動叫畫面再畫一次
@@ -79,30 +93,51 @@ export default function App() {
     return () => { document.removeEventListener('focusin', on); document.removeEventListener('focusout', off); };
   }, []);
   // iOS 26 嘅 bug：鍵盤收埋之後 visualViewport.offsetTop 唔還原，底部 tab 會卡喺半空（鍵盤頂嗰度）。
-  // 自己計真正睇到嘅底部，將底部嘅嘢移返落去；收鍵盤時再碌一碌叫 iOS 還原
+  // 自己計真正睇到嘅底部，將底部嘅嘢移返落去：碌畫面、收鍵盤、由背景返嚟都重新計；收鍵盤後再碌 1px 叫 iOS 重新排版
   useEffect(() => {
     const vv = window.visualViewport;
     if (!vv) return;
     const root = document.documentElement;
+    let raf = 0;
     const fix = () => {
+      raf = 0;
       const typing = document.body.classList.contains('typing');
       const shift = typing ? 0 : Math.round(vv.offsetTop + vv.height - window.innerHeight);
       root.style.setProperty('--vv-shift', `${Math.abs(shift) < 2 ? 0 : shift}px`);
     };
-    const nudge = () => {
+    const soon = () => { if (!raf) raf = requestAnimationFrame(fix); };
+    const timers: number[] = [];
+    const settle = () => {
       if (document.body.classList.contains('typing')) return;
-      for (const ms of [60, 350, 800]) setTimeout(() => { if (vv.offsetTop > 0) window.scrollTo(window.scrollX, window.scrollY); fix(); }, ms);
+      timers.splice(0).forEach((t) => clearTimeout(t));
+      for (const ms of [50, 250, 500, 750, 1000, 1500]) {
+        timers.push(window.setTimeout(() => {
+          if (vv.offsetTop > 0 && !document.body.classList.contains('typing')) {
+            const y = window.scrollY;
+            window.scrollTo(window.scrollX, y + 1);
+            window.scrollTo(window.scrollX, y);
+          }
+          fix();
+        }, ms));
+      }
     };
-    vv.addEventListener('resize', fix);
-    vv.addEventListener('scroll', fix);
-    document.addEventListener('focusout', nudge);
-    window.addEventListener('pageshow', fix);
+    const onVisible = () => { if (document.visibilityState === 'visible') settle(); };
+    vv.addEventListener('resize', soon);
+    vv.addEventListener('scroll', soon);
+    window.addEventListener('scroll', soon, { passive: true });
+    document.addEventListener('focusout', settle);
+    document.addEventListener('visibilitychange', onVisible);
+    window.addEventListener('pageshow', settle);
     fix();
     return () => {
-      vv.removeEventListener('resize', fix);
-      vv.removeEventListener('scroll', fix);
-      document.removeEventListener('focusout', nudge);
-      window.removeEventListener('pageshow', fix);
+      vv.removeEventListener('resize', soon);
+      vv.removeEventListener('scroll', soon);
+      window.removeEventListener('scroll', soon);
+      document.removeEventListener('focusout', settle);
+      document.removeEventListener('visibilitychange', onVisible);
+      window.removeEventListener('pageshow', settle);
+      timers.forEach((t) => clearTimeout(t));
+      if (raf) cancelAnimationFrame(raf);
     };
   }, []);
   // 電視直播可以打橫，其他頁手機打橫就叫人轉返直向
@@ -178,6 +213,7 @@ export default function App() {
       {/* 加入頁唔使底部 tab */}
       {!path.startsWith('/join/') && !path.startsWith('/live/') && path !== '/admin' && <TabBar tabs={nav.tabs} active={nav.active} />}
       <GroupWatchers uid={user.uid} />
+      <SkinAccessSync uid={user.uid} />
       <NoticeBar />
       <UpdateWatcher />
     </>

@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import type { ReactNode } from 'react';
 import type { User } from 'firebase/auth';
-import { PERMS, paidState, settleConfigOf, approveJoin, createMeetup, deleteMeetup, rsvpMeetup, canDo, deleteGroup, deleteSession, ensureJoinCode, rejectJoin, removeMember, resetInvite, setJoinMode, setMemberPerms, updateGroupProfile, legacyMap } from '../lib/data.ts';
+import { PERMS, paidState, settleConfigOf, approveJoin, createMeetup, deleteMeetup, rsvpMeetup, updateMeetup, canDo, deleteGroup, deleteSession, ensureJoinCode, rejectJoin, removeMember, resetInvite, setJoinMode, setMemberPerms, updateGroupProfile, legacyMap } from '../lib/data.ts';
 import type { Perm } from '../lib/data.ts';
 import { toAvatar } from '../lib/avatar.ts';
 import GroupIcon from '../components/GroupIcon.tsx';
@@ -460,6 +460,7 @@ export default function GroupPage({ user, groupId }: { user: User; groupId: stri
         onCreate={(m) => createMeetup(groupId, user, m)}
         onRsvp={(id, st) => rsvpMeetup(groupId, id, user, st)}
         onDelete={(id) => deleteMeetup(groupId, id)}
+        onEdit={(id, patch) => updateMeetup(groupId, id, patch)}
         onPing={async (id) => {
           const r = await pingMeetup(groupId, id);
           if (!r.people) return '全部人都應咗（去或者唔去），冇人要問';

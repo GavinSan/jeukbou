@@ -8,7 +8,7 @@ import { useProfile, useSession } from '../lib/live.ts';
 import { Link } from '../lib/router.tsx';
 import { Avatar, TopBar, fmt } from '../ui.tsx';
 import { navContext } from '../lib/nav.ts';
-import { TIERS, badgesOf, sessionPoints, statsOf, tierOf, useMyHistory } from '../lib/stats.ts';
+import { TIERS, badgesOf, sessionPoints, statsOf, tierOf, useMyHistory, useTierSync } from '../lib/stats.ts';
 import type { MySession } from '../lib/stats.ts';
 import LiveNow from '../components/LiveHome.tsx';
 import { BadgeTile, CountUp, Progress, Ring, TierTile } from '../components/Tier.tsx';
@@ -323,6 +323,7 @@ export default function Home({ user }: { user: User; refresh?: () => void }) {
   const profile = useProfile(user.uid);
   const groups = profile.data.groups;
   const history = useMyHistory(profile.loading ? null : user.uid, groups);
+  useTierSync(history, !profile.loading);
   const last = navContext('/');
   const onLive = useCallback(() => undefined, []);
   return (

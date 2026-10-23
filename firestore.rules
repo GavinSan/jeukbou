@@ -50,6 +50,18 @@ service cloud.firestore {
       allow write: if false;
     }
 
+    // 風格開放設定：登入咗嘅人都讀得；淨係超級管理員改得
+    match /config/{doc} {
+      allow read: if signedIn();
+      allow write: if isSuperAdmin();
+    }
+
+    // 豪華風格授權：自己讀得自己嗰份；淨係超級管理員開／收（用家唔可以自己開）
+    match /skinGrants/{uid} {
+      allow read: if (signedIn() && request.auth.uid == uid) || isSuperAdmin();
+      allow write: if isSuperAdmin();
+    }
+
     // 玩家資料：淨係自己（同超級管理員）睇到同改到。其他人只會喺同一個牌友圈嘅成員名單見到你個名同頭像。
     match /users/{uid} {
       allow read: if (signedIn() && request.auth.uid == uid) || isSuperAdmin();

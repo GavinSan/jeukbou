@@ -101,8 +101,25 @@ export const meetupUpdated = onDocumentUpdated('groups/{g}/meetups/{m}', async (
   const now = list(after.going);
   const joined = now.filter((u) => !was.includes(u));
   const left = was.filter((u) => !now.includes(u));
-  if (!joined.length && !left.length) return;
   if (Number(after.at) < Date.now()) return;
+  // 開約局嗰個改咗日子時間／地點／枱數／備註：通知已經應咗嘅人（去同唔去都通知，改咗時間可能又得閒）
+  if (!joined.length && !left.length) {
+    const diff = [];
+    if (Number(before.at) !== Number(after.at)) diff.push(`時間改做 ${when(Number(after.at), after.tz)}`);
+    if ((before.place ?? '') !== (after.place ?? '')) diff.push(after.place ? `地點改做 ${after.place}` : '冇咗地點');
+    if (Number(before.tables ?? 1) !== Number(after.tables ?? 1)) diff.push(`想開 ${Number(after.tables ?? 1)} 枱`);
+    if ((before.note ?? '') !== (after.note ?? '')) diff.push(after.note ? `備註：${after.note}` : '冇咗備註');
+    if (!diff.length) return;
+    const { name: gname } = await groupName(g);
+    const by = String(after.by ?? '');
+    await send([...now, ...list(after.no)].filter((u) => u !== by), {
+      title: `「${gname}」約局改咗 ✏️`,
+      body: `${after.byName || '開約局嘅人'}：${diff.join('；')}。`,
+      url: `/g/${g}#meetups`,
+      tag: `${g}:meetup:${id}:edit:${Date.now()}`,
+    });
+    return;
+  }
   const { name } = await groupName(g);
   const at = when(Number(after.at), after.tz);
   const where = after.place ? `・${after.place}` : '';

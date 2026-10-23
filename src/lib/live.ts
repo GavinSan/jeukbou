@@ -303,3 +303,10 @@ export const toSessionDoc = toSession;
 export const toExpenseDoc = toExpense;
 export const toPairDoc = toPair;
 export const toTeamDoc = toTeam;
+
+/** 風格開放設定（超級管理員改；人人讀得） */
+export const useSkinConfig = (on: boolean) => useLiveDoc(on ? ['config', 'skins'] : null, (_id, d) => ({
+  modes: d.modes && typeof d.modes === 'object' ? Object.fromEntries(Object.entries(d.modes).filter(([, v]) => v === 'auto' || v === 'open' || v === 'closed')) as Record<string, 'auto' | 'open' | 'closed'> : {},
+}), true);
+/** 超級管理員開咗俾我嘅豪華風格 */
+export const useSkinGrants = (uid: string | null) => useLiveDoc(uid ? ['skinGrants', uid] : null, (_id, d) => (Array.isArray(d.skins) ? d.skins.map(String) : []) as string[], true);
