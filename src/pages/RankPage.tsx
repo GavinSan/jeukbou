@@ -2,7 +2,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import type { User } from 'firebase/auth';
 import { useProfile } from '../lib/live.ts';
-import { POINT_RULES, TIERS, badgesOf, pointsFor, statsOf, tierOf, useMyHistory } from '../lib/stats.ts';
+import { POINT_RULES, TIERS, badgesOf, pointsFor, statsOf, tierOf, useMyHistory, useTierSync } from '../lib/stats.ts';
 import type { GroupResults, MySession } from '../lib/stats.ts';
 import { BadgeCats, CountUp, Progress, TierChip, TierTile } from '../components/Tier.tsx';
 import { TopBar } from '../ui.tsx';
@@ -125,5 +125,6 @@ export function RankView({ me, mine, groups, loading }: { me: string; mine: MySe
 export default function RankPage({ user }: { user: User }) {
   const profile = useProfile(user.uid);
   const h = useMyHistory(profile.loading ? null : user.uid, profile.data.groups);
+  useTierSync(h, !profile.loading);
   return <RankView me={user.uid} mine={h.mine} groups={h.groups} loading={profile.loading || h.loading} />;
 }

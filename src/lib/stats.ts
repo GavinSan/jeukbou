@@ -6,6 +6,7 @@ import type { Group, Member, Session } from './data.ts';
 import { toGroupDoc, toMemberDoc, toSessionDoc } from './live.ts';
 import { sessionTotals } from './history.ts';
 import type { SessionResult } from './history.ts';
+import { updateSkinAccess } from './prefs.ts';
 
 /** 我打過嘅一場 */
 export interface MySession {
@@ -393,4 +394,13 @@ export function useMyHistory(uid: string | null, groupIds: string[]): MyHistory 
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [key]);
   return state;
+}
+
+/** 由戰績計段位（TIERS 嘅位置）同步俾風格解鎖用；載入緊就唔郁 */
+export function useTierSync(h: MyHistory, ready: boolean) {
+  useEffect(() => {
+    if (!ready || h.loading) return;
+    const t = tierOf(statsOf(h.mine).points).tier;
+    updateSkinAccess({ tier: TIERS.indexOf(t) });
+  }, [ready, h.loading, h.mine]);
 }

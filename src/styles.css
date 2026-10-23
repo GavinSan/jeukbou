@@ -2700,3 +2700,30 @@ input, textarea, [contenteditable="true"], .selectable { -webkit-user-select: te
 :root[data-theme="dark"] .live-pill { background: color-mix(in srgb, #E23B3B 30%, var(--surface)); color: #FFB3B3; }
 /* 電視直播頁永遠係深色底：贏輸色固定用光色，唔跟風格（例如報紙嘅「贏」係墨黑色） */
 .tv { --gain: #6EE7A8; --loss: #FF8A80; --muted: #9DB3A9; }
+
+/* 揀風格：每張卡一樣高；說明一行，太長就「…」 */
+.skin-pick .skin-card { min-width: 0; }
+.skin-pick .skin-card b { display: flex; align-items: center; gap: 2px; min-width: 0; white-space: nowrap; }
+.skin-pick .skin-card small { display: block; width: 100%; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.skin-card.locked { cursor: not-allowed; }
+.skin-card.locked .skin-sw, .skin-card.locked b { opacity: .55; }
+.skin-card.locked:not(.premium) { filter: grayscale(.35); }
+.skin-lock { margin-left: auto; font-size: 12px; }
+.skin-note { margin: 8px 2px 0; font-size: 13px; color: var(--loss); }
+
+/* 管理員：豪華風格授權 */
+.skin-grant-row { flex-wrap: wrap; }
+.skin-chips { display: flex; flex-wrap: wrap; gap: 6px; width: 100%; }
+.skin-chip { border: 1.5px solid var(--line); background: var(--surface); color: var(--muted); border-radius: 999px; padding: 4px 10px; font-size: 13px; cursor: pointer; }
+.skin-chip.on { background: var(--gain-soft); border-color: var(--gain); color: var(--ink); font-weight: 700; }
+.skin-chip:disabled { opacity: .5; }
+
+/* 約局表格：日子時間並排唔會爆出去（iPhone 嘅日期格要清走預設闊度） */
+.meet-when { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 12px; }
+.meet-when .field { min-width: 0; }
+.meet-when input[type="date"], .meet-when input[type="time"] { -webkit-appearance: none; appearance: none; min-width: 0; width: 100%; max-width: 100%; display: block; text-align: left; line-height: 46px; }
+.meet-when input::-webkit-date-and-time-value { text-align: left; }
+.meet-tables { display: grid; grid-template-columns: 56px 1fr 56px; align-items: center; gap: 10px; }
+.meet-tables .btn { min-height: 48px; padding: 0; font-size: 22px; }
+.meet-tables b { text-align: center; font-size: 22px; }
+.meetup-acts { display: inline-flex; gap: 6px; }

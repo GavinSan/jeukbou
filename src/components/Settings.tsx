@@ -1,14 +1,12 @@
 // 設定：個人資料（頭像、名）＋ 呢部機嘅偏好（聲、震、通知）＋ 登出
 import { useState } from 'react';
 import type { ReactNode } from 'react';
-import { SKINS, setPref, usePrefs } from '../lib/prefs.ts';
-import type { Prefs } from '../lib/prefs.ts';
+import { SKINS, SKIN_TIER, resetSkinAccess, setPref, skinLock, usePrefs, useSkinAccess } from '../lib/prefs.ts';
+import type { Prefs, SkinAccess } from '../lib/prefs.ts';
 import { buzz } from '../lib/haptics.ts';
 import { sfx, unlock } from '../lib/sound.ts';
 import { Avatar, NameForm, Sheet, message, useConfirm } from '../ui.tsx';
 import { askNotify, notifySupported } from '../lib/notify.ts';
-import { useSuperAdmin } from '../lib/admin.ts';
-import { sendTestPush } from '../lib/fns.ts';
 import { pushConfigured, registerPush, unregisterPush } from '../lib/push.ts';
 import { signOut } from 'firebase/auth';
 import { auth } from '../firebase.ts';
@@ -170,28 +168,50 @@ function PayEmailField({ initial, onSave, busy }: { initial: string; onSave: (v:
   );
 }
 
-/** 介面風格：十八款，每款自己定光暗，揀咗即刻轉（只存喺呢部機） */
-export function SkinPicker() {
+/** 介面風格：十八款，每款自己定光暗。基本款跟段位解鎖；豪華款要超級管理員開通（未開通都睇得到，但用唔到） */
+export function SkinPicker({ access: forced }: { access?: SkinAccess }) {
   const p = usePrefs();
+  const live = useSkinAccess();
+  const access = forced ?? live;
+  const [note, setNote] = useState('');
+  const tierName = access.tier >= 0 ? TIER_NAMES[access.tier] : '';
   return (
-    <div className="skin-pick" role="radiogroup" aria-label="介面風格">
-      {SKINS.map((k) => (
-        <button key={k.key} type="button" role="radio" aria-checked={p.skin === k.key} className={`skin-card${p.skin === k.key ? ' on' : ''}${k.premium ? ` premium skin-${k.key}` : ''}`} onClick={() => { setPref('skin', k.key); sfx.tap(); }}>
-          <span className="skin-sw" aria-hidden="true">{k.colors.map((c) => <i key={c} style={{ background: c }} />)}</span>
-          <b>{k.name}{k.premium && <span className="skin-crown" title="豪華風格">👑</span>}</b>
-          <small>{k.note}</small>
-        </button>
-      ))}
-    </div>
+    <>
+      <div className="skin-pick" role="radiogroup" aria-label="介面風格">
+        {SKINS.map((k) => {
+          const lock = skinLock(k.key, access);
+          const on = p.skin === k.key && !lock;
+          return (
+            <button
+              key={k.key}
+              type="button"
+              role="radio"
+              aria-checked={on}
+              aria-disabled={!!lock}
+              className={`skin-card${on ? ' on' : ''}${lock ? ' locked' : ''}${k.premium ? ` premium skin-${k.key}` : ''}`}
+              onClick={() => {
+                if (lock) { setNote(`${k.name}：${lock}${tierName && SKIN_TIER[k.key] ? `（你而家係「${tierName}」）` : ''}`); buzz('tap'); return; }
+                setNote(''); setPref('skin', k.key); sfx.tap();
+              }}
+            >
+              <span className="skin-sw" aria-hidden="true">{k.colors.map((c) => <i key={c} style={{ background: c }} />)}</span>
+              <b>{k.name}{k.premium && <span className="skin-crown" title="豪華風格">👑</span>}{lock && <span className="skin-lock" aria-label="未解鎖">🔒</span>}</b>
+              <small>{lock ?? k.note}</small>
+            </button>
+          );
+        })}
+      </div>
+      {note && <p className="skin-note" role="status">{note}</p>}
+    </>
   );
 }
+
+const TIER_NAMES = ['雀蛋', '雀仔', '雀友', '雀士', '雀豪', '雀霸', '雀王', '雀聖', '雀神', '雀仙'];
 
 /** 呢部機嘅偏好 */
 export function PrefsList() {
   const p = usePrefs();
   const [note, setNote] = useState('');
-  const [testNote, setTestNote] = useState('');
-  const admin = useSuperAdmin(auth?.currentUser?.uid ?? null);
   return (
     <>
       <div className="list flat">
@@ -227,15 +247,6 @@ export function PrefsList() {
         ))}
       </div>
       {note && <p className="error small">{note}</p>}
-      {admin && p.notify && (
-        <div className="row">
-          <button type="button" className="btn plain small-btn" onClick={async () => {
-            setTestNote('發緊…');
-            try { const r = await sendTestPush(); setTestNote(`已發出，${r.ok} 部機收到。閂咗 app 都應該見到。`); } catch (err) { setTestNote(err instanceof Error ? err.message : '發唔到'); }
-          }}>發測試通知（超級管理員）</button>
-          {testNote && <small className="muted grow">{testNote}</small>}
-        </div>
-      )}
       <p className="muted small">聲效、震動同通知只儲存在這部裝置。</p>
     </>
   );
@@ -256,7 +267,7 @@ export function SignOutButton({ onDone }: { onDone?: () => void }) {
           title: '確定要登出？',
           detail: `登出之後，呢部機唔會再收到雀簿嘅通知，要用 ${email || '呢個帳戶'} 再登入先用得返。`,
           action: '確定登出',
-          run: async () => { onDone?.(); await unregisterPush().catch(() => undefined); clearSnapCache(); if (auth) await signOut(auth); },
+          run: async () => { onDone?.(); await unregisterPush().catch(() => undefined); clearSnapCache(); resetSkinAccess(); if (auth) await signOut(auth); },
         })}
       >登出</button>
       {confirmUI}

@@ -192,8 +192,17 @@ export async function createMeetup(g: string, user: User, m: { at: number; place
   await setDoc(doc(collection(fs(), 'groups', g, 'meetups')), {
     by: user.uid, byName: displayName(user), at: m.at, place: m.place.trim().slice(0, 60), note: m.note.trim().slice(0, 200),
     going: [user.uid], maybe: [], no: [], names: { [user.uid]: displayName(user) }, createdAt: Date.now(),
-    tables: Math.max(1, Math.min(8, Math.round(m.tables ?? 1))),
+    tables: Math.max(1, Math.min(10, Math.round(m.tables ?? 1))),
     // 伺服器發通知時用嚟寫返當地時間
+    tz: Intl.DateTimeFormat().resolvedOptions().timeZone || '',
+  });
+}
+
+/** 開約局嗰個改：日子時間、地點、枱數、備註（已經應咗嘅人會收到通知） */
+export async function updateMeetup(g: string, id: string, m: { at: number; place: string; note: string; tables: number }): Promise<void> {
+  await updateDoc(doc(fs(), 'groups', g, 'meetups', id), {
+    at: m.at, place: m.place.trim().slice(0, 60), note: m.note.trim().slice(0, 200),
+    tables: Math.max(1, Math.min(10, Math.round(m.tables))),
     tz: Intl.DateTimeFormat().resolvedOptions().timeZone || '',
   });
 }
@@ -1057,6 +1066,22 @@ export async function loadPublicGroups(): Promise<PublicGroup[]> {
 
 export async function removeMember(g: string, uid: string): Promise<void> {
   await deleteDoc(doc(fs(), 'groups', g, 'members', uid));
+}
+
+/** 超級管理員：設定某款風格點開放（auto＝跟段位／要授權、open＝全部人、closed＝暫停） */
+export async function setSkinMode(skin: string, mode: 'auto' | 'open' | 'closed'): Promise<void> {
+  await setDoc(doc(fs(), 'config', 'skins'), { modes: { [skin]: mode } }, { merge: true });
+}
+
+/** 超級管理員：開／收一款豪華風格俾某個用家 */
+export async function setSkinGrant(uid: string, skin: string, on: boolean): Promise<void> {
+  await setDoc(doc(fs(), 'skinGrants', uid), { skins: on ? arrayUnion(skin) : arrayRemove(skin) }, { merge: true });
+}
+
+/** 超級管理員：所有人嘅豪華風格授權 */
+export async function listSkinGrants(): Promise<Record<string, string[]>> {
+  const snap = await getDocs(collection(fs(), 'skinGrants'));
+  return Object.fromEntries(snap.docs.map((d) => [d.id, Array.isArray(d.get('skins')) ? d.get('skins').map(String) : []]));
 }
 
 /** 讀得到 admin/check 就係超級管理員 */

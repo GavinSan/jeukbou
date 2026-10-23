@@ -156,3 +156,15 @@ test('找數要確認：俾錢嘅人淨係標到「等確認」，收錢嘅人�
   await assertSucceeds(updateDoc(s('c'), { 'paid.d>c': { by: 'c', at: 3 }, lastPaid: 'd>c' }));
   await assertSucceeds(updateDoc(s('host'), { 'paid.a>d': { by: 'host', at: 4 }, lastPaid: 'a>d' }));
 });
+
+test('風格：人人讀到開放設定；淨係超級管理員改設定同開豪華風格；用家唔可以自己開', async () => {
+  const { getDoc } = await import('firebase/firestore');
+  await assertSucceeds(setDoc(doc(admin(), 'config', 'skins'), { modes: { neon: 'open' } }, { merge: true }));
+  await assertSucceeds(getDoc(doc(as('a'), 'config', 'skins')));
+  await assertFails(setDoc(doc(as('a'), 'config', 'skins'), { modes: { jade: 'open' } }, { merge: true }));
+  await assertFails(setDoc(doc(as('a'), 'skinGrants', 'a'), { skins: ['jade'] }));
+  await assertSucceeds(setDoc(doc(admin(), 'skinGrants', 'a'), { skins: ['jade'] }));
+  await assertSucceeds(getDoc(doc(as('a'), 'skinGrants', 'a')));
+  await assertFails(getDoc(doc(as('b'), 'skinGrants', 'a')));
+  await assertFails(updateDoc(doc(as('a'), 'skinGrants', 'a'), { skins: ['jade', 'palace'] }));
+});

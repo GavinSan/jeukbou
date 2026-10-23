@@ -476,7 +476,8 @@ export default function Demo() {
       <main className="page">
         <TopBar back="/demo/home" title="試風格" />
         <p className="muted small">揀一款，之後去其他示範頁睇吓。只係改呢部機，隨時可以喺「設定」轉返。</p>
-        <SkinPicker />
+        <p className="muted small">示範：當你係「雀士」，基本款升到段位先用得；豪華款要超級管理員開通（示範入面開咗「翡翠」俾你）。</p>
+        <SkinPicker access={{ tier: 3, admin: false, modes: {}, grants: ['jade'], known: true }} />
         <div className="list">
           {[['/demo/home', '主頁'], ['/demo', '大局'], ['/demo/t/0', '枱'], ['/demo/settle', '埋數'], ['/demo/board', '龍虎榜'], ['/demo/rank', '段位']].map(([href, label]) => (
             <Link key={href} to={href} className="listrow"><span className="grow">{label}</span><span className="chev" aria-hidden="true">›</span></Link>
@@ -539,6 +540,7 @@ export default function Demo() {
             names: { ...m.names, gavin: 'Gavin' },
           }))}
           onDelete={async (id) => setMeets((l) => l.filter((m) => m.id !== id))}
+          onEdit={async (id, patch) => setMeets((l) => l.map((m) => (m.id === id ? { ...m, ...patch } : m)).sort((a, b) => a.at - b.at))}
           onPing={async (id) => {
             const m = meets.find((x) => x.id === id);
             const left = members.length - (m ? m.going.length + m.no.length : 0);
