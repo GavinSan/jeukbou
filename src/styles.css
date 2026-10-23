@@ -2395,10 +2395,10 @@ input, textarea, [contenteditable="true"], .selectable { -webkit-user-select: te
 
 /* --- 玻璃：極光漸變底、磨砂半透明卡（暗） --- */
 :root[data-skin="glass"] {
-  --page: #120E2A; --surface: rgba(255, 255, 255, .09); --sunk: rgba(255, 255, 255, .06); --ink: #F3F1FF; --muted: #B4AED6; --line: rgba(255, 255, 255, .16);
+  --page: #120E2A; --surface: #2A2357; --sunk: #221C49; --ink: #F3F1FF; --muted: #B4AED6; --line: rgba(255, 255, 255, .16);
   --felt: #2B1F5C; --felt-deep: #1A1240; --felt-ink: #F3F1FF;
   --tile: #F7F5FF; --tile-back: #5EC8E5; --tile-back-deep: #2E8FB0;
-  --gain: #6EF0C2; --gain-soft: rgba(110, 240, 194, .14); --loss: #FF8AB8; --loss-soft: rgba(255, 138, 184, .14); --on-felt-btn: #F3F1FF;
+  --gain: #6EF0C2; --gain-soft: #234A4A; --loss: #FF8AB8; --loss-soft: #4A2A4E; --on-felt-btn: #F3F1FF;
   --accent: #8FD9F0; --card-r: 22px; color-scheme: dark;
 }
 :root[data-skin="glass"] body {
