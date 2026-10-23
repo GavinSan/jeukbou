@@ -1,6 +1,6 @@
 // 電視直播：大字、即時更新；可以用 AirPlay／Chromecast 鏡像，或者電腦接電視全螢幕播。
 // 旁邊有直播室（留言）同音樂（YouTube、YouTube Music、Spotify、Apple Music 嵌入播放）。
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { FallingTiles, ScaleFit, TvFelt, setTvAnim, tvAnimOn } from '../components/TvFelt.tsx';
 import type { CSSProperties } from 'react';
 import type { User } from 'firebase/auth';
@@ -227,24 +227,33 @@ export function LiveTv({ groupName, icon, sessionName, tables, ranking, chat, mu
   const [anim, setAnim] = useState(tvAnimOn);
   const clock = new Date(now).toLocaleTimeString('zh-HK', { hour: '2-digit', minute: '2-digit' });
   // 枱面格仔：按畫面闊高揀最大嘅排法（電視打橫、手機打直都塞得滿）
-  const [vw, setVw] = useState(() => (typeof window === 'undefined' ? { w: 1280, h: 720 } : { w: window.innerWidth, h: window.innerHeight }));
-  useEffect(() => {
-    const on = () => setVw({ w: window.innerWidth, h: window.innerHeight });
-    window.addEventListener('resize', on);
-    return () => window.removeEventListener('resize', on);
+  // 量實際剩低嘅位（扣咗頂部、轉台同左下角留言），唔再靠估
+  const body = useRef<HTMLDivElement>(null);
+  const [box, setBox] = useState({ w: 1280, h: 600 });
+  useLayoutEffect(() => {
+    const b = body.current;
+    if (!b) return;
+    const on = () => {
+      const cs = getComputedStyle(b);
+      const h = b.clientHeight - parseFloat(cs.paddingTop || '0') - parseFloat(cs.paddingBottom || '0');
+      setBox({ w: b.clientWidth, h: Math.max(100, h) });
+    };
+    on();
+    const ro = new ResizeObserver(on);
+    ro.observe(b);
+    return () => ro.disconnect();
   }, []);
+  const floatOn = panel !== 'chat' && chat.length > 0;
   const { cols, rows } = useMemo(() => {
     const n = Math.max(1, tables.length);
-    const W = vw.w - 24;
-    const H = vw.h - 84;
     let best = { cols: 1, rows: n, k: 0 };
     for (let c = 1; c <= n; c++) {
       const r = Math.ceil(n / c);
-      const k = Math.min(W / c / 340, H / r / 432);
+      const k = Math.min(box.w / c / 340, box.h / r / 432);
       if (k > best.k) best = { cols: c, rows: r, k };
     }
     return best;
-  }, [tables.length, vw]);
+  }, [tables.length, box]);
   const muted = blockedUntil > now;
   const coolLeft = Math.max(0, Math.ceil((cool.until - now) / 1000));
   // 最近播過嘅歌（只記喺呢部機），一撳再播
@@ -276,7 +285,7 @@ export function LiveTv({ groupName, icon, sessionName, tables, ranking, chat, mu
     <div className="tv fit airplay" ref={root} style={{ '--cols': cols, '--rows': rows } as CSSProperties}>
       {anim && <FallingTiles />}
       {/* 直播室：透明疊喺左下角，淨係最新 3 句 */}
-      {panel !== 'chat' && chat.length > 0 && (
+      {floatOn && (
         <div className="tv-chat-float" aria-live="polite">
           {chat.slice(-3).map((m) => <p key={m.id}><b>{m.name}</b>{m.text}</p>)}
         </div>
@@ -311,7 +320,7 @@ export function LiveTv({ groupName, icon, sessionName, tables, ranking, chat, mu
         </nav>
       )}
 
-      <div className="tv-body">
+      <div className={`tv-body${floatOn ? ' has-float' : ''}`} ref={body}>
         <main className="tv-tables felts">
           {tables.map((t) => (
             t.c && t.names ? (

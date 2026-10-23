@@ -2883,3 +2883,9 @@ body.entering .page { padding-bottom: calc(66vh + 24px); }
 .tv-now-eq i:nth-child(2) { animation-delay: -.3s; } .tv-now-eq i:nth-child(3) { animation-delay: -.6s; }
 @keyframes eq { 0%, 100% { height: 4px; } 50% { height: 14px; } }
 @media (prefers-reduced-motion: reduce) { .tv-now-eq i, .tv-chat-float p { animation: none; } .tv-now-eq i { height: 10px; } }
+/* Live round 3：留言位預留、名唔好切字腳 */
+.tv.airplay .tv-body.has-float { padding-bottom: calc(3 * 1.35 * clamp(13px, 1.6vw, 20px) + 12px); }
+.tv-chat-float { max-width: min(60vw, 560px); }
+.tv-chat-float p { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+@media (max-aspect-ratio: 1/1) { .tv-chat-float { max-width: calc(100vw - 32px); } }
+.tile .t-name-text { line-height: 1.25; padding-bottom: 1px; }
