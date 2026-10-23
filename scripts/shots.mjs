@@ -335,6 +335,23 @@ for (const scheme of ['light', 'dark']) {
       await page.waitForTimeout(400);
       await page.screenshot({ path: `${out}/group-player.png` });
     });
+    await step('tv', async () => {
+      await page.goto(`${base}/demo/t/0`, { waitUntil: 'networkidle' });
+      await page.waitForTimeout(500);
+      await page.getByRole('button', { name: 'AirPlay 電視模式' }).click();
+      await page.waitForTimeout(400);
+      await page.screenshot({ path: `${out}/airplay-sheet.png` });
+      await page.setViewportSize({ width: 1280, height: 720 });
+      await page.goto(`${base}/demo/tv`, { waitUntil: 'networkidle' });
+      await page.waitForTimeout(800);
+      await page.screenshot({ path: `${out}/tv-stage.png` });
+      await page.setViewportSize({ width: 844, height: 390 });
+      await page.waitForTimeout(400);
+      await page.screenshot({ path: `${out}/tv-stage-phone.png` });
+      await page.setViewportSize({ width: 390, height: 844 });
+      await page.waitForTimeout(400);
+      await page.screenshot({ path: `${out}/tv-stage-portrait.png` });
+    });
     await step('cases', async () => {
       await page.goto(`${base}/demo/cases`, { waitUntil: 'networkidle' });
       await page.waitForTimeout(300);
