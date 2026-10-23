@@ -2889,3 +2889,4 @@ body.entering .page { padding-bottom: calc(66vh + 24px); }
 .tv-chat-float p { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
 @media (max-aspect-ratio: 1/1) { .tv-chat-float { max-width: calc(100vw - 32px); } }
 .tile .t-name-text { line-height: 1.25; padding-bottom: 1px; }
+.tile .t-name { flex-shrink: 0; }
