@@ -1,6 +1,7 @@
 // 電視直播：大字、即時更新；可以用 AirPlay／Chromecast 鏡像，或者電腦接電視全螢幕播。
 // 旁邊有直播室（留言）同音樂（YouTube、YouTube Music、Spotify、Apple Music 嵌入播放）。
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { ScaleFit, TvFelt } from '../components/TvFelt.tsx';
 import type { CSSProperties } from 'react';
 import type { User } from 'firebase/auth';
 import { sendChat, setChatBlock, setSessionMusic } from '../lib/data.ts';
@@ -120,6 +121,9 @@ export interface TvTable {
   streak?: number;
   players: { id: string; name: string; v: number; wind: string }[];
   last: string;
+  /** 電視枱面（同枱頁一樣）要用 */
+  c?: Computed;
+  names?: Record<string, string>;
 }
 
 const WINDS = ['東', '南', '西', '北'];
@@ -135,6 +139,7 @@ export function tvTablesOf(tables: { id: string; name: string; names: Record<str
       // 座位：東南西北（第一個位 = 東位）；「東圈南位」嘅莊就係坐南位嗰個
       players: c.state.seats.map((id, i) => ({ id, name: name(id), v: (c.state.settled[id] ?? 0) + (c.pending[id] ?? 0), wind: WINDS[i] })),
       last: last ? describe(last.event, name) : '未開始',
+      c, names: t.names,
     }];
   });
 }
@@ -142,15 +147,6 @@ export function tvTablesOf(tables: { id: string; name: string; names: Record<str
 /** 枱上四家：跟座位東南西北排 */
 export const bySeat = <T extends { wind: string }>(ps: T[]) => [...ps].sort((a, b) => WINDS.indexOf(a.wind) - WINDS.indexOf(b.wind));
 
-/** 幾多張枱 → 幾行幾列（全部枱一樣大，一版睇晒） */
-function gridOf(n: number): { cols: number; rows: number } {
-  if (n <= 1) return { cols: 1, rows: 1 };
-  if (n <= 3) return { cols: n, rows: 1 };
-  if (n === 4) return { cols: 2, rows: 2 };
-  if (n <= 6) return { cols: 3, rows: 2 };
-  if (n <= 8) return { cols: 4, rows: 2 };
-  return { cols: Math.ceil(n / 3), rows: 3 };
-}
 
 /** 防洗版：30 秒內講咗 5 句就要停 30 秒（正常傾偈唔會撞到） */
 function useCooldown() {
@@ -187,6 +183,8 @@ export function LiveTv({ groupName, icon, sessionName, tables, ranking, chat, mu
   const [musicUrl, setMusicUrl] = useState(music ?? '');
   const [error, setError] = useState('');
   const [chatOpen, setChatOpen] = useState(false);
+  // 電視（AirPlay）模式：枱面佔晒畫面；音樂、排名、直播室收喺右邊，撳頂部掣先拉出嚟（音樂收埋都照播）
+  const [panel, setPanel] = useState<null | 'music' | 'rank' | 'chat'>(null);
   const [modFor, setModFor] = useState<ChatMsg | null>(null);
   const root = useRef<HTMLDivElement>(null);
   const chatList = useRef<HTMLDivElement>(null);
@@ -204,7 +202,25 @@ export function LiveTv({ groupName, icon, sessionName, tables, ranking, chat, mu
   }, [chat.length, chatOpen]);
   const emb = music ? embedOf(music) : null;
   const clock = new Date(now).toLocaleTimeString('zh-HK', { hour: '2-digit', minute: '2-digit' });
-  const { cols, rows } = gridOf(tables.length);
+  // 枱面格仔：按畫面闊高揀最大嘅排法（電視打橫、手機打直都塞得滿）
+  const [vw, setVw] = useState(() => (typeof window === 'undefined' ? { w: 1280, h: 720 } : { w: window.innerWidth, h: window.innerHeight }));
+  useEffect(() => {
+    const on = () => setVw({ w: window.innerWidth, h: window.innerHeight });
+    window.addEventListener('resize', on);
+    return () => window.removeEventListener('resize', on);
+  }, []);
+  const { cols, rows } = useMemo(() => {
+    const n = Math.max(1, tables.length);
+    const W = vw.w - 24;
+    const H = vw.h - 110;
+    let best = { cols: 1, rows: n, k: 0 };
+    for (let c = 1; c <= n; c++) {
+      const r = Math.ceil(n / c);
+      const k = Math.min(W / c / 340, H / r / 400);
+      if (k > best.k) best = { cols: c, rows: r, k };
+    }
+    return best;
+  }, [tables.length, vw]);
   const muted = blockedUntil > now;
   const coolLeft = Math.max(0, Math.ceil((cool.until - now) / 1000));
   // 最近播過嘅歌（只記喺呢部機），一撳再播
@@ -233,14 +249,16 @@ export function LiveTv({ groupName, icon, sessionName, tables, ranking, chat, mu
   }
 
   return (
-    <div className="tv fit" ref={root} style={{ '--cols': cols, '--rows': rows } as CSSProperties}>
+    <div className="tv fit airplay" ref={root} style={{ '--cols': cols, '--rows': rows } as CSSProperties}>
       <header className="tv-head">
         <Link to={backHref} className="tv-back" ariaLabel="返回">‹</Link>
         <GroupIcon icon={icon} name={groupName} size={40} />
         <span className="grow tv-title"><b>{groupName}</b><small>{sessionName}</small></span>
         <span className="live-pill big"><i className="live-dot" aria-hidden="true" />LIVE</span>
         <span className="tv-clock num">{clock}</span>
-        <button type="button" className="tv-btn" onClick={() => setMusicOpen((v) => !v)} aria-label="音樂">♫</button>
+        <button type="button" className={`tv-btn${panel === 'music' ? ' on' : ''}`} onClick={() => { setPanel((p) => (p === 'music' ? null : 'music')); setMusicOpen(true); }} aria-label="音樂">♫</button>
+        <button type="button" className={`tv-btn${panel === 'rank' ? ' on' : ''}`} onClick={() => setPanel((p) => (p === 'rank' ? null : 'rank'))} aria-label="全場排名">🏆</button>
+        <button type="button" className={`tv-btn${panel === 'chat' ? ' on' : ''}`} onClick={() => { setPanel((p) => (p === 'chat' ? null : 'chat')); setChatOpen(true); }} aria-label="直播室">💬{unread > 0 && <i className="tv-btn-dot">{unread}</i>}</button>
         <button type="button" className="tv-btn" onClick={full} aria-label="全螢幕">⛶</button>
       </header>
 
@@ -255,28 +273,21 @@ export function LiveTv({ groupName, icon, sessionName, tables, ranking, chat, mu
       )}
 
       <div className="tv-body">
-        <main className="tv-tables">
+        <main className="tv-tables felts">
           {tables.map((t) => (
-            <section key={t.id} className="tv-table">
-              <div className="tv-table-head"><b>{t.name}</b><span>{t.round}</span></div>
-              <div className="tv-players">
-                {bySeat(t.players).map((p) => (
-                  <div key={p.id} className={`tv-player${p.id === t.dealer ? ' dealer' : ''}${p.id === me ? ' me' : ''}`}>
-                    <span className="tv-wind">{p.wind}</span>
-                    <span className="grow ellipsis tv-name">{p.name}{p.id === t.dealer && <i className="tv-dealer">莊{t.streak ? ` 冧${t.streak}` : ''}</i>}</span>
-                    <b className={`num tv-score ${p.v > 0 ? 'gain' : p.v < 0 ? 'loss' : ''}`}>{fmt(p.v)}</b>
-                  </div>
-                ))}
-              </div>
-              <div className="tv-last ellipsis">{t.last}</div>
-            </section>
+            t.c && t.names ? (
+              <section key={t.id} className="tv-felt-cell">
+                <ScaleFit base={340}><TvFelt c={t.c} names={t.names} title={tables.length > 1 ? t.name : undefined} me={me} /></ScaleFit>
+              </section>
+            ) : null
           ))}
           {!tables.length && <p className="tv-empty">而家冇枱打緊。</p>}
         </main>
 
-        <aside className="tv-side">
+        <aside className={`tv-side drawer${panel ? ` open show-${panel}` : ''}`}>
+          <button type="button" className="tv-side-close" onClick={() => setPanel(null)} aria-label="收埋">×</button>
           {musicOpen && (
-            <section className="tv-panel">
+            <section className="tv-panel tv-music-panel">
               <b>音樂</b>
               <div className="row">
                 <input className="input grow" value={musicUrl} onChange={(e) => setMusicUrl(e.target.value)} placeholder="貼 YouTube／Spotify／Apple Music 連結" aria-label="音樂連結" />
@@ -386,7 +397,9 @@ export default function LivePage({ user, groupId, sessionId }: { user: User; gro
   }), []);
   const live = useSessionLive(groupId, sessionId, group.data, session.data);
   const chat = useChat(groupId, sessionId);
-  const tables = useMemo(() => tvTablesOf(live.tables, live.computed), [live.tables, live.computed]);
+  // ?t=枱 → 淨係睇一張（由枱頁嘅 AirPlay 入嚟）
+  const only = typeof location !== 'undefined' ? new URLSearchParams(location.search).get('t') : null;
+  const tables = useMemo(() => tvTablesOf(live.tables, live.computed).filter((t) => !only || t.id === only), [live.tables, live.computed, only]);
   const ranking = useMemo(() => {
     const acc = new Map<string, { id: string; name: string; v: number }>();
     for (const t of live.tables) {
