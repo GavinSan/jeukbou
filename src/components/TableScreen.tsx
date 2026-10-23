@@ -74,6 +74,8 @@ export interface TableScreenProps {
   onCancelSwap?: (id: string) => Promise<void>;
   onReseat?: (seats: string[]) => Promise<void>;
   onDice?: () => Promise<void>;
+  /** 超級管理員：換人唔使對方同意，即刻換 */
+  swapDirect?: boolean;
   /** 電視模式（AirPlay／螢幕鏡像）頁 */
   tvHref?: string;
   /** 影相計番（試驗；淨係超級管理員） */
@@ -1279,7 +1281,7 @@ export default function TableScreen(props: TableScreenProps) {
                   const chip = (p: Candidate) => (
                     <button key={p.id} type="button" className="choice drag-chip" aria-pressed={swapIn === p.id} onClick={() => setSwapIn(p.id)} onPointerDown={(e) => startDrag(e, p.id)}>
                       <span className="ellipsis">{p.name}</span>
-                      <small>{[p.table ? `${p.table.name}打緊・會對調` : p.id.startsWith('guest-') ? '訪客' : p.tonight ? '今晚有份' : '', p.id.startsWith('guest-') ? '' : '需接受'].filter(Boolean).join('・')}</small>
+                      <small>{[p.table ? `${p.table.name}打緊・會對調` : p.id.startsWith('guest-') ? '訪客' : p.tonight ? '今晚有份' : '', p.id.startsWith('guest-') || props.swapDirect ? '' : '需接受'].filter(Boolean).join('・')}</small>
                     </button>
                   );
                   return (
@@ -1320,10 +1322,10 @@ export default function TableScreen(props: TableScreenProps) {
                   run(async () => {
                     const r = await props.onSwap!(swapOut, incoming, guest);
                     if (r === 'requested') flash(`已邀請 ${incoming.name}`);
-                  }, guest || incoming.id.startsWith('guest-') ? '已換人' : '已發出邀請');
+                  }, guest || incoming.id.startsWith('guest-') || props.swapDirect ? '已換人' : '已發出邀請');
                 }}
               >
-                {swapIn && swapIn !== '__guest' && !swapIn.startsWith('guest-') ? '發出邀請' : '換人'}
+                {swapIn && swapIn !== '__guest' && !swapIn.startsWith('guest-') && !props.swapDirect ? '發出邀請' : '換人'}
               </button>
             </>
           )}
