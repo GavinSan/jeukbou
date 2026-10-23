@@ -216,7 +216,7 @@ export function LiveTv({ groupName, icon, sessionName, tables, ranking, chat, mu
     let best = { cols: 1, rows: n, k: 0 };
     for (let c = 1; c <= n; c++) {
       const r = Math.ceil(n / c);
-      const k = Math.min(W / c / 380, H / r / 420);
+      const k = Math.min(W / c / 340, H / r / 400);
       if (k > best.k) best = { cols: c, rows: r, k };
     }
     return best;
@@ -277,7 +277,7 @@ export function LiveTv({ groupName, icon, sessionName, tables, ranking, chat, mu
           {tables.map((t) => (
             t.c && t.names ? (
               <section key={t.id} className="tv-felt-cell">
-                <ScaleFit base={380}><TvFelt c={t.c} names={t.names} title={tables.length > 1 ? t.name : undefined} me={me} /></ScaleFit>
+                <ScaleFit base={340}><TvFelt c={t.c} names={t.names} title={tables.length > 1 ? t.name : undefined} me={me} /></ScaleFit>
               </section>
             ) : null
           ))}
