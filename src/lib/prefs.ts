@@ -13,7 +13,7 @@ export interface Prefs {
   skin: Skin;
 }
 
-export type Skin = 'classic' | 'teahouse' | 'chachaan' | 'neon' | 'glass' | 'clay' | 'brutal' | 'paper' | 'pixel' | 'palace' | 'jade' | 'porcelain';
+export type Skin = 'classic' | 'teahouse' | 'chachaan' | 'neon' | 'glass' | 'clay' | 'brutal' | 'paper' | 'pixel' | 'palace' | 'jade' | 'porcelain' | 'obsidian' | 'sapphire' | 'ruby' | 'amethyst' | 'rosegold' | 'marble';
 /**
  * 每款風格自己定光定暗（唔跟部機嘅深色模式），而且唔止換色：
  * 形狀、字款、陰影、質感都唔同。premium：豪華風格（之後可以做付費解鎖；而家人人用得）
@@ -31,9 +31,15 @@ export const SKINS: { key: Skin; name: string; note: string; colors: string[]; d
   { key: 'palace', name: '金殿', note: '黑漆・金箔', colors: ['#0D0B08', '#E8C46A', '#8A6418'], dark: true, bar: '#0B0906', premium: true },
   { key: 'jade', name: '翡翠', note: '帝王綠・白玉・金邊', colors: ['#0B5A45', '#F4F1E6', '#C9A24B'], bar: '#0B5A45', premium: true },
   { key: 'porcelain', name: '青花', note: '白瓷・鈷藍纏枝・描金', colors: ['#F7F8FB', '#1F3F8F', '#C9A24B'], bar: '#F7F8FB', premium: true },
+  { key: 'obsidian', name: '黑曜', note: '黑玻璃・白金', colors: ['#0A0A0D', '#DCE1EA', '#8C93A3'], dark: true, bar: '#0A0A0D', premium: true },
+  { key: 'sapphire', name: '藍寶', note: '深海軍藍・銀', colors: ['#06112A', '#2F5DB8', '#CCD6EA'], dark: true, bar: '#06112A', premium: true },
+  { key: 'ruby', name: '紅寶', note: '深緋紅・玫瑰金', colors: ['#17060B', '#A11A33', '#F2BCA4'], dark: true, bar: '#17060B', premium: true },
+  { key: 'amethyst', name: '紫晶', note: '深紫・淡紫銀', colors: ['#120A20', '#7B50CA', '#E4D6FF'], dark: true, bar: '#120A20', premium: true },
+  { key: 'rosegold', name: '玫瑰金', note: '淡粉・玫瑰金', colors: ['#FAF0EC', '#8A4A53', '#DFA488'], bar: '#FAF0EC', premium: true },
+  { key: 'marble', name: '雲石', note: '白雲石・黑石枱・金', colors: ['#FFFFFF', '#2C2C2F', '#B8933F'], bar: '#F3F2EF', premium: true },
 ];
 /** 舊風格名 → 最似嘅新風格 */
-const RENAMED: Record<string, Skin> = { ocean: 'glass', sakura: 'clay', matcha: 'chachaan', midnight: 'pixel', amber: 'paper', violet: 'glass', imperial: 'palace', minimal: 'paper' };
+const RENAMED: Record<string, Skin> = { ocean: 'glass', sakura: 'clay', matcha: 'chachaan', midnight: 'pixel', amber: 'paper', violet: 'amethyst', imperial: 'ruby', minimal: 'paper' };
 
 const KEY = 'jeukbou-prefs';
 const DEFAULTS: Prefs = { hints: false, sound: true, vibe: true, notify: false, skin: 'classic' };
@@ -85,6 +91,8 @@ export function applySkin(skin: Skin) {
   root.dataset.skin = k.key;
   // 光暗跟風格走，唔跟部機設定
   root.dataset.theme = k.dark ? 'dark' : 'light';
+  // 豪華風格共用嘅金屬邊、標題、掣
+  if (k.premium) root.dataset.premium = '1'; else delete root.dataset.premium;
   document.querySelector('meta[name="theme-color"]')?.setAttribute('content', k.bar);
   // 揀咗先載入嘅字款（其他人唔使下載）
   const font = SKIN_FONTS[k.key];

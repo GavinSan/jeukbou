@@ -1322,7 +1322,7 @@ button.join-code:active { background: var(--line); }
 .ms b { font-size: 26px; line-height: 1.1; }
 .ms small { font-size: 12px; opacity: .9; }
 .ms-mark { width: 26px; height: 32px; border-radius: 6px; background: var(--tile); color: var(--mc); font-family: var(--font-kai); font-weight: 700; font-size: 17px; display: flex; align-items: center; justify-content: center; box-shadow: 0 2px 0 rgba(0,0,0,.25); }
-.ms-gold { --mc: #C08A16; } .ms-green { --mc: #2E7D5B; } .ms-red { --mc: #B02E26; } .ms-purple { --mc: #7146B5; }
+.ms-gold { --mc: #A06F0C; } .ms-green { --mc: #2E7D5B; } .ms-red { --mc: #B02E26; } .ms-purple { --mc: #7146B5; }
 
 .heat-wrap { display: flex; flex-direction: column; gap: 6px; }
 .heat { display: grid; grid-template-rows: repeat(7, 1fr); grid-auto-flow: column; grid-auto-columns: 1fr; gap: 3px; }
@@ -1352,8 +1352,8 @@ button.join-code:active { background: var(--line); }
 .award-body small { font-size: 12px; opacity: .9; }
 .award-body b { font-size: 20px; line-height: 1.15; }
 .award-who { font-size: 13px; font-weight: 600; overflow-wrap: anywhere; line-height: 1.2; }
-.aw-gold { --ac: #C08A16; } .aw-green { --ac: #2E7D5B; } .aw-red { --ac: #B02E26; } .aw-purple { --ac: #7146B5; }
-.aw-orange { --ac: #E5703A; } .aw-blue { --ac: #2F63B0; } .aw-pink { --ac: #D9607A; } .aw-teal { --ac: #2C8A8A; } .aw-slate { --ac: #556B63; }
+.aw-gold { --ac: #A06F0C; } .aw-green { --ac: #2E7D5B; } .aw-red { --ac: #B02E26; } .aw-purple { --ac: #7146B5; }
+.aw-orange { --ac: #C2541F; } .aw-blue { --ac: #2F63B0; } .aw-pink { --ac: #B8445E; } .aw-teal { --ac: #2C8A8A; } .aw-slate { --ac: #556B63; }
 .settle-table .st-row.five { grid-template-columns: minmax(0, 1.6fr) repeat(4, minmax(0, 1fr)); }
 @media (prefers-reduced-motion: reduce) { .award, .ms, .ts-seg i, .mbar-track i { animation: none; } }
 
@@ -2243,26 +2243,26 @@ input, textarea, [contenteditable="true"], .selectable { -webkit-user-select: te
 @keyframes luxShine { 0%, 55% { transform: translateX(-100%); } 85%, 100% { transform: translateX(100%); } }
 
 /* 共用：金邊、金字標題、柔光底 */
-:root:is([data-skin="palace"], [data-skin="jade"], [data-skin="porcelain"]) {
+:root[data-premium] {
   --gold: #E8C46A; --gold-deep: #A9781F;
   --gold-grad: linear-gradient(180deg, #FFF1B8 0%, #E8C46A 38%, #B8892E 70%, #F3D27A 100%);
 }
-:root:is([data-skin="palace"], [data-skin="jade"], [data-skin="porcelain"]) h1,
-:root:is([data-skin="palace"], [data-skin="jade"], [data-skin="porcelain"]) h2 {
+:root[data-premium] h1,
+:root[data-premium] h2 {
   background: var(--gold-grad); -webkit-background-clip: text; background-clip: text; color: transparent; letter-spacing: .06em;
 }
-:root:is([data-skin="palace"], [data-skin="jade"], [data-skin="porcelain"]) :is(.panel, .list, .tcard, .ledger, .tile-stat, .live-card, .pay-row) {
+:root[data-premium] :is(.panel, .list, .tcard, .ledger, .tile-stat, .live-card, .pay-row) {
   border: 1px solid color-mix(in srgb, var(--gold) 45%, transparent); box-shadow: 0 0 0 1px rgba(0, 0, 0, .25), 0 10px 26px rgba(0, 0, 0, .28), inset 0 1px 0 color-mix(in srgb, var(--gold) 25%, transparent);
 }
-:root:is([data-skin="palace"], [data-skin="jade"], [data-skin="porcelain"]) .btn:not(.plain):not(.danger) {
-  background: var(--gold-grad); color: #2A1C06; border: none; box-shadow: 0 3px 0 var(--gold-deep), 0 8px 18px rgba(0, 0, 0, .3);
+:root[data-premium] .btn:not(.plain):not(.danger) {
+  background: var(--gold-grad); color: var(--metal-text, #2A1C06); border: none; box-shadow: 0 3px 0 var(--gold-deep), 0 8px 18px rgba(0, 0, 0, .3);
 }
-:root:is([data-skin="palace"], [data-skin="jade"], [data-skin="porcelain"]) .felt { border: 2px solid var(--gold); box-shadow: inset 0 0 0 4px rgba(0, 0, 0, .25), inset 0 0 60px rgba(0, 0, 0, .45), 0 12px 30px rgba(0, 0, 0, .35); }
-:root:is([data-skin="palace"], [data-skin="jade"], [data-skin="porcelain"]) .tile { box-shadow: 0 0 0 1.5px var(--gold), 0 5px 0 var(--tile-back-deep), 0 10px 20px rgba(0, 0, 0, .3); }
-:root:is([data-skin="palace"], [data-skin="jade"], [data-skin="porcelain"]) .tabbar { border-color: color-mix(in srgb, var(--gold) 55%, transparent); }
-:root:is([data-skin="palace"], [data-skin="jade"], [data-skin="porcelain"]) .tab.active { color: var(--gold) !important; }
-:root:is([data-skin="palace"], [data-skin="jade"], [data-skin="porcelain"]) .tab.raised svg { background: var(--gold-grad); color: #2A1C06; box-shadow: 0 0 22px color-mix(in srgb, var(--gold) 60%, transparent), 0 0 0 4px color-mix(in srgb, var(--page) 85%, transparent); }
-:root:is([data-skin="palace"], [data-skin="jade"], [data-skin="porcelain"]) .hero { border: 1px solid var(--gold); }
+:root[data-premium] .felt { border: 2px solid var(--gold); box-shadow: inset 0 0 0 4px rgba(0, 0, 0, .25), inset 0 0 60px rgba(0, 0, 0, .45), 0 12px 30px rgba(0, 0, 0, .35); }
+:root[data-premium] .tile { box-shadow: 0 0 0 1.5px var(--gold), 0 5px 0 var(--tile-back-deep), 0 10px 20px rgba(0, 0, 0, .3); }
+:root[data-premium] .tabbar { border-color: color-mix(in srgb, var(--gold) 55%, transparent); }
+:root[data-premium] .tab.active { color: var(--tab-on, var(--gold)) !important; }
+:root[data-premium] .tab.raised svg { background: var(--gold-grad); color: var(--metal-text, #2A1C06); box-shadow: 0 0 22px color-mix(in srgb, var(--gold) 60%, transparent), 0 0 0 4px color-mix(in srgb, var(--page) 85%, transparent); }
+:root[data-premium] .hero { border: 1px solid var(--gold); }
 
 /* 金殿：黑漆、金箔 */
 :root[data-skin="palace"] {
@@ -2277,6 +2277,7 @@ input, textarea, [contenteditable="true"], .selectable { -webkit-user-select: te
 
 /* 翡翠：帝王綠、白玉、金邊（淺色） */
 :root[data-skin="jade"] {
+  --tab-on: #0B5A45;
   --page: #EEF1EA; --surface: #FBFAF4; --sunk: #EEEDE2; --ink: #10241C; --muted: #5E6F66; --line: #D9D5C2;
   --felt: #0B5A45; --felt-deep: #063A2C; --felt-ink: #F4F1E6;
   --tile: #FBF8EC; --tile-back: #0E6A50; --tile-back-deep: #06402F;
@@ -2285,7 +2286,7 @@ input, textarea, [contenteditable="true"], .selectable { -webkit-user-select: te
 }
 :root[data-skin="jade"] body { background: radial-gradient(120% 70% at 0% 0%, #FFFFFF 0%, transparent 55%), radial-gradient(90% 60% at 100% 100%, #DDE8DF 0%, transparent 70%), var(--page); background-attachment: fixed; }
 :root[data-skin="jade"] h1, :root[data-skin="jade"] h2 { background: linear-gradient(180deg, #1C7A5C, #0B5A45 60%, #A9781F); -webkit-background-clip: text; background-clip: text; }
-:root[data-skin="jade"] .felt { background: radial-gradient(120% 90% at 30% 20%, #17886A 0%, #0B5A45 45%, #063A2C 100%); }
+:root[data-skin="jade"] .felt { background: radial-gradient(120% 90% at 30% 20%, #0F6F55 0%, #0B5A45 45%, #063A2C 100%); }
 :root[data-skin="jade"] .hero { background: linear-gradient(140deg, #0E6A50, #063A2C); }
 
 @media (prefers-reduced-motion: reduce) { .skin-card.premium::after { animation: none; } }
@@ -2375,7 +2376,7 @@ input, textarea, [contenteditable="true"], .selectable { -webkit-user-select: te
 /* --- 茶餐廳：薄荷綠紙巾、卡位紅、奶茶色，單據虛線 --- */
 :root[data-skin="chachaan"] {
   --page: #E9F2EC; --surface: #FFFDF6; --sunk: #F3EEDF; --ink: #1D2A26; --muted: #5E6F68; --line: #CFE0D6;
-  --felt: #2E8B74; --felt-deep: #1E6655; --felt-ink: #FFFDF6;
+  --felt: #237361; --felt-deep: #1A5A4B; --felt-ink: #FFFDF6;
   --tile: #FFFDF6; --tile-back: #D6332B; --tile-back-deep: #9E2019;
   --gain: #1F7A5E; --gain-soft: #D9EFE4; --loss: #D6332B; --loss-soft: #FBE1DE; --on-felt-btn: #FFFDF6;
   --accent: #2E8B74; --card-r: 10px; color-scheme: light;
@@ -2423,10 +2424,10 @@ input, textarea, [contenteditable="true"], .selectable { -webkit-user-select: te
 
 /* --- 黏土：粉彩、超圓角、軟膠立體（淺） --- */
 :root[data-skin="clay"] {
-  --page: #F6EEF4; --surface: #FFFFFF; --sunk: #F4EAF1; --ink: #3A2E45; --muted: #7D708A; --line: #EBDDE7;
-  --felt: #8E7CE0; --felt-deep: #6C5BC0; --felt-ink: #FFFFFF;
+  --page: #F6EEF4; --surface: #FFFFFF; --sunk: #F4EAF1; --ink: #3A2E45; --muted: #62567A; --line: #EBDDE7;
+  --felt: #6A57C4; --felt-deep: #5241A6; --felt-ink: #FFFFFF;
   --tile: #FFFFFF; --tile-back: #F2A7C3; --tile-back-deep: #D27D9F;
-  --gain: #2E9B78; --gain-soft: #D6F2E6; --loss: #E0577E; --loss-soft: #FCE0E9; --on-felt-btn: #FFFFFF;
+  --gain: #1A7A5C; --gain-soft: #DDF3EA; --loss: #BF3560; --loss-soft: #FCE6ED; --on-felt-btn: #FFFFFF;
   --accent: #8E7CE0; --card-r: 28px; color-scheme: light;
 }
 :root[data-skin="clay"] :is(.panel, .list, .ledger, .debt-card, .link-card, .tile-stat, .pay-card, .bcat, .nudge, .skin-card) {
@@ -2442,9 +2443,9 @@ input, textarea, [contenteditable="true"], .selectable { -webkit-user-select: te
 /* --- 粗獷：粗黑邊、零模糊硬陰影、撞色（淺） --- */
 :root[data-skin="brutal"] {
   --page: #FFF4CC; --surface: #FFFFFF; --sunk: #FFF0B3; --ink: #111111; --muted: #4A4A4A; --line: #111111;
-  --felt: #3B82F6; --felt-deep: #111111; --felt-ink: #FFFFFF;
+  --felt: #2563EB; --felt-deep: #111111; --felt-ink: #FFFFFF;
   --tile: #FFFFFF; --tile-back: #FF5A8A; --tile-back-deep: #111111;
-  --gain: #0A8F4F; --gain-soft: #C8F7DC; --loss: #E0245E; --loss-soft: #FFD3E0; --on-felt-btn: #111111;
+  --gain: #0A8F4F; --gain-soft: #C8F7DC; --loss: #C21D50; --loss-soft: #FFE0EA; --on-felt-btn: #FFFFFF;
   --accent: #111111; --card-r: 6px; color-scheme: light;
 }
 :root[data-skin="brutal"] :is(.panel, .list, .ledger, .debt-card, .link-card, .tile-stat, .live-card, .pay-card, .bcat, .nudge, .skin-card, .sheet, .hero) {
@@ -2456,7 +2457,7 @@ input, textarea, [contenteditable="true"], .selectable { -webkit-user-select: te
 :root[data-skin="brutal"] .btn.danger { background: #FF5A8A; color: #111; }
 :root[data-skin="brutal"] :is(.input, .field input, .field select) { border: 2.5px solid #111; border-radius: 6px; }
 :root[data-skin="brutal"] :is(h1, h2) { font-weight: 900; letter-spacing: -.01em; }
-:root[data-skin="brutal"] .hero { background: #3B82F6; border-radius: 8px; }
+:root[data-skin="brutal"] .hero { background: #2563EB; border-radius: 8px; }
 :root[data-skin="brutal"] .tabbar { background: #fff; border: 2.5px solid #111; box-shadow: 4px 4px 0 #111; -webkit-backdrop-filter: none; backdrop-filter: none; border-radius: 12px; }
 :root[data-skin="brutal"] .tab-lens { background: #FFE14D; border: 2px solid #111; box-shadow: none; border-radius: 8px; }
 :root[data-skin="brutal"] .tab.active { color: #111; }
@@ -2480,7 +2481,7 @@ input, textarea, [contenteditable="true"], .selectable { -webkit-user-select: te
 :root[data-skin="paper"] .btn.plain { box-shadow: inset 0 0 0 1px var(--ink); }
 :root[data-skin="paper"] :is(.input, .field input, .field select) { border-radius: 2px; border: 1px solid var(--ink); }
 :root[data-skin="paper"] .hero { background: var(--ink); border-radius: 2px; }
-:root[data-skin="paper"] .num.gain, :root[data-skin="paper"] b.gain { color: #1A1A1A; }
+:root[data-skin="paper"] .num.gain:not(.tv *), :root[data-skin="paper"] b.gain:not(.tv *) { color: #1A1A1A; }
 :root[data-skin="paper"] .tabbar { background: var(--surface); border: 1px solid var(--ink); border-radius: 4px; box-shadow: 0 6px 0 -3px var(--ink); -webkit-backdrop-filter: none; backdrop-filter: none; }
 :root[data-skin="paper"] .tab-lens { background: var(--ink); border-radius: 2px; box-shadow: none; }
 :root[data-skin="paper"] .tab.active { color: var(--surface); }
@@ -2490,7 +2491,7 @@ input, textarea, [contenteditable="true"], .selectable { -webkit-user-select: te
   --page: #14142B; --surface: #1F1F3D; --sunk: #2A2A50; --ink: #F4F4E8; --muted: #A9A9C9; --line: #3B3B6B;
   --felt: #1E5A3A; --felt-deep: #0F3A24; --felt-ink: #F4F4E8;
   --tile: #F4F4E8; --tile-back: #FFCC33; --tile-back-deep: #B8860B;
-  --gain: #7CF27C; --gain-soft: #1C3A2A; --loss: #FF6B6B; --loss-soft: #3D1F2A; --on-felt-btn: #14142B;
+  --gain: #7CF27C; --gain-soft: #1C3A2A; --loss: #FF6B6B; --loss-soft: #3D1F2A; --on-felt-btn: #F4F4E8;
   --accent: #FFCC33; --card-r: 0px; color-scheme: dark;
   --font-pixel: 'Press Start 2P', 'Courier New', ui-monospace, monospace;
 }
@@ -2513,6 +2514,7 @@ input, textarea, [contenteditable="true"], .selectable { -webkit-user-select: te
 
 /* --- 青花：白瓷、鈷藍纏枝、描金（淺、豪華） --- */
 :root[data-skin="porcelain"] {
+  --tab-on: #1F3F8F;
   --page: #EEF2F8; --surface: #FBFCFE; --sunk: #EDF1F8; --ink: #14213D; --muted: #5A6785; --line: #D3DCEC;
   --felt: #1F3F8F; --felt-deep: #142B66; --felt-ink: #F7F8FB;
   --tile: #FBFCFE; --tile-back: #1F3F8F; --tile-back-deep: #142B66;
@@ -2538,7 +2540,7 @@ input, textarea, [contenteditable="true"], .selectable { -webkit-user-select: te
 /* 風格：枱面同牌嘅形狀；主頁大卡名字唔跟標題色 */
 :root[data-skin] .hero h2 { background: none; -webkit-text-fill-color: currentColor; color: #fff; }
 :root[data-skin="palace"] .hero h2 { color: var(--gold); }
-:root[data-skin="clay"] .hero { background: linear-gradient(140deg, #7B68D6, #C9638E); }
+:root[data-skin="clay"] .hero { background: linear-gradient(140deg, #6A57C4, #B04E7A); }
 :root[data-skin="clay"] .felt { border-radius: 32px; }
 :root[data-skin="clay"] .tile { border-radius: 18px; box-shadow: 0 8px 16px rgba(0, 0, 0, .18), inset 0 -4px 8px rgba(142, 124, 224, .15), inset 0 4px 6px #fff; }
 :root[data-skin="brutal"] .tile { border-radius: 4px; border: 2.5px solid #111; box-shadow: 4px 4px 0 #111; }
@@ -2550,7 +2552,7 @@ input, textarea, [contenteditable="true"], .selectable { -webkit-user-select: te
 :root[data-skin="pixel"] .tile .t-score { font-family: var(--font-pixel); font-size: 18px; }
 :root[data-skin="glass"] .tile { background: rgba(255, 255, 255, .88); -webkit-backdrop-filter: blur(10px); backdrop-filter: blur(10px); box-shadow: 0 0 0 1px rgba(255, 255, 255, .6), 0 10px 24px rgba(0, 0, 0, .35); border-radius: 16px; }
 :root[data-skin="chachaan"] .tile { border-radius: 6px; box-shadow: 0 4px 0 #D6332B, 0 6px 0 #9E2019, 0 9px 14px rgba(0, 0, 0, .2); }
-:root[data-skin="chachaan"] .felt { background: repeating-linear-gradient(90deg, rgba(255, 255, 255, .05) 0 20px, transparent 20px 40px), radial-gradient(120% 90% at 50% 40%, #2E8B74, #1E6655); }
+:root[data-skin="chachaan"] .felt { background: repeating-linear-gradient(90deg, rgba(255, 255, 255, .05) 0 20px, transparent 20px 40px), radial-gradient(120% 90% at 50% 40%, #237361, #1A5A4B); }
 
 /* iOS 26：收鍵盤後畫面位移冇還原，底部固定嘅嘢跟住 --vv-shift 移返去真正底部（App.tsx 計） */
 .tabbar, .toast, .dock { translate: 0 var(--vv-shift, 0px); }
@@ -2566,3 +2568,135 @@ input, textarea, [contenteditable="true"], .selectable { -webkit-user-select: te
 :root[data-skin="paper"] .tab-lens { background: transparent; box-shadow: inset 0 -3px 0 var(--ink); border-radius: 0; }
 :root[data-skin="paper"] .tab.active { color: var(--ink); }
 :root[data-skin="paper"] .tab.active svg { stroke-width: 2.4; }
+
+/* 登出：最底、細字、同其他掣隔開 */
+.signout { margin-top: 36px; padding-top: 16px; border-top: 1px dashed var(--line); display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.signout small { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.signout-btn { font-size: 14px; padding: 6px 4px; flex: none; }
+.hero-me { display: flex; align-items: center; gap: inherit; flex: 1; min-width: 0; color: inherit; text-decoration: none; -webkit-tap-highlight-color: transparent; }
+.hero-me:active { opacity: .8; }
+
+/* ===================================================================
+   豪華風格（第二批 6 款）：黑曜、藍寶、紅寶、紫晶（深）；玫瑰金、雲石（淺）
+   每款都定齊底色、字色、金屬色（--gold 系列）、掣字色（--metal-text）、揀咗嘅 tab 色（--tab-on）
+   =================================================================== */
+/* 黑曜：黑玻璃、白金 */
+:root[data-skin="obsidian"] {
+  --page: #0A0A0D; --surface: #17171D; --sunk: #1F1F27; --ink: #EDEEF3; --muted: #A6A8B6; --line: #2E2F3A;
+  --felt: #1D1E25; --felt-deep: #0C0C10; --felt-ink: #E9ECF2;
+  --tile: #F3F4F7; --tile-ink: #16171C; --tile-muted: #5C5F6B; --tile-back: #8C93A3; --tile-back-deep: #555B69;
+  --gain: #7BE0A6; --gain-soft: #17302A; --loss: #FF8F8F; --loss-soft: #3A1C1E; --on-felt-btn: #F3F4F7;
+  --gold: #D9DEE7; --gold-deep: #8D94A2; --gold-grad: linear-gradient(180deg, #FFFFFF 0%, #DCE1EA 40%, #9EA5B2 72%, #ECEFF4 100%);
+  --metal-text: #14161C; --tab-on: #E6EAF1; --accent: #D9DEE7; color-scheme: dark;
+}
+:root[data-skin="obsidian"] body { background: radial-gradient(90% 50% at 15% 0%, rgba(255, 255, 255, .07), transparent 60%), radial-gradient(80% 45% at 100% 100%, rgba(140, 147, 163, .12), transparent 70%), var(--page); background-attachment: fixed; }
+:root[data-skin="obsidian"] .hero { background: linear-gradient(140deg, #2A2B33, #0C0C10); }
+:root[data-skin="obsidian"] .felt { background: radial-gradient(120% 90% at 30% 20%, #2C2D36, #14151A 55%, #08080B); }
+
+/* 藍寶：深海軍藍、銀 */
+:root[data-skin="sapphire"] {
+  --page: #06112A; --surface: #0F1E3F; --sunk: #152850; --ink: #EAF0FF; --muted: #A3B4D8; --line: #24396A;
+  --felt: #12357A; --felt-deep: #0A214F; --felt-ink: #E8EFFF;
+  --tile: #F6F9FF; --tile-ink: #0F1A33; --tile-muted: #56658A; --tile-back: #2F5DB8; --tile-back-deep: #1A3A80;
+  --gain: #72E6B8; --gain-soft: #123A39; --loss: #FF96A6; --loss-soft: #3E1A2C; --on-felt-btn: #F6F9FF;
+  --gold: #CCD6EA; --gold-deep: #8393B4; --gold-grad: linear-gradient(180deg, #FFFFFF 0%, #D3DDF0 40%, #93A3C4 72%, #E6ECF7 100%);
+  --metal-text: #0D1A36; --tab-on: #DCE5F7; --accent: #9FC0FF; color-scheme: dark;
+}
+:root[data-skin="sapphire"] body { background: radial-gradient(100% 55% at 50% -10%, rgba(47, 93, 184, .45), transparent 65%), radial-gradient(70% 40% at 100% 100%, rgba(140, 170, 230, .14), transparent 70%), var(--page); background-attachment: fixed; }
+:root[data-skin="sapphire"] .hero { background: linear-gradient(140deg, #1F4CA6, #0A1E4A); }
+:root[data-skin="sapphire"] .felt { background: radial-gradient(120% 90% at 30% 20%, #2558B8, #12357A 50%, #081A40); }
+
+/* 紅寶：深緋紅、玫瑰金 */
+:root[data-skin="ruby"] {
+  --page: #17060B; --surface: #270A11; --sunk: #330E17; --ink: #FDEEF0; --muted: #D8A7B0; --line: #4F1A25;
+  --felt: #741024; --felt-deep: #440814; --felt-ink: #FFEBEE;
+  --tile: #FFF7F3; --tile-ink: #2A0B10; --tile-muted: #7A4F56; --tile-back: #A11A33; --tile-back-deep: #600C1D;
+  --gain: #8FE3B0; --gain-soft: #18301F; --loss: #FFB08C; --loss-soft: #40201A; --on-felt-btn: #FFF7F3;
+  --gold: #F2BCA4; --gold-deep: #B0705A; --gold-grad: linear-gradient(180deg, #FFE9DE 0%, #F2BCA4 40%, #C9886F 72%, #F9D5C4 100%);
+  --metal-text: #3A1208; --tab-on: #F5C6B1; --accent: #F2BCA4; color-scheme: dark;
+}
+:root[data-skin="ruby"] body { background: radial-gradient(100% 55% at 50% -10%, rgba(161, 26, 51, .5), transparent 62%), radial-gradient(70% 40% at 0% 100%, rgba(242, 188, 164, .1), transparent 70%), var(--page); background-attachment: fixed; }
+:root[data-skin="ruby"] .hero { background: linear-gradient(140deg, #9A1A33, #3A0812); }
+:root[data-skin="ruby"] .felt { background: radial-gradient(120% 90% at 30% 20%, #9C1830, #741024 50%, #3C0611); }
+/* 紅底上面「輸」唔用紅色，用橙色，先睇得清 */
+:root[data-skin="ruby"] .tile { --tile-loss: #B4321C; }
+
+/* 紫晶：深紫、淡紫銀 */
+:root[data-skin="amethyst"] {
+  --page: #120A20; --surface: #201335; --sunk: #2A1944; --ink: #F4EDFF; --muted: #BEAEDC; --line: #3D2B63;
+  --felt: #45227A; --felt-deep: #2A1250; --felt-ink: #F3EAFF;
+  --tile: #FCF9FF; --tile-ink: #1F1233; --tile-muted: #6A5A88; --tile-back: #7B50CA; --tile-back-deep: #4D2E8C;
+  --gain: #80E6BC; --gain-soft: #163430; --loss: #FF98B4; --loss-soft: #3E1A30; --on-felt-btn: #FCF9FF;
+  --gold: #E4D6FF; --gold-deep: #9C86C9; --gold-grad: linear-gradient(180deg, #FFFFFF 0%, #E6DAFF 40%, #AC97D8 72%, #F3ECFF 100%);
+  --metal-text: #22113D; --tab-on: #E9DEFF; --accent: #C9B2FF; color-scheme: dark;
+}
+:root[data-skin="amethyst"] body { background: radial-gradient(90% 55% at 20% -5%, rgba(123, 80, 202, .45), transparent 62%), radial-gradient(70% 45% at 100% 100%, rgba(228, 214, 255, .1), transparent 70%), var(--page); background-attachment: fixed; }
+:root[data-skin="amethyst"] .hero { background: linear-gradient(140deg, #5B2FA0, #22104A); }
+:root[data-skin="amethyst"] .felt { background: radial-gradient(120% 90% at 30% 20%, #6034A8, #45227A 50%, #200E42); }
+
+/* 玫瑰金：淡粉、玫瑰金（淺） */
+:root[data-skin="rosegold"] {
+  --page: #FAF0EC; --surface: #FFFAF8; --sunk: #F5E6E0; --ink: #3A2226; --muted: #6E5156; --line: #EBD3CC;
+  --felt: #8A4A53; --felt-deep: #6E3640; --felt-ink: #FFF3F1;
+  --tile: #FFFDFB; --tile-back: #C4897B; --tile-back-deep: #94594C;
+  --gain: #22704F; --gain-soft: #DDEFE5; --loss: #A82A43; --loss-soft: #F8DDE2; --on-felt-btn: #FFF3F1;
+  --gold: #C98B70; --gold-deep: #8E5642; --gold-grad: linear-gradient(180deg, #F9DCCB 0%, #DFA488 40%, #B97A60 72%, #F0C6B0 100%);
+  --metal-text: #3A1A10; --tab-on: #9A4F3C; --accent: #9E5862; color-scheme: light;
+}
+:root[data-skin="rosegold"] body { background: radial-gradient(110% 60% at 100% 0%, #FFFFFF, transparent 55%), radial-gradient(90% 50% at 0% 100%, rgba(223, 164, 136, .22), transparent 70%), var(--page); background-attachment: fixed; }
+:root[data-skin="rosegold"] :is(h1, h2) { background: linear-gradient(180deg, #B4705A, #8A4636 70%); -webkit-background-clip: text; background-clip: text; color: transparent; }
+:root[data-skin="rosegold"] .hero { background: linear-gradient(140deg, #95504F, #5E2C35); }
+:root[data-skin="rosegold"] .felt { background: radial-gradient(120% 90% at 30% 20%, #94505A, #84464F 50%, #5E2C35); }
+
+/* 雲石：白雲石、黑石枱、金（淺） */
+:root[data-skin="marble"] {
+  --page: #F3F2EF; --surface: #FFFFFF; --sunk: #EEEDE9; --ink: #1C1C1E; --muted: #66655F; --line: #DCDAD4;
+  --felt: #2C2C2F; --felt-deep: #111113; --felt-ink: #F2EFE8;
+  --tile: #FFFFFF; --tile-back: #222225; --tile-back-deep: #000000;
+  --gain: #1E7653; --gain-soft: #DCEEE5; --loss: #B0372A; --loss-soft: #F5DFDA; --on-felt-btn: #F2EFE8;
+  --gold: #B8933F; --gold-deep: #7C6024; --gold-grad: linear-gradient(180deg, #F5E3A8 0%, #D8B45E 40%, #A98535 72%, #EBD28A 100%);
+  --metal-text: #241A05; --tab-on: #1C1C1E; --accent: #2C2C2F; color-scheme: light;
+}
+:root[data-skin="marble"] body {
+  background:
+    linear-gradient(115deg, transparent 0 38%, rgba(120, 118, 110, .10) 38.4%, transparent 39.2% 100%),
+    linear-gradient(160deg, transparent 0 62%, rgba(120, 118, 110, .08) 62.3%, transparent 63% 100%),
+    linear-gradient(35deg, transparent 0 20%, rgba(184, 147, 63, .10) 20.2%, transparent 20.8% 100%),
+    radial-gradient(120% 70% at 50% 0%, #FFFFFF, transparent 65%),
+    var(--page);
+  background-attachment: fixed;
+}
+:root[data-skin="marble"] :is(h1, h2) { background: linear-gradient(180deg, #2A2A2C, #5C4B22 80%); -webkit-background-clip: text; background-clip: text; color: transparent; }
+:root[data-skin="marble"] .hero { background: linear-gradient(115deg, transparent 0 46%, rgba(255, 255, 255, .06) 46.5%, transparent 47.5%), linear-gradient(140deg, #3A3A3E, #111113); }
+:root[data-skin="marble"] .felt { background: linear-gradient(120deg, transparent 0 40%, rgba(255, 255, 255, .05) 40.5%, transparent 41.5%), radial-gradient(120% 90% at 30% 20%, #3A3A3E, #2C2C2F 50%, #0E0E10); }
+
+/* 揀風格嘅預覽卡 */
+.skin-pick .skin-card.skin-obsidian { background: linear-gradient(150deg, #2A2B33, #0C0C10) !important; color: #E6EAF1 !important; border-color: #9EA5B2 !important; }
+.skin-pick .skin-card.skin-sapphire { background: linear-gradient(150deg, #1F4CA6, #0A1E4A) !important; color: #E6ECF7 !important; border-color: #93A3C4 !important; }
+.skin-pick .skin-card.skin-ruby { background: linear-gradient(150deg, #9A1A33, #3A0812) !important; color: #FFE3D6 !important; border-color: #F2BCA4 !important; }
+.skin-pick .skin-card.skin-amethyst { background: linear-gradient(150deg, #5B2FA0, #22104A) !important; color: #F1E8FF !important; border-color: #C9B2FF !important; }
+.skin-pick .skin-card.skin-rosegold { background: linear-gradient(150deg, #FFF6F2, #F4D9CE) !important; color: #7A3A2C !important; border-color: #C98B70 !important; }
+.skin-pick .skin-card.skin-marble { background: linear-gradient(115deg, transparent 0 55%, rgba(120, 118, 110, .14) 55.5%, transparent 56.5%), #FFFFFF !important; color: #1C1C1E !important; border-color: #B8933F !important; }
+
+/* 深色風格：成就／段位嘅分類色做字會太暗，調光啲；紅底白字嘅細章（莊、退出示範）用深啲嘅紅 */
+:root[data-theme="dark"] :is(.badge.got b, .bcat-head b, .bcat-count, .btier.next) { color: color-mix(in srgb, var(--bc) 50%, #fff); }
+:root[data-theme="dark"] :is(.prow-dealer, .demo-pill.exit) { background: color-mix(in srgb, var(--loss) 45%, #000); color: #fff; }
+.ms-mark { color: color-mix(in srgb, var(--mc) 72%, #000); }
+:root[data-premium][data-theme="light"] :is(.btier.next, .bcat-count, .badge.got b, .bcat-head b) { color: color-mix(in srgb, var(--bc) 78%, #000); }
+
+/* 淺色風格：淡色底嘅章同琥珀色細字要深啲先睇得清（深色風格維持原樣） */
+:root[data-theme="light"] :is(.btier.got.lv1, .btier.got.lv2) { color: color-mix(in srgb, var(--bc) 45%, #000); }
+:root[data-theme="light"] :is(.btier.got.lv3, .btier.got.lv4) { background: color-mix(in srgb, var(--bc) 72%, #000); color: #fff; }
+:root[data-theme="light"] .btier.next { color: color-mix(in srgb, var(--bc) 65%, #000); }
+:root[data-theme="light"] :is(.bcat-title:not(.lv5):not(.lv6):not(.lv7):not(.lv8)) { color: color-mix(in srgb, var(--bc) 40%, #000); background: color-mix(in srgb, var(--bc) 22%, var(--surface)); }
+:root[data-theme="light"] .tier-chip { color: color-mix(in srgb, var(--c) 70%, #000); }
+:root[data-theme="light"] .lg-la, :root[data-theme="light"] .lg-pend-big { color: #8F6A0C !important; }
+:root[data-theme="light"] .lg-la { opacity: 1; }
+/* 段位牌：金色嗰兩級（t6、t7）喺淺金底上字要深啲 */
+.tier-tile.t6, .tier-tile.t7 { color: color-mix(in srgb, var(--c) 72%, #000); }
+/* 成就分類色做字：淺色風格調深、深色風格調光（所有風格通用） */
+:root[data-theme="light"] :is(.badge.got b, .bcat-head b, .bcat-count) { color: color-mix(in srgb, var(--bc) 70%, #000); }
+:root[data-theme="dark"] .tier-chip { color: color-mix(in srgb, var(--c) 50%, #fff); }
+:root[data-theme="dark"] .live-pill { background: color-mix(in srgb, #E23B3B 30%, var(--surface)); color: #FFB3B3; }
+/* 電視直播頁永遠係深色底：贏輸色固定用光色，唔跟風格（例如報紙嘅「贏」係墨黑色） */
+.tv { --gain: #6EE7A8; --loss: #FF8A80; --muted: #9DB3A9; }

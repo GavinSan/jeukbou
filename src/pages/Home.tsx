@@ -146,10 +146,12 @@ export function ResumeRow({ href, name }: { href: string; name: string }) {
   );
 }
 
-export function DashboardView({ name, photo, joined, groupCount, mine, loading, resume, nudge, live, sessionHref, rankHref = '/rank' }: {
+export function DashboardView({ name, photo, joined, groupCount, mine, loading, resume, nudge, live, sessionHref, rankHref = '/rank', settingsHref = '/settings' }: {
   name: string; photo: string | null; joined: string; groupCount: number; mine: MySession[]; loading: boolean; resume?: ReactNode; nudge?: ReactNode; live?: ReactNode;
   sessionHref: (s: MySession) => string;
   rankHref?: string;
+  /** 撳自己個名／頭像去設定 */
+  settingsHref?: string;
 }) {
   const st = statsOf(mine);
   const t = tierOf(st.points);
@@ -168,11 +170,13 @@ export function DashboardView({ name, photo, joined, groupCount, mine, loading, 
 
       <section className="hero">
         <div className="hero-top">
-          <Avatar name={name} photo={photo} size="lg" />
-          <div className="grow">
-            <h2>{name}</h2>
-            <p className="hero-sub">{joined}{groupCount ? ` · ${groupCount} 個牌友圈` : ''}</p>
-          </div>
+          <Link to={settingsHref} className="hero-me" aria-label="去設定改個人資料">
+            <Avatar name={name} photo={photo} size="lg" />
+            <div className="grow">
+              <h2>{name}</h2>
+              <p className="hero-sub">{joined}{groupCount ? ` · ${groupCount} 個牌友圈` : ''}</p>
+            </div>
+          </Link>
           <TierTile tier={t.tier} size="lg" />
         </div>
         <Link to={rankHref} className="hero-tier" aria-label="睇段位同成就">

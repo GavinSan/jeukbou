@@ -13,7 +13,7 @@ import { pushConfigured, registerPush, unregisterPush } from '../lib/push.ts';
 import { signOut } from 'firebase/auth';
 import { auth } from '../firebase.ts';
 import { displayName, setAvatar, setPayEmail, setProfileDetails, syncMemberName } from '../lib/data.ts';
-import { useProfile } from '../lib/live.ts';
+import { clearSnapCache, useProfile } from '../lib/live.ts';
 import { toAvatar } from '../lib/avatar.ts';
 
 const canVibrate = typeof navigator !== 'undefined' && typeof navigator.vibrate === 'function';
@@ -170,7 +170,7 @@ function PayEmailField({ initial, onSave, busy }: { initial: string; onSave: (v:
   );
 }
 
-/** 介面風格：十二款，每款自己定光暗，揀咗即刻轉（只存喺呢部機） */
+/** 介面風格：十八款，每款自己定光暗，揀咗即刻轉（只存喺呢部機） */
 export function SkinPicker() {
   const p = usePrefs();
   return (
@@ -241,12 +241,26 @@ export function PrefsList() {
   );
 }
 
+/** 登出：放喺最底、細字，撳咗要再確認，免得唔小心撳到 */
 export function SignOutButton({ onDone }: { onDone?: () => void }) {
+  const [confirmUI, ask] = useConfirm();
   if (!auth?.currentUser) return null;
+  const email = auth.currentUser.email ?? '';
   return (
-    <button type="button" className="btn plain" onClick={async () => { onDone?.(); await unregisterPush().catch(() => undefined); if (auth) signOut(auth); }}>
-      登出 {auth.currentUser.email ?? ''}
-    </button>
+    <div className="signout">
+      <small className="muted">已登入：{email || '呢個帳戶'}</small>
+      <button
+        type="button"
+        className="textbtn loss signout-btn"
+        onClick={() => ask({
+          title: '確定要登出？',
+          detail: `登出之後，呢部機唔會再收到雀簿嘅通知，要用 ${email || '呢個帳戶'} 再登入先用得返。`,
+          action: '確定登出',
+          run: async () => { onDone?.(); await unregisterPush().catch(() => undefined); clearSnapCache(); if (auth) await signOut(auth); },
+        })}
+      >登出</button>
+      {confirmUI}
+    </div>
   );
 }
 
