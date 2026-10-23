@@ -153,6 +153,7 @@ export default function TablePage({ user, groupId, sessionId, tableId }: { user:
         if (tableEvents.length === 0) await reseat(groupId, sessionId, tableId, seats);
         else await appendEvent(groupId, sessionId, tableId, tableEvents.length + 1, user.uid, { type: 'reseat', seats });
       }}
+      tvHref={`/tv/${groupId}/${sessionId}/${tableId}`}
       onDice={async () => { await rollDice(groupId, sessionId, tableId, user.uid, (table.dice?.n ?? 0) + 1); }}
       onScan={admin ? async (file) => (await import('../lib/scan.ts')).scanHand(file, fanTableOf(group.data)) : undefined}
     />

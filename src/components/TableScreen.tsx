@@ -10,6 +10,8 @@ import { ago, describe, trendOf } from '../lib/score.ts';
 import { TrendChart } from './Charts.tsx';
 import Celebrate from './Celebrate.tsx';
 import { FanPicker } from './FanTable.tsx';
+import { AirPlaySheet } from './AirPlay.tsx';
+import { roundLabel } from '../lib/sessionData.ts';
 import type { ScanResult } from '../lib/scan.ts';
 import type { FanTable } from '../lib/fanTable.ts';
 import { money } from './SettleScreen.tsx';
@@ -43,7 +45,7 @@ interface Entry {
   dealer?: 'one' | 'none';
 }
 
-type More = null | 'menu' | 'falseWin' | 'special' | 'draw' | 'end' | 'swap' | 'reseat' | 'people';
+type More = null | 'menu' | 'falseWin' | 'special' | 'draw' | 'end' | 'swap' | 'reseat' | 'people' | 'airplay';
 
 export interface Candidate {
   id: string;
@@ -72,6 +74,8 @@ export interface TableScreenProps {
   onCancelSwap?: (id: string) => Promise<void>;
   onReseat?: (seats: string[]) => Promise<void>;
   onDice?: () => Promise<void>;
+  /** 電視模式（AirPlay／螢幕鏡像）頁 */
+  tvHref?: string;
   /** 影相計番（試驗；淨係超級管理員） */
   onScan?: (file: File) => Promise<ScanResult>;
   /** 局主／管理員：刪除呢張枱 */
@@ -615,7 +619,14 @@ export default function TableScreen(props: TableScreenProps) {
 
   return (
     <main className="page">
-      <TopBar back={back} title={<div className="stack tight"><h1>{table.name}</h1>{subtitle && <span className="muted small">{subtitle}</span>}</div>} right={menuButton} />
+      <TopBar back={back} title={<div className="stack tight"><h1>{table.name}</h1>{subtitle && <span className="muted small">{subtitle}</span>}</div>} right={props.tvHref && !ended ? (
+        <span className="row tight">
+          <button type="button" className="iconbtn" aria-label="AirPlay 電視模式" onClick={() => { unlock(); setMore('airplay'); }}>
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M6 17H4a1 1 0 0 1-1-1V5a1 1 0 0 1 1-1h16a1 1 0 0 1 1 1v11a1 1 0 0 1-1 1h-2" /><path d="M12 15l5 6H7z" /></svg>
+          </button>
+          {menuButton}
+        </span>
+      ) : menuButton} />
 
       {notice}
 
@@ -1041,6 +1052,15 @@ export default function TableScreen(props: TableScreenProps) {
 
       {more && (
         <Sheet onClose={() => setMore(null)} label="其他">
+          {more === 'airplay' && props.tvHref && (
+            <AirPlaySheet
+              tvHref={props.tvHref}
+              groupName={subtitle ?? ''}
+              title={table.name}
+              round={roundLabel(c)}
+              players={seats.map((id, i) => ({ id, name: name(id), wind: ['東', '南', '西', '北'][i], v: totalOf(c, id), dealer: c.info.dealer === id, streak: c.info.dealer === id ? c.state.streak : 0 }))}
+            />
+          )}
           {more === 'menu' && (
             <>
               <h2>其他</h2>

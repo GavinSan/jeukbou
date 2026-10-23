@@ -24,6 +24,7 @@ const SettingsPage = lazyPage(() => import('./pages/SettingsPage.tsx'));
 const MyPayPage = lazyPage(() => import('./pages/MyPayPage.tsx'));
 const PayPage = lazyPage(() => import('./pages/PayPage.tsx'));
 const LivePage = lazyPage(() => import('./pages/LivePage.tsx'));
+const TvPage = lazyPage(() => import('./pages/TvPage.tsx'));
 const GroupPayPage = lazyPage(() => import('./pages/GroupPayPage.tsx'));
 import TabBar, { HOME_DEMO_TABS, appTabs } from './components/TabBar.tsx';
 import { navContext } from './lib/nav.ts';
@@ -48,6 +49,7 @@ function Routes({ user, refresh }: { user: User; refresh: () => void }) {
   if ((m = match('/join/:g/:code', path))) return <Join user={user} groupId={m.g} code={m.code} />;
   if ((m = match('/g/:g/new', path))) return <NewSession user={user} groupId={m.g} />;
   if ((m = match('/live/:g/:s', path))) return <LivePage user={user} groupId={m.g} sessionId={m.s} />;
+  if ((m = match('/tv/:g/:s/:t', path))) return <TvPage user={user} groupId={m.g} sessionId={m.s} tableId={m.t} />;
   if ((m = match('/g/:g/s/:s/t/:t', path))) return <TablePage user={user} groupId={m.g} sessionId={m.s} tableId={m.t} />;
   if ((m = match('/g/:g/s/:s/pay', path))) return <PayPage user={user} groupId={m.g} sessionId={m.s} />;
   if ((m = match('/g/:g/s/:s/settle', path))) return <SettlePage user={user} groupId={m.g} sessionId={m.s} />;
@@ -141,7 +143,7 @@ export default function App() {
     };
   }, []);
   // 電視直播可以打橫，其他頁手機打橫就叫人轉返直向
-  const tv = path.startsWith('/live/') || path === '/demo/live' || path.startsWith('/demo/live/');
+  const tv = path.startsWith('/live/') || path.startsWith('/tv/') || path === '/demo/live' || path.startsWith('/demo/live/') || path === '/demo/tv';
   useEffect(() => { document.body.classList.toggle('tv-mode', tv); }, [tv]);
 
   // 大局頁記低我坐邊張枱之後，tab 要更新
@@ -173,12 +175,12 @@ export default function App() {
     return (
       <>
         {/* 示範模式：隨時退出返真 app；左邊撳返測試清單 */}
-        <div className="demo-bar" role="navigation" aria-label="示範模式">
+        {path !== '/demo/tv' && <div className="demo-bar" role="navigation" aria-label="示範模式">
           <a href="/demo/cases" className="demo-pill" onClick={(e) => { e.preventDefault(); go('/demo/cases'); }}>示範・清單</a>
           <a href="/" className="demo-pill exit" onClick={(e) => { e.preventDefault(); go('/'); }}>退出示範</a>
-        </div>
+        </div>}
         <Suspense fallback={<main className="page narrow"><Loading /></main>}><Demo /></Suspense>
-        {path === '/demo/admin' || path.startsWith('/demo/live') ? null : path === '/demo/home' || path === '/demo/rank' || path === '/demo/groups' || path === '/demo/pay' || path === '/demo/skins'
+        {path === '/demo/admin' || path.startsWith('/demo/live') || path === '/demo/tv' ? null : path === '/demo/home' || path === '/demo/rank' || path === '/demo/groups' || path === '/demo/pay' || path === '/demo/skins'
           ? <TabBar tabs={HOME_DEMO_TABS} active={path === '/demo/rank' ? 'rank' : path === '/demo/groups' ? 'groups' : path === '/demo/pay' ? 'pay' : path === '/demo/skins' ? 'settings' : 'home'} />
           : <TabBar tabs={demoTabs} active={active} />}
       </>
@@ -211,7 +213,7 @@ export default function App() {
     <>
       <ErrorBoundary key={path}><Suspense fallback={<main className="page narrow"><Loading /></main>}><Routes user={user} refresh={refresh} /></Suspense></ErrorBoundary>
       {/* 加入頁唔使底部 tab */}
-      {!path.startsWith('/join/') && !path.startsWith('/live/') && path !== '/admin' && <TabBar tabs={nav.tabs} active={nav.active} />}
+      {!path.startsWith('/join/') && !path.startsWith('/live/') && !path.startsWith('/tv/') && path !== '/admin' && <TabBar tabs={nav.tabs} active={nav.active} />}
       <GroupWatchers uid={user.uid} />
       <SkinAccessSync uid={user.uid} />
       <NoticeBar />
