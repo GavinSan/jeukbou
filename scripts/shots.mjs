@@ -162,8 +162,8 @@ for (const scheme of ['light', 'dark']) {
       await page.getByRole('dialog').getByLabel('訪客名').fill('Jo');
       await page.getByRole('dialog').getByRole('button', { name: '換人', exact: true }).click();
       await page.waitForTimeout(800);
-      await page.locator('.ledger').scrollIntoViewIfNeeded();
-      await page.locator('.ledger').screenshot({ path: `${out}/ledger-seg.png` });
+      await page.locator('.ledger').first().scrollIntoViewIfNeeded();
+      await page.locator('.ledger').first().screenshot({ path: `${out}/ledger-seg.png` });
     });
     await step('reseat', async () => {
       await page.goto(`${base}/demo/t/3`, { waitUntil: 'networkidle' });
@@ -429,7 +429,7 @@ for (const scheme of ['light', 'dark']) {
       await page.goto(`${base}/demo/t/4`, { waitUntil: 'networkidle' });
       await page.waitForTimeout(1200);
       await page.screenshot({ path: `${out}/rounds-done.png` });
-      await page.getByRole('button', { name: '換位', exact: true }).click();
+      await page.getByRole('button', { name: '執位', exact: true }).click();
       await page.getByRole('tab', { name: '自己揀' }).click();
       const a = await page.locator('.pick-seat').nth(0).boundingBox();
       const b = await page.locator('.pick-seat').nth(3).boundingBox();
@@ -486,7 +486,7 @@ for (const scheme of ['light', 'dark']) {
       await page.goto(`${base}/demo/t/2`, { waitUntil: 'networkidle' });
       await page.waitForTimeout(1200);
       await page.getByRole('button', { name: /^TS，/ }).click();
-      await page.getByRole('button', { name: /^自摸/ }).click();
+      await page.locator('.dock').getByRole('button', { name: /^自摸/ }).click();
       await page.waitForTimeout(300);
       await page.getByRole('radio', { name: '當 1 番' }).click();
       await page.waitForTimeout(150);
@@ -537,7 +537,7 @@ for (const scheme of ['light', 'dark']) {
     await step('regroup', async () => {
       await page.goto(`${base}/demo`, { waitUntil: 'networkidle' });
       await page.waitForTimeout(800);
-      await page.getByRole('button', { name: /張枱一齊執位/ }).click();
+      await page.getByRole('button', { name: /張枱執位/ }).click();
       await page.waitForTimeout(300);
       await page.screenshot({ path: `${out}/regroup.png` });
       // 減一個人：顯示「差 X 人」；再喺「加人」加返

@@ -219,6 +219,42 @@ export default function SessionScreen({ title, back, tables, computed, tableHref
         </span> : undefined}
       />
 
+      {/* 頂部：加枱、執位、是日終結（冇枱打緊先有） */}
+      {(onAddTable || onEndDay) && (
+        <div className="session-acts">
+          {onAddTable && (
+            <button type="button" className="sact" onClick={() => { setAdding(true); setPicked([]); setError(''); }}>
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" aria-hidden="true"><rect x="4" y="4" width="16" height="16" rx="3" /><path d="M12 8.5v7M8.5 12h7" /></svg>
+              加一張枱
+            </button>
+          )}
+          {rg && !draw && openTables.length >= 1 && (rg.canForce || seatedMe) && (
+            <button type="button" className="sact" onClick={() => { setError(''); setDrawSetup(true); }}>
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M4 7h11l-3-3M20 17H9l3 3" /></svg>
+              {openTables.length > 1 ? `${openTables.length} 張枱執位` : '執位'}
+            </button>
+          )}
+          {onEndDay && !openTables.length && tables.length > 0 && !endedAt && (
+            <button type="button" className="sact end" disabled={ending} onClick={async () => { setEnding(true); try { await onEndDay(true); } catch (err) { setError(message(err)); } finally { setEnding(false); } }}>
+              <span className="sact-end-mark" aria-hidden="true">終</span>
+              是日終結
+            </button>
+          )}
+        </div>
+      )}
+
+      {error && !adding && <p className="error" role="alert">{error}</p>}
+      {endedAt && (
+        <div className="day-end" role="status">
+          <span className="day-end-seal" aria-hidden="true">終</span>
+          <span className="grow">
+            <b>是日終結</b>
+            <small>{new Date(endedAt).toLocaleString('zh-HK', { month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit' })}{durTxt ? `・打咗 ${durTxt}` : ''}</small>
+          </span>
+          {onEndDay && <button type="button" className="textbtn" onClick={() => onEndDay(false).catch((err) => setError(message(err)))}>取消</button>}
+        </div>
+      )}
+
       {notice}
       {closedNote}
       {waterCtl && (
@@ -261,42 +297,6 @@ export default function SessionScreen({ title, back, tables, computed, tableHref
             <option value="session">成個大局</option>
             <option value="group">成個牌友圈</option>
           </select>
-        </div>
-      )}
-
-      {/* 頂部：加枱、執位、是日終結（冇枱打緊先有） */}
-      {(onAddTable || onEndDay) && (
-        <div className="session-acts">
-          {onAddTable && (
-            <button type="button" className="sact" onClick={() => { setAdding(true); setPicked([]); setError(''); }}>
-              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" aria-hidden="true"><rect x="4" y="4" width="16" height="16" rx="3" /><path d="M12 8.5v7M8.5 12h7" /></svg>
-              加一張枱
-            </button>
-          )}
-          {rg && !draw && openTables.length >= 1 && (rg.canForce || seatedMe) && (
-            <button type="button" className="sact" onClick={() => { setError(''); setDrawSetup(true); }}>
-              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M4 7h11l-3-3M20 17H9l3 3" /></svg>
-              {openTables.length > 1 ? `${openTables.length} 張枱執位` : '執位'}
-            </button>
-          )}
-          {onEndDay && !openTables.length && tables.length > 0 && !endedAt && (
-            <button type="button" className="sact end" disabled={ending} onClick={async () => { setEnding(true); try { await onEndDay(true); } catch (err) { setError(message(err)); } finally { setEnding(false); } }}>
-              <span className="sact-end-mark" aria-hidden="true">終</span>
-              是日終結
-            </button>
-          )}
-        </div>
-      )}
-
-      {error && !adding && <p className="error" role="alert">{error}</p>}
-      {endedAt && (
-        <div className="day-end" role="status">
-          <span className="day-end-seal" aria-hidden="true">終</span>
-          <span className="grow">
-            <b>是日終結</b>
-            <small>{new Date(endedAt).toLocaleString('zh-HK', { month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit' })}{durTxt ? `・打咗 ${durTxt}` : ''}</small>
-          </span>
-          {onEndDay && <button type="button" className="textbtn" onClick={() => onEndDay(false).catch((err) => setError(message(err)))}>取消</button>}
         </div>
       )}
 
