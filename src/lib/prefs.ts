@@ -79,9 +79,17 @@ export function usePrefs(): Prefs {
   return useSyncExternalStore((l) => { listeners.add(l); return () => listeners.delete(l); }, prefs, prefs);
 }
 
-/** 套用風格：網址有 ?skin= 就用網址（示範用），否則用設定 */
+/** 暫時用另一款風格（Live 自己揀嘅）；null = 跟設定 */
+let override: Skin | null = null;
+export function setSkinOverride(skin: Skin | null) {
+  if (override === skin) return;
+  override = skin;
+  applySkin(current.skin);
+}
+
+/** 套用風格：網址有 ?skin= 就用網址（示範用），否則用設定（Live 揀咗就用 Live 嗰款） */
 export function applySkin(skin: Skin) {
-  let s: string = skin;
+  let s: string = override ?? skin;
   let forced = false;
   try {
     const q = new URLSearchParams(window.location.search).get('skin');

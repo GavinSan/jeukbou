@@ -11,7 +11,7 @@ import { TrendChart } from './Charts.tsx';
 import Celebrate from './Celebrate.tsx';
 import { FanPicker } from './FanTable.tsx';
 import { AirPlaySheet } from './AirPlay.tsx';
-import { ScaleFit, TvFelt } from './TvFelt.tsx';
+import { ScaleFit, TileBody, TvFelt, WindCube, startSeatOf } from './TvFelt.tsx';
 import type { ScanResult } from '../lib/scan.ts';
 import type { FanTable } from '../lib/fanTable.ts';
 import { money } from './SettleScreen.tsx';
@@ -20,7 +20,7 @@ import { buzz } from '../lib/haptics.ts';
 import { setPref, usePrefs } from '../lib/prefs.ts';
 import Settings from './Settings.tsx';
 import { Link } from '../lib/router.tsx';
-import { Chips, ConfirmDelete, useConfirm, Hint, NumInput, RollingNumber, Sheet, TopBar, fmt, message, useNow, clampName } from '../ui.tsx';
+import { ConfirmDelete, useConfirm, Hint, NumInput, Sheet, TopBar, fmt, message, useNow, clampName } from '../ui.tsx';
 import FanWheel from './FanWheel.tsx';
 import DiceRoll, { Die } from './Dice.tsx';
 import SeatDraw from './SeatDraw.tsx';
@@ -28,6 +28,8 @@ import { CHASE_MAX_REPEAT, SPECIAL_ITEMS, SpecialArt, SpecialBurst, artOf, chase
 import type { Art } from './Specials.tsx';
 
 const WIND_NAMES = ['東', '南', '西', '北'];
+/** 圈風牌擺喺起莊嗰個人右手邊嘅角 */
+const CUBE_AT: Record<string, string> = { 's-bottom': 'br', 's-right': 'tr', 's-top': 'tl', 's-left': 'bl' };
 
 const SPOTS = ['s-bottom', 's-right', 's-top', 's-left'];
 // 快捷番數：每 10 一格，10 至 300
@@ -680,13 +682,7 @@ export default function TableScreen(props: TableScreenProps) {
               {isLoser && <span className="t-badge lose">銃</span>}
               {entry && ghost !== 0 && <span key={`g${ghost}`} className={`ghost ${ghost > 0 ? 'gain' : 'loss'}`}>{fmt(ghost)}</span>}
               {isDealer && <span className="dealer-mark tv-dealer-mark">莊{c.state.streak ? c.state.streak : ''}</span>}
-              <span className={`t-name${name(id).length > 6 ? ' long' : ''}`}><span className="t-name-text">{name(id)}</span></span>
-              <RollingNumber value={settled} className={`t-score t-${tone2(settled)}`} />
-              <span className="t-foot">
-                {owe[id] ? <><Chips key={`c${owe[id]}`} amount={owe[id]} pop={down} /><RollingNumber value={-owe[id]} className="t-loss" /><span className="t-la loss" title="被拉緊第幾拉">{pulledLabel(id)}</span></> : null}
-                {collect[id] ? <><RollingNumber value={collect[id]} className="t-gain" /><span className="t-la gain" title="拉緊幾多家">拉{pulling(id)}家</span></> : null}
-                <span className="t-wind">{seatWind(c.state, id)}</span>
-              </span>
+              <TileBody name={name(id)} settled={settled} owe={owe[id]} collect={collect[id]} pulledLabel={pulledLabel(id)} pulling={pulling(id)} wind={seatWind(c.state, id)} pop={down} />
               {fx.delta[id] ? <span className={`float ${fx.delta[id] > 0 ? 'gain' : 'loss'}${fx.hp ? ' hp' : ''}`} key={`f${fx.key}`}>{fmt(fx.delta[id])}</span> : null}
             </button>
           );
@@ -702,6 +698,8 @@ export default function TableScreen(props: TableScreenProps) {
           {(corner?.values ?? idleDice(table.id)).map((v, i) => <Die key={i} value={v} rolling={false} size={24} />)}
           {corner && <span className="felt-dice-sum">{corner.values.reduce((a, b) => a + b, 0)}</span>}
         </button>
+        {/* 圈風牌：擺喺起莊（東圈東位）嗰個人右手邊，唔跟莊郁；換位先搬 */}
+        {!ended && <WindCube wind={c.info.roundWind} className={`at-${CUBE_AT[spotOf(startSeatOf(c.state))]}`} />}
         <div className="felt-center">
           <span className="wind-tile">{ended ? '完' : c.info.roundWind}</span>
           <span className="small">{ended ? '已完場' : `${WIND_NAMES[c.state.dealerTurns % 4]}位 · 第 ${c.info.hand} 鋪`}</span>
@@ -1058,7 +1056,7 @@ export default function TableScreen(props: TableScreenProps) {
           {more === 'airplay' && props.tvHref && (
             <AirPlaySheet
               tvHref={props.tvHref}
-              preview={<ScaleFit base={380}><TvFelt c={c} names={table.names} me={me} /></ScaleFit>}
+              preview={<ScaleFit base={400}><TvFelt c={c} names={table.names} me={me} /></ScaleFit>}
             />
           )}
           {more === 'menu' && (

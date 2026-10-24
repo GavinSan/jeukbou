@@ -5,6 +5,7 @@ import type { Group, Session } from '../lib/data.ts';
 import { lastActivity, roundLabel, useSessionLive } from '../lib/sessionData.ts';
 import { Link } from '../lib/router.tsx';
 import { fmt } from '../ui.tsx';
+import { seatWind } from '../engine/table.ts';
 import GroupIcon from './GroupIcon.tsx';
 
 const LIVE_HOURS = 8;
@@ -38,8 +39,8 @@ export function LiveCardView({ groupName, icon, sessionName, href, tvHref, table
             <span className="live-scores">
               {t.players.map((p) => (
                 <span key={p.id} className={`live-score${p.id === me ? ' me' : ''}${p.id === t.dealer ? ' dealer' : ''}`}>
-                  <span className="ellipsis">{p.wind && <i className="live-wind">{p.wind}</i>}{p.name}{p.id === t.dealer && <i className="live-dealer">莊{t.streak ? `冧${t.streak}` : ''}</i>}</span>
-                  <b className={`num ${p.v > 0 ? 'gain' : p.v < 0 ? 'loss' : ''}`}>{fmt(p.v)}</b>
+                  <span className="live-name">{p.wind && <i className="live-wind">{p.wind}</i>}<span className="ellipsis">{p.name}</span></span>
+                  <span className="live-v"><b className={`num ${p.v > 0 ? 'gain' : p.v < 0 ? 'loss' : ''}`}>{fmt(p.v)}</b>{p.id === t.dealer && <i className="live-dealer">莊{t.streak ? `冧${t.streak}` : ''}</i>}</span>
                 </span>
               ))}
             </span>
@@ -63,9 +64,8 @@ function LiveSession({ group, session, me, onLive, hidden }: { group: Group; ses
   if (!isLive || hidden) return null;
   const tables: LiveTableView[] = open.map((t) => {
     const c = live.computed[t.id]!;
-    const winds = ['東', '南', '西', '北'];
-    // 座位東南西北（第一個位 = 東位）
-    const players = c.state.seats.map((id, i) => ({ id, name: t.names[id] ?? '玩家', v: (c.state.settled[id] ?? 0) + (c.pending[id] ?? 0), wind: winds[i] }));
+    // 跟座位排；wind = 而家嘅門風（莊 = 東）
+    const players = c.state.seats.map((id) => ({ id, name: t.names[id] ?? '玩家', v: (c.state.settled[id] ?? 0) + (c.pending[id] ?? 0), wind: seatWind(c.state, id) }));
     return { id: t.id, name: t.name, round: roundLabel(c), players, dealer: c.info.dealer ?? null, streak: c.state.streak };
   });
   return (

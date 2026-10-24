@@ -1,9 +1,9 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import type { FormEvent } from 'react';
 import type { User } from 'firebase/auth';
 import { createSession, guestId, tableNameUpper } from '../lib/data.ts';
 import type { NewTable } from '../lib/data.ts';
-import { useGroup, useMembers } from '../lib/live.ts';
+import { useGroup, useMeetups, useMembers } from '../lib/live.ts';
 import { go } from '../lib/router.tsx';
 import { shuffle } from '../components/SeatDraw.tsx';
 import { Hint, Loading, TopBar, message, clampName, useConfirm } from '../ui.tsx';
@@ -32,6 +32,24 @@ export default function NewSession({ user, groupId }: { user: User; groupId: str
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
   const [confirmUI, ask] = useConfirm();
+  // 由約局「開枱」入嚟（?m=約局）：應咗「去」嘅人自動入座，每 4 個一張枱
+  const fromMeetup = typeof location !== 'undefined' ? new URLSearchParams(location.search).get('m') : null;
+  const meetups = useMeetups(fromMeetup ? groupId : null);
+  const filled = useRef(false);
+  useEffect(() => {
+    if (filled.current || !fromMeetup || members.loading) return;
+    const m = meetups.data.find((x) => x.id === fromMeetup);
+    if (!m) return;
+    filled.current = true;
+    const ids = m.going.filter((id) => members.data.some((x) => x.uid === id));
+    if (!ids.length) return;
+    const n = Math.min(6, Math.max(1, Math.ceil(ids.length / 4)));
+    setTables(Array.from({ length: n }, (_, ti) => Array.from({ length: 4 }, (_, si) => {
+      const id = ids[ti * 4 + si];
+      return id ? { value: id, guestName: '' } : emptySeat();
+    })));
+    setName(`${today()} · ${m.place.trim() || '約局'}`);
+  }, [fromMeetup, meetups.data, members.loading, members.data]);
 
   const used = useMemo(() => new Set(tables.flat().map((s) => s.value).filter((v) => v && v !== GUEST)), [tables]);
 

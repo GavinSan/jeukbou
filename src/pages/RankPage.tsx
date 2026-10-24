@@ -1,13 +1,56 @@
-// 段位頁：自己段位、點樣攞分、全部成就、每個牌友圈嘅雀力排行
-import { useEffect, useMemo, useState } from 'react';
+// 段位頁：自己段位（其他段位撳先展開）、數據、全部成就、點樣攞分（最底）。雀力排行喺各個牌友圈入面。
+import { useEffect, useState } from 'react';
 import type { User } from 'firebase/auth';
 import { useProfile } from '../lib/live.ts';
-import { POINT_RULES, TIERS, badgesOf, pointsFor, statsOf, tierOf, useMyHistory, useTierSync } from '../lib/stats.ts';
-import type { GroupResults, MySession } from '../lib/stats.ts';
-import { BadgeCats, CountUp, Progress, TierChip, TierTile } from '../components/Tier.tsx';
-import { TopBar } from '../ui.tsx';
+import { POINT_RULES, TIERS, badgesOf, statsOf, tierOf, useMyHistory, useTierSync } from '../lib/stats.ts';
+import type { MySession, Stats } from '../lib/stats.ts';
+import { BadgeCats, CountUp, Progress, Ring, TierTile } from '../components/Tier.tsx';
+import { TopBar, fmt } from '../ui.tsx';
 
-export function RankView({ me, mine, groups, loading }: { me: string; mine: MySession[]; groups: GroupResults[]; loading: boolean }) {
+const signed = (n: number) => fmt(Math.round(n));
+
+/** 自己嘅數據（由主頁搬嚟）：圈數、勝率、總番數、最好一次；有詳細紀錄就加食糊／自摸／出銃／最大一鋪 */
+function MyStats({ st }: { st: Stats }) {
+  return (
+    <>
+      <section className="tiles">
+        <div className="tile-stat">
+          <small>{st.rounds ? '打咗幾多圈' : '大局'}</small>
+          <b className="num"><CountUp value={st.rounds || st.played} />{st.rounds ? <small className="unit"> 圈</small> : null}</b>
+          <span className="muted small">{st.played} 次大局 · 近 30 日 {st.month} 次</span>
+        </div>
+        <div className="tile-stat ring-tile">
+          <Ring value={st.winRate} label={`勝率 ${Math.round(st.winRate * 100)}%`} />
+          <span className="ring-text"><b className="num"><CountUp value={st.winRate * 100} format={(n) => `${Math.round(n)}%`} /></b><small>勝率</small></span>
+          <span className="muted small">贏 {st.wins} · 輸 {st.losses}</span>
+        </div>
+        <div className="tile-stat">
+          <small>總番數</small>
+          <b className={`num ${st.total > 0 ? 'gain' : st.total < 0 ? 'loss' : ''}`}><CountUp value={st.total} format={signed} /></b>
+          <span className="muted small">{st.rounds ? `平均每圈 ${st.total / st.rounds > 0 ? '+' : ''}${(st.total / st.rounds).toFixed(1)}` : `平均每次 ${fmt(st.avg)}`}</span>
+        </div>
+        <div className="tile-stat">
+          <small>最好一次</small>
+          <b className="num gain"><CountUp value={st.best} format={signed} /></b>
+          <span className="muted small">龍頭 {st.tops} 次 · 最長連贏 {st.bestStreak}</span>
+        </div>
+      </section>
+      {st.detailed > 0 && (
+        <>
+          <div className="my-stats">
+            <div className="ms ms-gold"><span className="ms-mark">食</span><b className="num"><CountUp value={st.handWins} /></b><small>食糊</small></div>
+            <div className="ms ms-green"><span className="ms-mark">摸</span><b className="num"><CountUp value={st.selfDraws} /></b><small>自摸</small></div>
+            <div className="ms ms-red"><span className="ms-mark">銃</span><b className="num"><CountUp value={st.dealIns} /></b><small>出銃</small></div>
+            <div className="ms ms-purple"><span className="ms-mark">大</span><b className="num"><CountUp value={st.bestFan} /></b><small>最大一鋪</small></div>
+          </div>
+          {st.rounds > 0 && <p className="muted small">每圈平均：食糊 {(st.handWins / st.rounds).toFixed(1)} 次・自摸 {(st.selfDraws / st.rounds).toFixed(1)} 次・出銃 {(st.dealIns / st.rounds).toFixed(1)} 次（共 {st.rounds} 圈）</p>}
+        </>
+      )}
+    </>
+  );
+}
+
+export function RankView({ mine, loading }: { mine: MySession[]; loading: boolean }) {
   const st = statsOf(mine);
   // 由主頁撳成就入嚟：捲去成就／嗰一類，閃一閃
   useEffect(() => {
@@ -24,15 +67,9 @@ export function RankView({ me, mine, groups, loading }: { me: string; mine: MySe
   }, [loading]);
   const t = tierOf(st.points);
   const badges = badgesOf(st);
-  const [gi, setGi] = useState(0);
-  const g = groups[Math.min(gi, groups.length - 1)];
-  const ladder = useMemo(() => {
-    if (!g) return [];
-    const ids = new Set(g.sessions.flatMap((s) => Object.keys(s.totals)));
-    return [...ids]
-      .map((id) => ({ id, name: g.names[id] || '玩家', points: pointsFor(id, g.sessions), played: g.sessions.filter((s) => id in s.totals).length }))
-      .sort((a, b) => b.points - a.points);
-  }, [g]);
+  // 段位：淨係顯示而家嗰級，其他撳先展開
+  const [allTiers, setAllTiers] = useState(false);
+  const [howOpen, setHowOpen] = useState(false);
 
   return (
     <main className="page">
@@ -58,6 +95,7 @@ export function RankView({ me, mine, groups, loading }: { me: string; mine: MySe
           {TIERS.map((x, i) => {
             const next = TIERS[i + 1];
             const here = x.name === t.tier.name;
+            if (!here && !allTiers) return null;
             const done = st.points >= (next?.min ?? Infinity);
             return (
               <li key={x.name} className={here ? 'here' : done ? 'done' : st.points >= x.min ? 'done' : 'todo'}>
@@ -75,48 +113,39 @@ export function RankView({ me, mine, groups, loading }: { me: string; mine: MySe
               </li>
             );
           })}
+          <li className="tier-more">
+            <button type="button" className="textbtn" aria-expanded={allTiers} onClick={() => setAllTiers((v) => !v)}>{allTiers ? '收埋其他段位 ⌃' : `睇晒 ${TIERS.length} 個段位 ⌄`}</button>
+          </li>
         </ol>
       </section>
 
-      <section className="stack">
-        <h2 className="section-head">點樣攞分</h2>
-        <div className="list flat">
-          {POINT_RULES.map(([a, b]) => (
-            <div key={a} className="rule-row"><span className="grow">{a}</span><b className="num">{b}</b></div>
-          ))}
-        </div>
-      </section>
+      {mine.length > 0 && (
+        <section className="stack">
+          <h2 className="section-head">數據</h2>
+          <MyStats st={st} />
+        </section>
+      )}
 
       <section className="stack" id="badges">
         <h2 className="section-head">成就<small className="muted head-note">已解鎖 {badges.filter((b) => b.got).length} 個・共 {badges.length} 個</small></h2>
         <BadgeCats badges={badges} stats={st} />
       </section>
 
-      {groups.length > 0 && (
-        <section className="stack">
-          <h2 className="section-head">雀力排行</h2>
-          {groups.length > 1 && (
-            <div className="seg wide" role="tablist" aria-label="牌友圈">
-              {groups.map((x, i) => (
-                <button key={x.gid} type="button" role="tab" aria-selected={i === gi} aria-pressed={i === gi} onClick={() => setGi(i)}>{x.name}</button>
-              ))}
-            </div>
-          )}
-          <ol className="list ladder points">
-            {ladder.map((r, i) => {
-              const tt = tierOf(r.points).tier;
-              return (
-                <li key={r.id} className={r.id === me ? 'here' : ''}>
-                  <span className="rank-dot">{i + 1}</span>
-                  <span className="grow ellipsis">{r.name}<small className="muted">　{r.played} 次</small></span>
-                  <TierChip tier={tt} />
-                  <b className="num">{r.points}</b>
-                </li>
-              );
-            })}
-          </ol>
-        </section>
-      )}
+      {/* 點樣攞分：放最底，收埋做一張說明卡 */}
+      <section className={`how-points${howOpen ? ' open' : ''}`}>
+        <button type="button" className="how-points-head" aria-expanded={howOpen} onClick={() => setHowOpen((v) => !v)}>
+          <span className="how-points-icon" aria-hidden="true">?</span>
+          <span className="grow"><b>點樣攞分</b><small>打大局、贏、做龍頭都有分；儲夠就升段位</small></span>
+          <span className="chev" aria-hidden="true">{howOpen ? '⌃' : '⌄'}</span>
+        </button>
+        {howOpen && (
+          <dl className="how-points-list">
+            {POINT_RULES.map(([a, b]) => (
+              <div key={a}><dt>{a}</dt><dd className="num">{b}</dd></div>
+            ))}
+          </dl>
+        )}
+      </section>
       {loading && <p className="muted center-text">計緊…</p>}
     </main>
   );
@@ -126,5 +155,5 @@ export default function RankPage({ user }: { user: User }) {
   const profile = useProfile(user.uid);
   const h = useMyHistory(profile.loading ? null : user.uid, profile.data.groups);
   useTierSync(h, !profile.loading);
-  return <RankView me={user.uid} mine={h.mine} groups={h.groups} loading={profile.loading || h.loading} />;
+  return <RankView mine={h.mine} loading={profile.loading || h.loading} />;
 }
