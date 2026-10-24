@@ -1,4 +1,4 @@
-// 電視（AirPlay）用嘅枱面：綠絨布，四隻牌順時針塞滿四個角（左上東、右上南、右下西、左下北），
+// 電視（AirPlay）用嘅枱面：綠絨布，四隻牌塞滿四個角（左上東、左下南、右下西、右上北，跟門風），
 // 淨係睇唔撳；分數一變就飄「+N」。ScaleFit 將佢放大縮細塞滿個格（幾多張枱都一版睇晒）。
 // TileBody／WindCube 枱頁都用。
 import { useEffect, useLayoutEffect, useRef, useState } from 'react';
@@ -46,17 +46,21 @@ export function WindCube({ wind, className = '' }: { wind: string; className?: s
 }
 
 /** 牌入面嘅內容（枱頁、電視共用）：名 → 籌碼 → 分數 → 拉／被拉 tag；門風喺右上角 */
-export function TileBody({ name, settled, owe, collect, pulledLabel, pulling, wind, pop, score }: {
+export function TileBody({ name, settled, owe, collect, pulledLabel, pulling, wind, pop, score, chipsBelow }: {
   name: string; settled: number; owe?: number; collect?: number; pulledLabel: string; pulling: number; wind: string; pop?: boolean;
+  /** 電視：籌碼擺喺大數字下面 */
+  chipsBelow?: boolean;
   /** 想用其他方式顯示分數（例如 RollingNumber 以外） */
   score?: ReactNode;
 }) {
+  const chips = owe ? <span className="t-chips"><Chips key={`c${owe}`} amount={owe} pop={pop} /><RollingNumber value={-owe} className="t-loss" /></span> : null;
   return (
     <>
       <span className="t-wind">{wind}</span>
       <span className={`t-name${nameCls(name)}`}><span className="t-name-text">{name}</span></span>
-      {owe ? <span className="t-chips"><Chips key={`c${owe}`} amount={owe} pop={pop} /><RollingNumber value={-owe} className="t-loss" /></span> : null}
+      {!chipsBelow && chips}
       {score ?? <RollingNumber value={settled} className={`t-score t-${tone(settled)}`} />}
+      {chipsBelow && chips}
       {owe || collect ? (
         <span className="t-tags">
           {owe ? <span className="t-la loss" title="被拉緊第幾拉">{pulledLabel}</span> : null}
@@ -80,8 +84,8 @@ export function chainInfo(c: Computed) {
   return { owe, collect, pulling, pulledLabel };
 }
 
-// 電視：順時針，左上東（起莊）、右上南、右下西、左下北；四隻牌塞滿綠絨，枱名、圈、位、鋪數放上面
-const QUADS = ['q-tl', 'q-tr', 'q-br', 'q-bl'];
+// 電視：跟而家嘅門風擺，東永遠喺左上、南左下、西右下、北右上（同真枱一樣逆時針）；四隻牌塞滿綠絨，枱名、圈、位、鋪數放上面
+const QUAD_OF: Record<string, string> = { 東: 'q-tl', 南: 'q-bl', 西: 'q-br', 北: 'q-tr' };
 
 export function TvFelt({ c, names, title, me }: { c: Computed; names: Record<string, string>; title?: string; me?: string | null }) {
   const name = (id: string) => names[id] ?? '玩家';
@@ -89,7 +93,6 @@ export function TvFelt({ c, names, title, me }: { c: Computed; names: Record<str
   const ended = c.state.ended;
   const { owe, collect, pulling, pulledLabel } = chainInfo(c);
   const fx = useDeltas(Object.fromEntries(seats.map((id) => [id, (c.state.settled[id] ?? 0) + (c.pending[id] ?? 0)])));
-  const s0 = startSeatOf(c.state);
   return (
     <div className="tv-felt-wrap">
       <div className="tv-felt-info">
@@ -101,10 +104,11 @@ export function TvFelt({ c, names, title, me }: { c: Computed; names: Record<str
         {seats.map((id, i) => {
           const settled = c.state.settled[id] ?? 0;
           const isDealer = c.info.dealer === id && !ended;
+          const w = seatWind(c.state, id);
           return (
-            <div key={id} className={`tile ${QUADS[(i - s0 + 4) % 4]}${isDealer ? ' is-dealer' : ''}${id === me ? ' is-me' : ''}`}>
+            <div key={id} className={`tile ${QUAD_OF[w] ?? ['q-tl', 'q-bl', 'q-br', 'q-tr'][i]}${isDealer ? ' is-dealer' : ''}${id === me ? ' is-me' : ''}`}>
               {isDealer && <span className="dealer-mark tv-dealer-mark">莊{c.state.streak ? c.state.streak : ''}</span>}
-              <TileBody name={name(id)} settled={settled} owe={owe[id]} collect={collect[id]} pulledLabel={pulledLabel(id)} pulling={pulling(id)} wind={seatWind(c.state, id)} />
+              <TileBody name={name(id)} settled={settled} owe={owe[id]} collect={collect[id]} pulledLabel={pulledLabel(id)} pulling={pulling(id)} wind={w} chipsBelow />
               {fx.d[id] ? <span key={`f${fx.key}`} className={`float ${fx.d[id] > 0 ? 'gain' : 'loss'}`}>{fmt(fx.d[id])}</span> : null}
             </div>
           );
