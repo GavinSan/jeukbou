@@ -2981,3 +2981,17 @@ body.entering .page { padding-bottom: calc(66vh + 24px); }
 .how-points-list dd { margin: 0; font-weight: 700; white-space: nowrap; }
 .dash-more small { display: block; }
 .tile.is-dealer .t-wind { top: 14px; }
+/* Round 23：SVG 箭咀 */
+.chev-svg { flex: none; transition: transform .2s ease; }
+.chev-svg.up { transform: rotate(180deg); }
+.tier-ladder li.tier-more .textbtn { display: inline-flex; align-items: center; gap: 4px; }
+.how-points-chev { width: 30px; height: 30px; flex: none; display: inline-flex; align-items: center; justify-content: center; border-radius: 50%; background: var(--surface); color: var(--muted); box-shadow: 0 0 0 1px var(--line); }
+/* Live 食糊：彩炮疊喺枱面上面 */
+.tv.airplay .party { z-index: 40; }
+.party-who { font-style: normal; font-family: var(--font-kai); font-weight: 800; font-size: 28px; margin-right: 8px; color: #fff; }
+.tv.airplay .party-text { transform-origin: center; padding: 16px 28px; }
+.tv.airplay .party-text .num { font-size: clamp(56px, 9vmin, 110px); }
+.tv.airplay .party-who { font-size: clamp(26px, 4.5vmin, 54px); }
+/* 入開支：大局頁快捷、埋數頁頂部 */
+.exp-link-icon { width: 34px; height: 34px; flex: none; display: inline-flex; align-items: center; justify-content: center; border-radius: 10px; background: var(--sunk); font-size: 18px; }
+.topbar-right .exp-quick { white-space: nowrap; }

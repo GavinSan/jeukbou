@@ -138,6 +138,13 @@ export default function SettleScreen(p: SettleScreenProps) {
   const locked = !!p.locked;
 
   const [sheet, setSheet] = useState<SheetKind>(null);
+  // 由大局頁「入開支」過嚟（#expense）：即刻打開新增開支
+  useEffect(() => {
+    if (typeof location === 'undefined' || location.hash !== '#expense' || p.locked) return;
+    setSheet('expense');
+    history.replaceState(history.state, '', location.pathname + location.search);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
   const [view, setView] = useState<View>('combined');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
@@ -272,7 +279,7 @@ export default function SettleScreen(p: SettleScreenProps) {
 
   return (
     <main className="page settle-page">
-      <TopBar back={p.back} title={<div className="stack tight"><h1>埋數</h1><span className="muted small">{p.title}</span></div>} />
+      <TopBar back={p.back} title={<div className="stack tight"><h1>埋數</h1><span className="muted small">{p.title}</span></div>} right={!locked ? <button type="button" className="btn small-btn exp-quick" onClick={() => { setError(''); setSheet('expense'); }}>＋ 開支</button> : undefined} />
 
       {p.unfinished > 0 && <p className="banner calm small">有 {p.unfinished} 枱未完場，枱面（拉住未找）已計入。</p>}
 

@@ -130,6 +130,9 @@ export default function App() {
     document.addEventListener('focusout', settle);
     document.addEventListener('visibilitychange', onVisible);
     window.addEventListener('pageshow', settle);
+    // 轉頁（例如由打橫嘅 Live 返出嚟）、轉方向：iOS 有時唔還原位移，再對一次
+    window.addEventListener('popstate', settle);
+    window.addEventListener('orientationchange', settle);
     fix();
     return () => {
       vv.removeEventListener('resize', soon);
@@ -138,6 +141,8 @@ export default function App() {
       document.removeEventListener('focusout', settle);
       document.removeEventListener('visibilitychange', onVisible);
       window.removeEventListener('pageshow', settle);
+      window.removeEventListener('popstate', settle);
+      window.removeEventListener('orientationchange', settle);
       timers.forEach((t) => clearTimeout(t));
       if (raf) cancelAnimationFrame(raf);
     };

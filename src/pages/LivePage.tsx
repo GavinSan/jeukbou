@@ -18,6 +18,8 @@ import { Loading, fmt, message, useNow } from '../ui.tsx';
 import { SKINS, setSkinOverride, skinLock, usePrefs, useSkinAccess } from '../lib/prefs.ts';
 import type { Skin } from '../lib/prefs.ts';
 import GroupIcon from '../components/GroupIcon.tsx';
+import Celebrate from '../components/Celebrate.tsx';
+import { forceSound, primeVoice, sfx, unlock } from '../lib/sound.ts';
 
 export interface TvTable {
   id: string;
@@ -97,6 +99,37 @@ function useFloatingChat(chat: ChatMsg[]) {
   return live.map((m) => ({ m, age: t0 - (seen.current.get(m.id) ?? 0) }));
 }
 
+/** Live 聲效（食糊「食！」）：只記喺呢部機，預設開 */
+const LIVE_SOUND_KEY = 'jeukbou-live-sound';
+const readLiveSound = () => { try { return localStorage.getItem(LIVE_SOUND_KEY) !== '0'; } catch { return true; } };
+
+/** 有人食糊：搵出啱啱多咗嘅「食糊」鋪（第一次載入、斷線補返嘅舊鋪唔計） */
+function useWinBurst(tables: TvTable[]) {
+  const last = useRef<Record<string, number>>({});
+  const [burst, setBurst] = useState<{ key: number; fan: number; who: string } | null>(null);
+  useEffect(() => {
+    let hit: { fan: number; who: string } | null = null;
+    for (const t of tables) {
+      if (!t.c) continue;
+      const steps = t.c.steps;
+      const top = steps.length ? steps[steps.length - 1].seq : 0;
+      const before = last.current[t.id];
+      last.current[t.id] = top;
+      if (before === undefined) continue;
+      for (const st of steps) {
+        if (st.seq <= before || st.event.type !== 'win') continue;
+        if (st.at && Date.now() - st.at > 90000) continue;
+        const w = [...st.event.winners].sort((a, b) => b.fan - a.fan)[0];
+        if (!w) continue;
+        const who = st.event.winners.map((x) => t.names?.[x.player] ?? '玩家').join('、');
+        if (!hit || w.fan > hit.fan) hit = { fan: w.fan, who };
+      }
+    }
+    if (hit) setBurst({ key: Date.now(), ...hit });
+  }, [tables]);
+  return [burst, () => setBurst(null)] as const;
+}
+
 /** 顯示部分（示範都用） */
 export function LiveTv({ groupName, icon, sessionName, tables, ranking, chat, me, backHref, onSend, channels = [], current, moderate, blockedUntil = 0 }: {
   groupName: string; icon?: string; sessionName: string; tables: TvTable[]; ranking: { id: string; name: string; v: number }[];
@@ -139,6 +172,22 @@ export function LiveTv({ groupName, icon, sessionName, tables, ranking, chat, me
   const pickSkin = (k: Skin | '') => { setLiveSkin(k); try { localStorage.setItem(LIVE_SKIN_KEY, k); } catch { /* 唔緊要 */ } };
   // 背景動畫（只記喺呢部機）
   const [anim, setAnim] = useState(tvAnimOn);
+  // 聲效：開咗就唔理 App 嘅聲效設定；iPhone 要撳過畫面一下先出到聲
+  const [sound, setSound] = useState(readLiveSound);
+  useEffect(() => { forceSound(sound); return () => forceSound(false); }, [sound]);
+  useEffect(() => {
+    const wake = () => { unlock(); primeVoice(); };
+    document.addEventListener('pointerdown', wake, { once: true });
+    return () => document.removeEventListener('pointerdown', wake);
+  }, []);
+  const toggleSound = () => {
+    const on = !sound;
+    setSound(on);
+    try { localStorage.setItem(LIVE_SOUND_KEY, on ? '1' : '0'); } catch { /* 唔緊要 */ }
+    if (on) { unlock(); primeVoice(); }
+  };
+  const [burst, clearBurst] = useWinBurst(tables);
+  useEffect(() => { if (burst && sound) sfx.eat(burst.fan); }, [burst, sound]);
   const clock = new Date(now).toLocaleTimeString('zh-HK', { hour: '2-digit', minute: '2-digit' });
   // 枱面格仔：量實際剩低嘅位（扣咗頂部、轉台同左下角留言位），揀最大嘅排法（電視打橫、手機打直都塞得滿）
   const body = useRef<HTMLDivElement>(null);
@@ -196,6 +245,7 @@ export function LiveTv({ groupName, icon, sessionName, tables, ranking, chat, me
         <button type="button" className={`tv-btn${panel === 'rank' ? ' on' : ''}`} onClick={() => toggle('rank')} aria-label="全場排名">🏆</button>
         <button type="button" className={`tv-btn${panel === 'chat' ? ' on' : ''}`} onClick={() => toggle('chat')} aria-label={chatOpen ? '收埋直播室' : '打開直播室'} aria-expanded={chatOpen}>💬{unread > 0 && <i className="tv-btn-dot">{unread}</i>}</button>
         <button type="button" className={`tv-btn${panel === 'theme' ? ' on' : ''}`} onClick={() => toggle('theme')} aria-label="風格">🎨</button>
+        <button type="button" className={`tv-btn${sound ? ' on' : ''}`} onClick={toggleSound} aria-label={sound ? '閂聲效' : '開聲效'} aria-pressed={sound}>{sound ? '🔊' : '🔇'}</button>
         <button type="button" className={`tv-btn${anim ? ' on' : ''}`} onClick={() => { setAnim(!anim); setTvAnim(!anim); }} aria-label="背景動畫">✨</button>
         <button type="button" className="tv-btn" onClick={full} aria-label="全螢幕">⛶</button>
       </header>
@@ -297,6 +347,7 @@ export function LiveTv({ groupName, icon, sessionName, tables, ranking, chat, me
           {hints && <p className="tv-tip">用 AirPlay／Chromecast「螢幕鏡像」，或者電腦接 HDMI 撳 ⛶ 全螢幕。</p>}
         </aside>
       </div>
+      {burst && <Celebrate key={burst.key} fan={burst.fan} who={`${burst.who} 食！`} silent={!sound} onDone={clearBurst} />}
       {modFor && moderate && (() => {
         const blocked = (moderate.blocked[modFor.by] ?? 0) > now;
         return (
