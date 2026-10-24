@@ -1,7 +1,7 @@
 // 設定：個人資料（頭像、名）＋ 呢部機嘅偏好（聲、震、通知）＋ 登出
 import { useState } from 'react';
 import type { ReactNode } from 'react';
-import { SKINS, SKIN_TIER, resetSkinAccess, setPref, skinLock, usePrefs, useSkinAccess } from '../lib/prefs.ts';
+import { SKINS, SKIN_TIER, TIER_NAMES, resetSkinAccess, setPref, skinLock, usePrefs, useSkinAccess } from '../lib/prefs.ts';
 import type { Prefs, SkinAccess } from '../lib/prefs.ts';
 import { buzz } from '../lib/haptics.ts';
 import { sfx, unlock } from '../lib/sound.ts';
@@ -20,7 +20,7 @@ import { toAvatar } from '../lib/avatar.ts';
 const canVibrate = typeof navigator !== 'undefined' && typeof navigator.vibrate === 'function';
 const isIOS = typeof navigator !== 'undefined' && /iP(hone|ad|od)/.test(navigator.userAgent);
 
-const ROWS: { key: Exclude<keyof Prefs, 'skin'>; label: string; note: string }[] = [
+const ROWS: { key: Exclude<keyof Prefs, 'skin' | 'mode'>; label: string; note: string }[] = [
   { key: 'hints', label: '提示文字', note: '預設閂（簡潔）；開咗就每頁都顯示說明' },
   { key: 'sound', label: '聲效', note: '食糊、找數、擲骰' },
   {
@@ -198,7 +198,12 @@ export function SkinPicker({ access: forced }: { access?: SkinAccess }) {
   };
   return (
     <>
-      {cur && <p className="skin-current">而家用緊：<b>{cur.name}</b><span className="muted">　{cur.note}</span></p>}
+      <div className="seg wide mode-seg" role="group" aria-label="深淺">
+        {([['skin', '跟風格'], ['light', '☀️ 淺色'], ['dark', '🌙 深色']] as const).map(([k, t]) => (
+          <button key={k} type="button" aria-pressed={p.mode === k} onClick={() => { setPref('mode', k); sfx.tap(); }}>{t}</button>
+        ))}
+      </div>
+      {cur && <p className="skin-current">而家用緊：<b>{cur.name}</b>{p.mode !== 'skin' ? `（${p.mode === 'dark' ? '深色' : '淺色'}）` : ''}<span className="muted">　{cur.note}</span></p>}
       <div className="skin-pick" role="radiogroup" aria-label="介面風格">{open.map(card)}</div>
       {locked.length > 0 && (
         <>
@@ -214,7 +219,6 @@ export function SkinPicker({ access: forced }: { access?: SkinAccess }) {
   );
 }
 
-const TIER_NAMES = ['雀蛋', '雀仔', '雀友', '雀士', '雀豪', '雀霸', '雀王', '雀聖', '雀神', '雀仙'];
 
 /** 呢部機嘅偏好 */
 export function PrefsList() {

@@ -168,3 +168,43 @@ test('風格：人人讀到開放設定；淨係超級管理員改設定同開�
   await assertFails(getDoc(doc(as('b'), 'skinGrants', 'a')));
   await assertFails(updateDoc(doc(as('a'), 'skinGrants', 'a'), { skins: ['jade', 'palace'] }));
 });
+
+test('雀壇名：唔可以搶人哋個名；第一次認領免費，之後改名要用卷（renames + 1）', async () => {
+  const claim = async (db, uid, name, renames, oldKey) => {
+    const b = writeBatch(db);
+    b.set(doc(db, 'names', name.toLowerCase()), { uid, name, at: serverTimestamp() });
+    if (oldKey) b.delete(doc(db, 'names', oldKey));
+    b.set(doc(db, 'users', uid), { name, nameKey: name.toLowerCase(), renames }, { merge: true });
+    return b.commit();
+  };
+  await assertSucceeds(claim(as('a'), 'a', 'Gavin', 0));
+  // b 搶唔到 a 嘅名
+  await assertFails(setDoc(doc(as('b'), 'names', 'gavin'), { uid: 'b', name: 'Gavin', at: serverTimestamp() }));
+  // a 改名唔加 renames：唔得；加 1：得
+  await assertFails(claim(as('a'), 'a', 'Gavin2', 0, 'gavin'));
+  await assertSucceeds(claim(as('a'), 'a', 'Gavin2', 1, 'gavin'));
+  // 自己唔可以送自己改名卷
+  await assertFails(setDoc(doc(as('a'), 'users', 'a'), { renameGrants: 5 }, { merge: true }));
+});
+
+test('問題回報：每分鐘最多一次；淨係超級管理員睇到', async () => {
+  const send = (db, uid) => {
+    const b = writeBatch(db);
+    b.set(doc(collection(db, 'feedback')), { uid, name: uid, email: '', text: '有 bug', page: '/', ua: '', at: serverTimestamp(), kind: 'bug' });
+    b.set(doc(db, 'feedbackLast', uid), { at: serverTimestamp() });
+    return b.commit();
+  };
+  await assertSucceeds(send(as('a'), 'a'));
+  await assertFails(send(as('a'), 'a'));
+});
+
+test('等執位：淨係坐喺度嘅人改到', async () => {
+  await assertSucceeds(updateDoc(doc(as('a'), T, 't1'), { waitRegroup: true, waitAt: 1 }));
+  await assertFails(updateDoc(doc(as('e'), T, 't1'), { waitRegroup: true, waitAt: 1 }));
+});
+
+test('打法開咗就唔改得（超級管理員除外）', async () => {
+  await assertFails(updateDoc(doc(as('owner'), 'groups', G), { variant: 'riichi' }));
+  await assertSucceeds(updateDoc(doc(as('owner'), 'groups', G), { name: '新名' }));
+  await assertSucceeds(updateDoc(doc(admin(), 'groups', G), { variant: 'riichi' }));
+});

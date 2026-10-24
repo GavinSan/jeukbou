@@ -5,7 +5,9 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import type { ReactNode } from 'react';
 import type { User } from 'firebase/auth';
 import { NameTakenError, claimName, displayName, markNudged, syncMemberName } from '../lib/data.ts';
-import { useProfile, useSession } from '../lib/live.ts';
+import { useFestival, useProfile, useSession } from '../lib/live.ts';
+import { FestivalGreeting, FestivalReminder } from '../components/Festival.tsx';
+import { useSuperAdmin } from '../lib/admin.ts';
 import { Link } from '../lib/router.tsx';
 import { Avatar, NameForm, TopBar, fmt } from '../ui.tsx';
 import { navContext } from '../lib/nav.ts';
@@ -300,6 +302,8 @@ function NameClaim({ user, claimed, ready, groups }: { user: User; claimed: bool
 
 export default function Home({ user }: { user: User; refresh?: () => void }) {
   const profile = useProfile(user.uid);
+  const fest = useFestival(true);
+  const admin = useSuperAdmin(user.uid);
   const groups = profile.data.groups;
   const history = useMyHistory(profile.loading ? null : user.uid, groups);
   useTierSync(history, !profile.loading);
@@ -314,7 +318,7 @@ export default function Home({ user }: { user: User; refresh?: () => void }) {
       mine={history.mine}
       loading={profile.loading || history.loading}
       resume={last.g && last.s ? <Resume g={last.g} s={last.s} t={last.t} /> : null}
-      nudge={<><NameClaim user={user} claimed={!!profile.data.nameKey} ready={!profile.loading} groups={groups} /><InstallCard /><NotifyCard uid={user.uid} /><ProfileNudge uid={user.uid} profile={profile.loading ? null : profile.data} /></>}
+      nudge={<><FestivalGreeting festKey={fest.data ?? null} />{admin && <FestivalReminder current={fest.data ?? null} />}<NameClaim user={user} claimed={!!profile.data.nameKey} ready={!profile.loading} groups={groups} /><InstallCard /><NotifyCard uid={user.uid} /><ProfileNudge uid={user.uid} profile={profile.loading ? null : profile.data} /></>}
       live={<><LiveNow groupIds={groups} me={user.uid} onLive={onLive} /><HomeMeetups groupIds={groups} me={user.uid} /></>}
       pinned={<MyTableNow groupIds={groups} me={user.uid} />}
       sessionHref={(s) => `/g/${s.gid}/s/${s.sid}`}

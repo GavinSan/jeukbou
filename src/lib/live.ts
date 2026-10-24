@@ -3,6 +3,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { collection, doc, limit, onSnapshot, orderBy, query, where } from 'firebase/firestore';
 import type { DocumentData } from 'firebase/firestore';
 import { parsePayMethods } from './payMethods.ts';
+import { OLD_TIER_TO_NEW } from './prefs.ts';
 import type { PayMethod } from './payMethods.ts';
 import { fs, tableNameUpper } from './data.ts';
 import type { Dice, ExpenseDoc, Meetup, FanTableLog, Group, JoinRequest, Member, TeamDoc, PairDoc, Session, StoredEvent, SwapRequest, TableDoc } from './data.ts';
@@ -326,7 +327,13 @@ export const toTeamDoc = toTeam;
 export const useSkinConfig = (on: boolean) => useLiveDoc(on ? ['config', 'skins'] : null, (_id, d) => ({
   modes: d.modes && typeof d.modes === 'object' ? Object.fromEntries(Object.entries(d.modes).filter(([, v]) => v === 'auto' || v === 'open' || v === 'closed')) as Record<string, 'auto' | 'open' | 'closed'> : {},
   /** 超級管理員改咗嘅解鎖段位：TIERS 位置；-2 = 要授權 */
-  tiers: d.tiers && typeof d.tiers === 'object' ? Object.fromEntries(Object.entries(d.tiers).filter(([, v]) => typeof v === 'number' && Number.isInteger(v) && v >= -2 && v <= 9)) as Record<string, number> : {},
+  // 新設定（tiers2，15 個段位）；舊設定（tiers，10 個段位）轉做新位置
+  tiers: {
+    ...(d.tiers && typeof d.tiers === 'object' ? Object.fromEntries(Object.entries(d.tiers).filter(([, v]) => typeof v === 'number' && Number.isInteger(v) && v >= -2 && v <= 9).map(([k, v]) => [k, (v as number) >= 0 ? OLD_TIER_TO_NEW[v as number] : v])) : {}),
+    ...(d.tiers2 && typeof d.tiers2 === 'object' ? Object.fromEntries(Object.entries(d.tiers2).filter(([, v]) => typeof v === 'number' && Number.isInteger(v) && v >= -2 && v <= 14)) : {}),
+  } as Record<string, number>,
 }), true);
+/** 節日風格（超級管理員開）：key 或者 null */
+export const useFestival = (on: boolean) => useLiveDoc(on ? ['config', 'festival'] : null, (_id, d) => (typeof d.key === 'string' && d.key ? d.key : null) as string | null, true);
 /** 超級管理員開咗俾我嘅豪華風格 */
 export const useSkinGrants = (uid: string | null) => useLiveDoc(uid ? ['skinGrants', uid] : null, (_id, d) => (Array.isArray(d.skins) ? d.skins.map(String) : []) as string[], true);

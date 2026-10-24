@@ -394,6 +394,32 @@ for (const scheme of ['light', 'dark']) {
       await page.waitForTimeout(600);
       await page.screenshot({ path: `${out}/table-view.png` });
     });
+    await step('round25', async () => {
+      // 節日、深淺、新風格、收款資料、等執位
+      await page.goto(`${base}/demo/home?fest=halloween`, { waitUntil: 'networkidle' });
+      await page.waitForTimeout(600);
+      await page.screenshot({ path: `${out}/fest-halloween.png` });
+      await page.goto(`${base}/demo/t/0?skin=teahouse&mode=dark`, { waitUntil: 'networkidle' });
+      await page.waitForTimeout(600);
+      await page.screenshot({ path: `${out}/flip-teahouse-dark.png` });
+      await page.goto(`${base}/demo?skin=neon&mode=light`, { waitUntil: 'networkidle' });
+      await page.waitForTimeout(600);
+      await page.screenshot({ path: `${out}/flip-neon-light.png` });
+      await page.goto(`${base}/demo/home?skin=sakura`, { waitUntil: 'networkidle' });
+      await page.waitForTimeout(600);
+      await page.screenshot({ path: `${out}/skin-sakura-home.png` });
+      await page.goto(`${base}/demo/t/0?skin=lacquer`, { waitUntil: 'networkidle' });
+      await page.waitForTimeout(600);
+      await page.screenshot({ path: `${out}/skin-lacquer-table.png` });
+      await page.goto(`${base}/demo/paymethods`, { waitUntil: 'networkidle' });
+      await page.waitForTimeout(400);
+      await page.screenshot({ path: `${out}/paymethods.png`, fullPage: true });
+      await page.goto(`${base}/demo/t/4`, { waitUntil: 'networkidle' });
+      await page.waitForTimeout(800);
+      await page.getByRole('button', { name: /等執位/ }).first().click();
+      await page.waitForTimeout(600);
+      await page.screenshot({ path: `${out}/wait-regroup.png`, fullPage: true });
+    });
     await step('install', async () => {
       await page.goto(`${base}/demo/install`, { waitUntil: 'networkidle' });
       await page.waitForTimeout(300);

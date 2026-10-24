@@ -13,15 +13,22 @@ export interface Prefs {
   skin: Skin;
   /** 超級管理員：「使用超級管理員身份」開咗先有最大權限；閂咗就同普通用家一樣（試用家睇到乜） */
   adminMode: boolean;
+  /** 深淺：skin = 跟風格本身；light 淺色；dark 深色（每款風格都有兩個版本） */
+  mode: 'skin' | 'light' | 'dark';
 }
 
-export type Skin = 'classic' | 'teahouse' | 'chachaan' | 'neon' | 'glass' | 'clay' | 'brutal' | 'paper' | 'pixel' | 'palace' | 'jade' | 'porcelain' | 'obsidian' | 'sapphire' | 'ruby' | 'amethyst' | 'rosegold' | 'marble';
+export type Skin = 'classic' | 'teahouse' | 'chachaan' | 'neon' | 'glass' | 'clay' | 'brutal' | 'paper' | 'pixel' | 'palace' | 'jade' | 'porcelain' | 'obsidian' | 'sapphire' | 'ruby' | 'amethyst' | 'rosegold' | 'marble' | 'sakura' | 'harbour' | 'bamboo' | 'lacquer' | 'mono';
 /**
  * 每款風格自己定光定暗（唔跟部機嘅深色模式），而且唔止換色：
  * 形狀、字款、陰影、質感都唔同。premium：豪華風格（之後可以做付費解鎖；而家人人用得）
  */
 export const SKINS: { key: Skin; name: string; note: string; colors: string[]; dark?: boolean; bar: string; premium?: boolean }[] = [
   { key: 'classic', name: '綠絨', note: '墨綠枱布・象牙牌', colors: ['#1E5B49', '#F4EFDF', '#B02E26'], bar: '#1E5B49' },
+  { key: 'mono', name: '簡約', note: '黑白灰・最基本', colors: ['#2B2F33', '#F5F5F4', '#C2410C'], bar: '#F5F5F4' },
+  { key: 'bamboo', name: '竹林', note: '竹青・米白・淡墨', colors: ['#4F7A3A', '#F6F3E7', '#A3B18A'], bar: '#4F7A3A' },
+  { key: 'harbour', name: '海港', note: '維港藍・霓虹倒影', colors: ['#0E3B5C', '#E9F2F7', '#F59E0B'], bar: '#0E3B5C' },
+  { key: 'sakura', name: '夜櫻', note: '夜空・櫻花粉', colors: ['#1E1B2E', '#F9A8D4', '#FDF2F8'], dark: true, bar: '#1E1B2E' },
+  { key: 'lacquer', name: '朱漆', note: '朱紅漆器・黑檀', colors: ['#9F1D1D', '#1A1412', '#E8C46A'], dark: true, bar: '#1A1412' },
   { key: 'teahouse', name: '茶樓', note: '紅木・米黃・楷書', colors: ['#8E2A20', '#FFF8EE', '#C9A24B'], bar: '#8E2A20' },
   { key: 'chachaan', name: '茶餐廳', note: '薄荷綠紙巾・卡位紅', colors: ['#2E8B74', '#F7F1E1', '#D6332B'], bar: '#2E8B74' },
   { key: 'neon', name: '霓虹', note: '深夜街頭・發光字', colors: ['#0B0B14', '#3CF2A4', '#FF4D8D'], dark: true, bar: '#0B0B14' },
@@ -44,7 +51,7 @@ export const SKINS: { key: Skin; name: string; note: string; colors: string[]; d
 const RENAMED: Record<string, Skin> = { ocean: 'glass', sakura: 'clay', matcha: 'chachaan', midnight: 'pixel', amber: 'paper', violet: 'amethyst', imperial: 'ruby', minimal: 'paper' };
 
 const KEY = 'jeukbou-prefs';
-const DEFAULTS: Prefs = { hints: false, sound: true, vibe: true, notify: false, skin: 'classic', adminMode: true };
+const DEFAULTS: Prefs = { hints: false, sound: true, vibe: true, notify: false, skin: 'classic', adminMode: true, mode: 'skin' };
 const listeners = new Set<() => void>();
 
 function load(): Prefs {
@@ -102,8 +109,12 @@ export function applySkin(skin: Skin) {
   const k = SKINS.find((x) => x.key === s) ?? SKINS[0];
   const root = document.documentElement;
   root.dataset.skin = k.key;
-  // 光暗跟風格走，唔跟部機設定
-  root.dataset.theme = k.dark ? 'dark' : 'light';
+  // 深淺：預設跟風格本身；揀咗深色／淺色就用嗰個（同風格本身相反就加 data-flip，用通用嘅深／淺色底）
+  let mode = current.mode;
+  try { const q = new URLSearchParams(window.location.search).get('mode'); if (q === 'light' || q === 'dark') mode = q; } catch { /* 唔緊要 */ }
+  const dark = mode === 'skin' ? !!k.dark : mode === 'dark';
+  root.dataset.theme = dark ? 'dark' : 'light';
+  if (dark !== !!k.dark) root.dataset.flip = '1'; else delete root.dataset.flip;
   // 豪華風格共用嘅金屬邊、標題、掣
   if (k.premium) root.dataset.premium = '1'; else delete root.dataset.premium;
   document.querySelector('meta[name="theme-color"]')?.setAttribute('content', k.bar);
@@ -123,14 +134,18 @@ const SKIN_FONTS: Partial<Record<Skin, string>> = { pixel: 'Press+Start+2P', pap
 /** 每款風格開放方式（超級管理員設定）：auto＝基本款跟段位、豪華款要授權；open＝全部人用得；closed＝暫停 */
 export type SkinMode = 'auto' | 'open' | 'closed';
 /** 基本款要幾高段位先用得（TIERS 嘅位置同名） */
-export const SKIN_TIER: Partial<Record<Skin, { i: number; name: string }>> = {
-  teahouse: { i: 1, name: '雀仔' }, chachaan: { i: 1, name: '雀仔' },
-  paper: { i: 2, name: '雀友' }, clay: { i: 2, name: '雀友' },
-  neon: { i: 3, name: '雀士' }, glass: { i: 3, name: '雀士' },
-  brutal: { i: 4, name: '雀豪' }, pixel: { i: 5, name: '雀霸' },
-};
 /** 段位名（同 stats.ts 嘅 TIERS 一樣次序；放喺度免得 prefs 依賴 stats） */
-export const TIER_NAMES = ['雀蛋', '雀仔', '雀友', '雀士', '雀豪', '雀霸', '雀王', '雀聖', '雀神', '雀仙'];
+export const TIER_NAMES = ['雀蛋', '雀苗', '雀仔', '雀友', '雀迷', '雀士', '雀俠', '雀豪', '雀霸', '雀將', '雀王', '雀聖', '雀尊', '雀神', '雀仙'];
+/** 舊 10 個段位嘅位置 → 新 15 個（舊設定照用） */
+export const OLD_TIER_TO_NEW = [0, 2, 3, 5, 7, 8, 10, 11, 13, 14];
+const ti = (name: string) => ({ i: TIER_NAMES.indexOf(name), name });
+export const SKIN_TIER: Partial<Record<Skin, { i: number; name: string }>> = {
+  teahouse: ti('雀苗'), chachaan: ti('雀仔'), mono: ti('雀苗'), bamboo: ti('雀仔'),
+  harbour: ti('雀迷'), sakura: ti('雀將'), lacquer: ti('雀王'),
+  paper: ti('雀友'), clay: ti('雀迷'),
+  neon: ti('雀士'), glass: ti('雀俠'),
+  brutal: ti('雀豪'), pixel: ti('雀霸'),
+};
 export interface SkinAccess {
   /** 而家段位（TIERS 嘅位置），未知係 -1 */
   tier: number;

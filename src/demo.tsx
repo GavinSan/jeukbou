@@ -38,6 +38,7 @@ import type { TvTable } from './pages/LivePage.tsx';
 import { WaterBox } from './pages/GroupPage.tsx';
 import { Sheet } from './ui.tsx';
 import { LiveCardView, MyTableBar } from './components/LiveHome.tsx';
+import { FestivalGreeting } from './components/Festival.tsx';
 import type { ChatMsg } from './lib/live.ts';
 import type { PayItem } from './lib/pay.ts';
 import { Invite, JoinRequestsView, MemberList, ladderOf, memberStatsOf } from './pages/GroupPage.tsx';
@@ -406,6 +407,7 @@ export default function Demo() {
           mine={mySessions(DEMO_GROUPS, 'gavin')}
           loading={false}
           resume={<ResumeRow href="/demo" name="10月18日 屋企局" />}
+          nudge={<FestivalGreeting festKey={new URLSearchParams(location.search).get('fest')} />}
           pinned={<MyTableBar href="/demo/t/0" table="第壹枱" where="不打不相識・南圈東位 第 5 鋪" v={computed[tables[0]?.id ?? '']?.state.settled.gavin ?? 0} />}
           live={(() => {
             const tv = tvTablesOf(tables, computed).slice(0, 3);

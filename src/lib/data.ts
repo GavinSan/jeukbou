@@ -1183,7 +1183,13 @@ export async function setSkinMode(skin: string, mode: 'auto' | 'open' | 'closed'
 export async function setSkinRule(skin: string, rule: 'default' | 'open' | 'closed' | 'grant' | number): Promise<void> {
   const mode = rule === 'open' ? 'open' : rule === 'closed' ? 'closed' : 'auto';
   const tier = rule === 'grant' ? -2 : typeof rule === 'number' ? rule : null;
-  await setDoc(doc(fs(), 'config', 'skins'), { modes: { [skin]: mode }, tiers: { [skin]: tier === null ? deleteField() : tier } }, { merge: true });
+  // tiers2 = 新 15 個段位；舊 tiers 嗰格清走
+  await setDoc(doc(fs(), 'config', 'skins'), { modes: { [skin]: mode }, tiers: { [skin]: deleteField() }, tiers2: { [skin]: tier === null ? deleteField() : tier } }, { merge: true });
+}
+
+/** 超級管理員：開／收節日風格（null = 收） */
+export async function setFestival(key: string | null): Promise<void> {
+  await setDoc(doc(fs(), 'config', 'festival'), { key: key ?? null, at: Date.now() });
 }
 
 /** 超級管理員：開／收一款豪華風格俾某個用家 */

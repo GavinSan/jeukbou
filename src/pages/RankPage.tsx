@@ -6,6 +6,7 @@ import { POINT_RULES, TIERS, badgesOf, statsOf, tierOf, useMyHistory, useTierSyn
 import type { MySession, Stats } from '../lib/stats.ts';
 import { BadgeCats, CountUp, Progress, Ring, TierTile } from '../components/Tier.tsx';
 import { TopBar, fmt } from '../ui.tsx';
+import { SKINS, SKIN_TIER } from '../lib/prefs.ts';
 
 const signed = (n: number) => fmt(Math.round(n));
 /** 展開／收埋嘅細箭咀（SVG，唔用字符） */
@@ -85,6 +86,7 @@ export function RankView({ mine, loading }: { mine: MySession[]; loading: boolea
           <div className="grow">
             <h2>{t.tier.name}</h2>
             <p className="hero-sub"><CountUp value={st.points} /> 分 · {st.played} 次大局{st.rounds ? ` · ${st.rounds} 圈` : ''}</p>
+            <p className="hero-sub small">大局 {st.basePoints} 分＋成就 {st.achPoints} 分</p>
           </div>
         </div>
         <div className="hero-tier">
@@ -121,6 +123,25 @@ export function RankView({ mine, loading }: { mine: MySession[]; loading: boolea
             <button type="button" className="textbtn" aria-expanded={allTiers} onClick={() => setAllTiers((v) => !v)}><span>{allTiers ? '收埋其他段位' : `睇晒 ${TIERS.length} 個段位`}</span><Chevron up={allTiers} /></button>
           </li>
         </ol>
+      </section>
+
+      {/* 升段位、拎成就有咩獎 */}
+      <section className="stack">
+        <h2 className="section-head">獎勵</h2>
+        <ul className="list rewards">
+          {TIERS.slice(1).map((x) => {
+            const skins = SKINS.filter((k) => SKIN_TIER[k.key]?.name === x.name);
+            const got = st.points >= x.min;
+            return (
+              <li key={x.name} className={`listrow reward${got ? ' got' : ''}`}>
+                <TierTile tier={x} size="sm" />
+                <span className="grow"><b>{x.name}</b><small className="muted">🎟️ 改名卷 1 張{skins.length ? `・🎨 風格：${skins.map((k) => k.name).join('、')}` : ''}</small></span>
+                <span className="reward-mark" aria-hidden="true">{got ? '✓' : '🔒'}</span>
+              </li>
+            );
+          })}
+          <li className="listrow reward"><span className="reward-icon" aria-hidden="true">🏅</span><span className="grow"><b>每 10 個成就</b><small className="muted">🎟️ 改名卷 1 張（已拎 {badges.filter((b) => b.got).length} 個）</small></span></li>
+        </ul>
       </section>
 
       {mine.length > 0 && (
