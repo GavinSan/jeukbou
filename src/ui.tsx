@@ -251,13 +251,13 @@ export async function saveProfile(user: User) {
   const data: Record<string, unknown> = { photoURL: user.photoURL ?? null, updatedAt: serverTimestamp() };
   // 超級管理員要見到 email 先幫到手（例如重設密碼）
   if (user.email) data.email = user.email;
-  // 雀壇名由 claimName 寫（要檢查唔撞名、改名卷），呢度唔寫
+  // 雀壇名由 claimName 寫（要檢查唔撞名、改名券），呢度唔寫
   await setDoc(doc(db, 'users', user.uid), data, { merge: true });
 }
 
 /**
- * 改雀壇名：全 app 唯一；第一次免費，之後每次用一張改名卷。
- * tickets = 仲有幾多張（undefined = 唔使卷，例如第一次起名）
+ * 改雀壇名：全 app 唯一；第一次免費，之後每次用一張改名券。
+ * tickets = 仲有幾多張（undefined = 唔使券，例如第一次起名）
  */
 export function NameForm({ user, initial, onDone, onCancel, tickets, ticketNote }: { user: User; initial: string; onDone: () => void; onCancel?: () => void; tickets?: number; ticketNote?: string }) {
   const [value, setValue] = useState(initial);
@@ -278,7 +278,7 @@ export function NameForm({ user, initial, onDone, onCancel, tickets, ticketNote 
     e.preventDefault();
     const name = value.trim();
     if (!name) { setError('請輸入雀壇名'); return; }
-    if (noTicket && name !== initial.trim()) { setError('冇改名卷喇'); return; }
+    if (noTicket && name !== initial.trim()) { setError('冇改名券喇'); return; }
     setBusy(true);
     setError('');
     try {
@@ -301,10 +301,10 @@ export function NameForm({ user, initial, onDone, onCancel, tickets, ticketNote 
         <small className={taken ? 'loss' : 'muted'}>{taken ? `「${value.trim()}」已經有人用緊，諗過第個` : '江湖上嘅名：牌友圈、枱、Live 都用呢個，全 app 唯一。最多 6 個中文字或 12 個英文字母'}</small>
       </label>
       {tickets !== undefined && (
-        <p className={`rename-tickets${noTicket ? ' none' : ''}`}>🎟️ 改名卷 <b>{Math.max(0, tickets)}</b> 張{ticketNote ? <small className="muted">　{ticketNote}</small> : null}</p>
+        <p className={`rename-tickets${noTicket ? ' none' : ''}`}>🎟️ 改名券 <b>{Math.max(0, tickets)}</b> 張{ticketNote ? <small className="muted">　{ticketNote}</small> : null}</p>
       )}
       <div className="row">
-        <button type="submit" className="btn" disabled={busy || taken || (noTicket && value.trim() !== initial.trim())}>{tickets !== undefined && value.trim() !== initial.trim() ? '用一張卷改名' : '儲存'}</button>
+        <button type="submit" className="btn" disabled={busy || taken || (noTicket && value.trim() !== initial.trim())}>{tickets !== undefined && value.trim() !== initial.trim() ? '用一張券改名' : '儲存'}</button>
         {onCancel && <button type="button" className="btn plain" onClick={onCancel}>取消</button>}
       </div>
       {error && <p className="error" role="alert">{error}</p>}

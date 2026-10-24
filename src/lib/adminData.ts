@@ -74,7 +74,7 @@ export async function reopenSession(g: string, s: string) {
 
 /** 改用家顯示名：自己資料 + 所有牌友圈成員資料 */
 export async function renameUser(u: AdminUser, name: string) {
-  // 雀壇名全 app 唯一：管理員改都要認領；唔使改名卷
+  // 雀壇名全 app 唯一：管理員改都要認領；唔使改名券
   const key = nameKeyOf(name);
   const taken = await getDoc(doc(fs(), 'names', key));
   if (taken.exists() && taken.data().uid !== u.uid) throw new Error(`「${name}」已經有人用緊`);
@@ -90,7 +90,7 @@ export async function renameUser(u: AdminUser, name: string) {
   }));
 }
 
-/** 送改名卷（總數） */
+/** 送改名券（總數） */
 export async function grantRename(uid: string, total: number) {
   await setDoc(doc(fs(), 'users', uid), { renameGrants: Math.max(0, Math.round(total)) }, { merge: true });
 }

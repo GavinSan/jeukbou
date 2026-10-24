@@ -3141,7 +3141,7 @@ body.entering .page { padding-bottom: calc(66vh + 24px); }
 .table-stats .my-line .king-tag { margin-left: 0; }
 .edit-who { display: grid; gap: 6px; }
 .edit-who .choices { margin-bottom: 4px; }
-/* 改名卷、撞名 */
+/* 改名券、撞名 */
 .rename-tickets { margin: 0; font-size: 14px; }
 .rename-tickets b { font-size: 17px; }
 .rename-tickets.none b { color: var(--loss); }

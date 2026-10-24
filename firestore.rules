@@ -64,7 +64,7 @@ service cloud.firestore {
 
     // 玩家資料：淨係自己（同超級管理員）睇到同改到。其他人只會喺同一個牌友圈嘅成員名單見到你個名同頭像。
     match /users/{uid} {
-      // 雀壇名：認領咗（有 nameKey）之後，每改一次 renames 要加 1（改名卷）；nameKey 一定要係自己認領咗嘅 names/{key}
+      // 雀壇名：認領咗（有 nameKey）之後，每改一次 renames 要加 1（改名券）；nameKey 一定要係自己認領咗嘅 names/{key}
       function nameOk() {
         let before = resource == null ? {} : resource.data;
         let after = request.resource.data;

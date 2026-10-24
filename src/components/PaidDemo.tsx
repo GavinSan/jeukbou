@@ -33,7 +33,7 @@ const ROWS: { label: string; v: (l: Limits) => string }[] = [
   { label: '睇舊記錄', v: (l) => (l.historyDays === Infinity ? '全部' : `最近 ${l.historyDays} 日`) },
   { label: 'Live 每月', v: (l) => showLimit(l.livePerMonth, ' 次') },
   { label: 'Live 同時睇', v: (l) => showLimit(l.liveTables, ' 張枱') },
-  { label: '改雀壇名', v: (l) => (l.renamesPerMonth ? `每月 ${l.renamesPerMonth} 張卷` : '靠成就') },
+  { label: '改雀壇名', v: (l) => (l.renamesPerMonth ? `每月 ${l.renamesPerMonth} 張券` : '靠成就') },
   { label: '全部風格', v: (l) => (l.allSkins ? '✓' : '靠段位') },
   { label: '詳細統計', v: (l) => (l.deepStats ? '✓' : '基本') },
 ];
@@ -112,7 +112,7 @@ export default function PaidDemo() {
             </div>
           ))}
         </div>
-        <small className="muted">牌友圈＋由圈主俾一份，圈入面全部人都受惠（人數、枱數、Live、舊記錄）；風格同改名卷跟個人。</small>
+        <small className="muted">牌友圈＋由圈主俾一份，圈入面全部人都受惠（人數、枱數、Live、舊記錄）；風格同改名券跟個人。</small>
         <div className="row">
           {mine !== 'plus' && <button type="button" className="btn" onClick={() => setUpgrade('plus')}>升級雀簿＋</button>}
           {circle !== 'circle' && <button type="button" className="btn plain" onClick={() => setUpgrade('circle')}>幫個圈升級</button>}

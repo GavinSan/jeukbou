@@ -15,7 +15,7 @@ export default function SettingsPage({ user }: { user: User }) {
   const profile = useProfile(user.uid);
   const h = useMyHistory(profile.loading ? null : user.uid, profile.data.groups);
   useTierSync(h, !profile.loading);
-  // 改名卷：1 張免費 + 每個段位 1 張 + 每 10 個成就 1 張
+  // 改名券：1 張免費 + 每個段位 1 張 + 每 10 個成就 1 張
   const st = statsOf(h.mine);
   const renameAllow = 1 + Math.max(0, TIERS.indexOf(tierOf(st.points).tier)) + Math.floor(badgesOf(st).filter((b) => b.got).length / 10);
   return (

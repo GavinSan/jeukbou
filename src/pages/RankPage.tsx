@@ -135,12 +135,12 @@ export function RankView({ mine, loading }: { mine: MySession[]; loading: boolea
             return (
               <li key={x.name} className={`listrow reward${got ? ' got' : ''}`}>
                 <TierTile tier={x} size="sm" />
-                <span className="grow"><b>{x.name}</b><small className="muted">🎟️ 改名卷 1 張{skins.length ? `・🎨 風格：${skins.map((k) => k.name).join('、')}` : ''}</small></span>
+                <span className="grow"><b>{x.name}</b><small className="muted">🎟️ 改名券 1 張{skins.length ? `・🎨 風格：${skins.map((k) => k.name).join('、')}` : ''}</small></span>
                 <span className="reward-mark" aria-hidden="true">{got ? '✓' : '🔒'}</span>
               </li>
             );
           })}
-          <li className="listrow reward"><span className="reward-icon" aria-hidden="true">🏅</span><span className="grow"><b>每 10 個成就</b><small className="muted">🎟️ 改名卷 1 張（已拎 {badges.filter((b) => b.got).length} 個）</small></span></li>
+          <li className="listrow reward"><span className="reward-icon" aria-hidden="true">🏅</span><span className="grow"><b>每 10 個成就</b><small className="muted">🎟️ 改名券 1 張（已拎 {badges.filter((b) => b.got).length} 個）</small></span></li>
         </ul>
       </section>
 
