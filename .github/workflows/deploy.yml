@@ -39,6 +39,8 @@ jobs:
           node-version: 22
       - run: npm install --no-audit --no-fund
       - run: npm test
+      - name: 型別檢查
+        run: npm run typecheck
       - name: Build
         run: npm run build
         env:
