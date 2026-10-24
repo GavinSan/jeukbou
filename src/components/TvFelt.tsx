@@ -162,6 +162,10 @@ export function ScaleFit({ base = 380, minW, minH, children }: { base?: number; 
   );
 }
 
+// ---------- 背景：慢慢飄落嘅麻雀牌（開關記喺呢部機） ----------
+const ANIM_KEY = 'jeukbou-tv-anim';
+export const tvAnimOn = () => { try { return localStorage.getItem(ANIM_KEY) !== '0'; } catch { return true; } };
+export const setTvAnim = (on: boolean) => { try { localStorage.setItem(ANIM_KEY, on ? '1' : '0'); } catch { /* 唔緊要 */ } };
 // 背景跌落嚟嘅牌：萬、筒、索各幾隻，加字牌同花，全部係真牌面
 const FALL: TileCode[] = ['1m', '5p', 'E', '9s', 'C', '3m', 'f1', '7p', 'F', '2s', 'N', '8m', 'P', '4p', 'f6', '6s', 'S', '9m', '1p', 'W', '5s', 'f3'];
 export function FallingTiles() {
