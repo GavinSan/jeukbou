@@ -1,6 +1,7 @@
 name: Preview
 
-# design/** 分支：用示範模式 build，影手機截圖，放去 previews 分支
+# design/** 分支：用示範模式 build，影手機截圖，放去 previews 分支。
+# 慳分鐘：commit 訊息有 [shots] 先影（或者手動 Run workflow）；冇就成個 job 跳過（唔使錢）
 on:
   push:
     branches: ['design/**']
@@ -11,6 +12,7 @@ permissions:
 
 jobs:
   shots:
+    if: ${{ github.event_name == 'workflow_dispatch' || contains(github.event.head_commit.message, '[shots]') }}
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v5
