@@ -3101,7 +3101,7 @@ body.entering .page { padding-bottom: calc(66vh + 24px); }
 .king-tag.small { background: linear-gradient(135deg, #3BA7B5, #227580); }
 .king-tag.streak { background: linear-gradient(135deg, #E5803A, #B5541A); }
 .king-tag.pull { background: linear-gradient(135deg, #3E74C9, #24508F); }
-.king-tag.multi { background: linear-gradient(135deg, #E0569A, #A82B67); }
+.king-tag.multi { background: linear-gradient(135deg, #B8463E, #7A2620); }
 .king-tag.deal { background: linear-gradient(135deg, #C9433B, #8E2A20); }
 .king-tag.false { background: linear-gradient(135deg, #8A8F99, #5D626B); }
 .king-tag.sp { background: linear-gradient(135deg, #B58A2E, #7E5E17); }
@@ -3158,8 +3158,10 @@ body.entering .page { padding-bottom: calc(66vh + 24px); }
 .paym-acts { grid-column: 1 / -1; display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
 .paym-vis { grid-column: 1 / -1; font-size: 12px; }
 .region-pick { display: flex; flex-wrap: wrap; gap: 6px; }
-.region-pick .chip { padding: 6px 12px; border-radius: 999px; border: 1.5px solid var(--line); background: var(--surface); color: var(--ink); font: inherit; font-size: 14px; cursor: pointer; }
-.region-pick .chip[aria-pressed="true"] { border-color: var(--accent); background: var(--gain-soft); font-weight: 700; }
+.region-chip { display: inline-flex; align-items: center; gap: 5px; padding: 7px 12px; border-radius: 999px; border: 1.5px solid var(--line); background: var(--surface); color: var(--ink); font-family: var(--font-body); font-size: 14px; line-height: 1.2; white-space: nowrap; cursor: pointer; }
+.region-chip[aria-pressed="true"] { border-color: var(--accent); background: var(--gain-soft); font-weight: 700; }
+.pay-kinds { grid-template-columns: repeat(2, minmax(0, 1fr)); margin-top: 10px; }
+.pay-kinds .choice { font-family: var(--font-body); font-size: 15px; min-height: 52px; padding: 8px 10px; text-align: center; line-height: 1.25; overflow-wrap: break-word; }
 .pay-person { display: grid; gap: 8px; }
 .pay-methods-row { display: flex; align-items: center; gap: 12px; }
 /* 等執位 */
@@ -3310,3 +3312,18 @@ body.entering .page { padding-bottom: calc(66vh + 24px); }
 .paid-row.head .on b { color: var(--gain); }
 .paid-free { margin: 0; padding-left: 20px; display: grid; gap: 4px; }
 .paid-free li::marker { content: '✓  '; color: var(--gain); }
+
+/* 段位頁：分數明細 */
+.pts-toggle { display: inline-flex; align-items: center; gap: 4px; border: 0; background: none; padding: 2px 0; color: inherit; font: inherit; text-decoration: underline; text-underline-offset: 3px; cursor: pointer; }
+.pts-detail { margin-top: 14px; padding: 12px 14px; border-radius: 14px; background: color-mix(in srgb, var(--surface) 92%, transparent); color: var(--ink); text-align: left; }
+.pts-reset { display: grid; gap: 2px; padding-bottom: 10px; margin-bottom: 6px; border-bottom: 1px dashed var(--line); }
+.pts-reset small { color: var(--muted); line-height: 1.5; }
+.pts-lines { margin: 0; display: grid; }
+.pts-row { display: flex; align-items: baseline; gap: 10px; padding: 6px 0; border-top: 1px solid var(--line); }
+.pts-row:first-child { border-top: 0; }
+.pts-row dt { flex: 1; min-width: 0; display: grid; font-size: 14.5px; }
+.pts-row dt small { color: var(--muted); font-size: 12px; }
+.pts-row dd { margin: 0; font-weight: 700; color: var(--gain); }
+.pts-row.sub dt, .pts-row.sub dd { color: var(--muted); font-size: 13px; font-weight: 600; }
+.pts-row.total { border-top: 2px solid var(--ink); }
+.pts-row.total dt, .pts-row.total dd { font-size: 16px; font-weight: 800; color: var(--ink); }

@@ -7,7 +7,7 @@ import { toGroupDoc, toMemberDoc, toSessionDoc } from './live.ts';
 import { sessionTotals } from './history.ts';
 import type { SessionResult } from './history.ts';
 import { updateSkinAccess } from './prefs.ts';
-import { kingPoints, kingTagsOf } from './kings.ts';
+import { KING_POINTS, kingPoints, kingTagsOf } from './kings.ts';
 
 /** 我打過嘅一場 */
 export interface MySession {
@@ -79,12 +79,12 @@ export const POINT_RULES: [string, string][] = [
   ['每拉人 3 次', '+1'],
   ['當晚做咗食糊王／自摸王', '+8'],
   ['當晚最大王（最大一鋪）', '+10'],
-  ['響王、連莊王', '+6'],
+  ['連莊王', '+6'],
   ['拉王', '+5'],
   ['最細王、花王等特別事項王', '+3'],
   ['拎到成就（第 1 級）', '+5'],
   ['成就每升一級', '多 +5（第 8 級 +40）'],
-  ['輸錢、出銃王、詐糊王', '不扣分'],
+  ['輸錢、出銃王、響王（一炮多響）、詐糊王', '不扣分'],
 ];
 
 export interface Tier {
@@ -127,8 +127,11 @@ export function tierOf(points: number): { tier: Tier; next: Tier | null; progres
 /** 一個人喺一堆大局入面嘅分（排名用） */
 export function pointsFor(id: string, sessions: SessionResult[]): number {
   let p = 0;
+  let before = false;
   for (const s of sessions) {
     if (!(id in s.totals)) continue;
+    // 段位重新起步：之前嘅大局唔計，由雀苗起
+    if (s.at < rankResetAt()) { before = true; continue; }
     const vals = Object.values(s.totals);
     const mine = s.totals[id];
     const rank = 1 + vals.filter((v) => v > mine).length;
@@ -136,7 +139,7 @@ export function pointsFor(id: string, sessions: SessionResult[]): number {
     const kings = pl ? (kingTagsOf(pl)[id] ?? []).filter((k) => k.good).map((k) => k.key) : [];
     p += sessionPoints({ mine, rank, players: vals.length, wins: pl?.wins[id], selfDraws: pl?.selfDraws[id], pulls: pl?.pulls?.[id], best: pl?.best[id], kings });
   }
-  return p;
+  return before ? RANK_RESET_START + p : p;
 }
 
 // ---------- 戰績 ----------
@@ -179,9 +182,20 @@ export interface Stats {
   /** 雀力分 = 大局分 + 成就分 */
   basePoints: number;
   achPoints: number;
+  /** 段位重新起步前嘅分（唔計）；冇打過就係 0 */
+  resetBefore: number;
 }
 
-export function statsOf(list: MySession[]): Stats {
+/**
+ * 段位重新起步（2026 年 10 月 24 日中午，多倫多時間）：之前打過嘅人由雀苗起步，舊分唔計；
+ * 之後打嘅大局、新拎嘅成就照加。成就本身照樣顯示（拎咗就係拎咗），只係唔再計分。
+ */
+export const RANK_RESET_AT = Date.UTC(2026, 9, 24, 16);
+export const RANK_RESET_START = 20;
+/** 示範：當兩個星期前重新起步，等兩邊都見到 */
+export const rankResetAt = () => (typeof location !== 'undefined' && location.pathname.startsWith('/demo') ? Date.now() - 14 * 86400000 : RANK_RESET_AT);
+
+export function statsOf(list: MySession[], raw = false): Stats {
   const sorted = [...list].sort((a, b) => a.at - b.at);
   let total = 0;
   let run = 0;
@@ -239,11 +253,70 @@ export function statsOf(list: MySession[]): Stats {
     kingCount: sorted.reduce((a, s) => a + (s.kings?.length ?? 0), 0),
     basePoints: points,
     achPoints: 0,
+    resetBefore: 0,
   };
   // 成就分：每類每級（雀力分嗰類除外，免得自己計自己）
   out.achPoints = badgesOf(out).filter((b) => b.got && b.cat !== 'points').reduce((a, b) => a + badgePoints(b.level), 0);
   out.points = out.basePoints + out.achPoints;
+  // 重新起步：之前嘅分唔計，由雀苗起
+  if (!raw) {
+    const pre = sorted.filter((s) => s.at < rankResetAt());
+    if (pre.length) {
+      out.resetBefore = statsOf(pre, true).points;
+      out.points = RANK_RESET_START + Math.max(0, out.points - out.resetBefore);
+    }
+  }
   return out;
+}
+
+// ---------- 分數點嚟（段位頁「分數明細」） ----------
+export interface PointLine { label: string; detail: string; pts: number }
+export interface PointsDetail {
+  /** 重新起步嘅起步分（冇就 null） */
+  start: number | null;
+  /** 重新起步前嘅分（唔計） */
+  before: number;
+  /** 大局分逐項 */
+  lines: PointLine[];
+  /** 成就分逐個（新拎嘅） */
+  badges: PointLine[];
+  total: number;
+}
+
+const KING_NAME: Record<string, string> = { win: '食糊王', self: '自摸王', big: '最大王', small: '最細王', streak: '連莊王', pull: '拉王' };
+
+export function pointsDetail(list: MySession[]): PointsDetail {
+  const st = statsOf(list);
+  const reset = st.resetBefore > 0 || list.some((s) => s.at < rankResetAt());
+  const post = reset ? list.filter((s) => s.at >= rankResetAt()) : list;
+  const n = (f: (s: MySession) => number) => post.reduce((a, s) => a + f(s), 0);
+  const played = post.length;
+  const won = n((s) => (s.mine > 0 ? 1 : 0));
+  const tops = n((s) => (s.rank === 1 && s.players > 1 && s.mine > 0 ? 1 : 0));
+  const fanPts = n((s) => Math.min(20, Math.floor(Math.max(0, s.mine) / 100) * 2));
+  const pullPts = n((s) => Math.floor((s.pulls ?? 0) / 3));
+  const lines: PointLine[] = [
+    { label: '打大局', detail: `${played} 次 × 10`, pts: played * 10 },
+    { label: '當晚贏錢', detail: `${won} 次 × 10`, pts: won * 10 },
+    { label: '當晚第一（龍頭）', detail: `${tops} 次 × 10`, pts: tops * 10 },
+    { label: '贏番數', detail: '每 100 番 +2，每晚最多 +20', pts: fanPts },
+    { label: '拉人', detail: '每 3 次 +1', pts: pullPts },
+  ];
+  const kingCount: Record<string, number> = {};
+  for (const s of post) for (const k of s.kings ?? []) kingCount[k] = (kingCount[k] ?? 0) + 1;
+  for (const [k, c] of Object.entries(kingCount).sort((a, b) => b[1] - a[1])) {
+    const each = KING_POINTS[k] ?? (k.startsWith('sp-') ? 3 : 0);
+    if (!each) continue;
+    const name = KING_NAME[k] ?? (k.startsWith('sp-') ? '特別事項王' : k);
+    const prev = lines.find((l) => l.label === name);
+    if (prev) { prev.pts += c * each; prev.detail = '花王、槓王等，每次 +3'; } else lines.push({ label: name, detail: `${c} 次 × ${each}`, pts: c * each });
+  }
+  // 成就：而家拎咗、而重新起步之前未拎嘅
+  const preKeys = reset ? new Set(badgesOf(statsOf(list.filter((s) => s.at < rankResetAt()), true)).filter((b) => b.got).map((b) => b.key)) : new Set<string>();
+  const cats = new Map(BADGE_CATS.map((c) => [c.key, c.title]));
+  const badges = badgesOf(st).filter((b) => b.got && b.cat !== 'points' && !preKeys.has(b.key))
+    .map((b) => ({ label: `${cats.get(b.cat) ?? ''}・${b.name}`, detail: `第 ${b.level} 級`, pts: badgePoints(b.level) }));
+  return { start: reset ? RANK_RESET_START : null, before: st.resetBefore, lines: lines.filter((l) => l.pts > 0 || l.label === '打大局'), badges, total: st.points };
 }
 
 // ---------- 成就：每類 8 級，越高級越型 ----------

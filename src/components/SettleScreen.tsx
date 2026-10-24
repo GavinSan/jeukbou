@@ -340,7 +340,7 @@ export default function SettleScreen(p: SettleScreenProps) {
                   // 要確認：俾錢嘅人撳 → 等確認；收錢嘅人（或者局主、場主）撳 → 搞掂
                   const label = done ? '✓ 已轉' : pending ? (receiver ? '確認收到' : '等確認') : receiver && !mine(t.from) ? '已收到' : '未轉';
                   const next = !(done || (pending && !receiver));
-                  const asPending = next && !!cfg.confirmPay && !receiver;
+                  const asPending = next && !receiver;
                   return (
                     <li key={i} className={showPaid && done ? 'done' : ''}>
                       <Acct k={t.from} cls="tf-from" />
@@ -365,7 +365,7 @@ export default function SettleScreen(p: SettleScreenProps) {
           ) : (
             <p className="muted">{view === 'expense' && !p.expenses.length ? '未有開支。' : '不用轉賬。'}</p>
           )}
-          {showPaid && <Hint>{cfg.confirmPay ? '俾錢嘅人撳「未轉」會變「等確認」，收錢嘅人撳「確認收到」先算搞掂；收錢嘅人亦可以直接撳「已收到」。' : '轉咗數就撳「未轉」標記：俾錢、收錢嗰個（Group 任何一個）、局主同場主都撳得，全部人都會見到。'}</Hint>}
+          {showPaid && <Hint>俾錢嘅人轉咗數撳「未轉」會變「等確認」，收錢嘅人撳「確認收到」先算搞掂；收錢嘅人亦可以直接撳「已收到」。</Hint>}
           {p.payHref && closed && (
             <button type="button" className="link-card" onClick={() => go(p.payHref!)}>
               <span className="grow"><b>轉賬詳情</b><small>收款 email、邊筆未轉</small></span>
@@ -920,7 +920,6 @@ export function SettleConfigForm({ cfg, canEdit, accounts, busy, error, onSave, 
   const waterTo = cfg.waterTo;
   void accounts;
   const [rounding, setRounding] = useState<MoneyRounding>(cfg.rounding);
-  const [confirmPay, setConfirmPay] = useState(!!cfg.confirmPay);
   const n = per;
   const d = !canEdit;
   return (
@@ -958,12 +957,9 @@ export function SettleConfigForm({ cfg, canEdit, accounts, busy, error, onSave, 
           ))}
         </div>
       </div>
-      <div className="rule-row">
-        <span className="grow">找數要收錢嘅人確認<small>開咗：俾錢嘅人撳「已轉」之後，要收錢嘅人撳「確認收到」先算數</small></span>
-        <button type="button" role="switch" className="switch" aria-checked={confirmPay} aria-label="找數要收錢嘅人確認" disabled={d} onClick={() => setConfirmPay((v) => !v)} />
-      </div>
+      <p className="muted small">找數一定要收錢嘅人確認：俾錢嘅人撳「已轉」之後，收錢嘅人撳「確認收到」先算數。</p>
       {error && <p className="error">{error}</p>}
-      {canEdit && <button type="button" className="btn big" disabled={busy || !(n > 0) || !cur.trim()} onClick={() => onSave({ perUnit: n, currency: showCur ? cur.trim() : 'HKD', waterTo, rounding, confirmPay, showCurrency: showCur })}>儲存埋數設定</button>}
+      {canEdit && <button type="button" className="btn big" disabled={busy || !(n > 0) || !cur.trim()} onClick={() => onSave({ perUnit: n, currency: showCur ? cur.trim() : 'HKD', waterTo, rounding, confirmPay: true, showCurrency: showCur })}>儲存埋數設定</button>}
     </div>
   );
 }

@@ -33,7 +33,7 @@ export function awardsOf(play: PlayStats, name: (id: string) => string): Award[]
   if (play.biggest) out.push({ key: 'big', mark: '大', title: '最大王', who: name(play.biggest.player), value: `${play.biggest.fan} 番`, cls: 'aw-purple' });
   if (play.smallest && play.smallest.player !== play.biggest?.player) out.push({ key: 'small', mark: '細', title: '最細王', who: name(play.smallest.player), value: `${play.smallest.fan} 番`, cls: 'aw-teal' });
   const mw = topOf(play.multiWins ?? {});
-  if (mw) out.push({ key: 'multi', mark: '響', title: '響王', who: name(mw[0]), value: `${mw[1]} 次`, cls: 'aw-orange' });
+  if (mw) out.push({ key: 'multi', mark: '響', title: '響王', who: name(mw[0]), value: `一炮多響 ${mw[1]} 次`, cls: 'aw-red' });
   if (play.maxStreak && play.maxStreak.n > 0) out.push({ key: 'streak', mark: '莊', title: '連莊王', who: name(play.maxStreak.player), value: `連 ${play.maxStreak.n}`, cls: 'aw-orange' });
   const pl = topOf(play.pulls ?? {});
   if (pl) out.push({ key: 'pull', mark: '拉', title: '拉王', who: name(pl[0]), value: `${pl[1]} 次`, cls: 'aw-blue' });

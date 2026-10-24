@@ -2,7 +2,7 @@
 import { useEffect, useState } from 'react';
 import type { User } from 'firebase/auth';
 import { useProfile } from '../lib/live.ts';
-import { POINT_RULES, TIERS, badgesOf, statsOf, tierOf, useMyHistory, useTierSync } from '../lib/stats.ts';
+import { POINT_RULES, TIERS, rankResetAt, badgesOf, pointsDetail, statsOf, tierOf, useMyHistory, useTierSync } from '../lib/stats.ts';
 import type { MySession, Stats } from '../lib/stats.ts';
 import { BadgeCats, CountUp, Progress, Ring, TierTile } from '../components/Tier.tsx';
 import { TopBar, fmt } from '../ui.tsx';
@@ -55,6 +55,33 @@ function MyStats({ st }: { st: Stats }) {
   );
 }
 
+/** 分數明細：每樣加咗幾多分（重新起步之後） */
+function PointsBreakdown({ mine }: { mine: MySession[] }) {
+  const d = pointsDetail(mine);
+  const reset = new Date(rankResetAt());
+  const since = `${reset.getMonth() + 1}月${reset.getDate()}日`;
+  const sum = (l: { pts: number }[]) => l.reduce((a, x) => a + x.pts, 0);
+  return (
+    <div className="pts-detail">
+      {d.start !== null && (
+        <div className="pts-reset">
+          <b>段位重新起步</b>
+          <small>{since}之前打過嘅人由「雀苗」{d.start} 分起步；之前儲嘅 {d.before} 分唔計。之後打嘅大局同新拎嘅成就照加。</small>
+        </div>
+      )}
+      <dl className="pts-lines">
+        {d.start !== null && <div className="pts-row"><dt>起步分<small>雀苗</small></dt><dd className="num">{d.start}</dd></div>}
+        {d.lines.map((l) => <div key={l.label} className="pts-row"><dt>{l.label}<small>{l.detail}</small></dt><dd className="num">+{l.pts}</dd></div>)}
+        <div className="pts-row sub"><dt>大局小計</dt><dd className="num">{sum(d.lines)}</dd></div>
+        {d.badges.map((l) => <div key={l.label} className="pts-row"><dt>{l.label}<small>{l.detail}</small></dt><dd className="num">+{l.pts}</dd></div>)}
+        {!d.badges.length && <div className="pts-row"><dt>成就<small>{d.start !== null ? `${since}之後未有新成就` : '未有成就'}</small></dt><dd className="num">0</dd></div>}
+        <div className="pts-row sub"><dt>成就小計</dt><dd className="num">{sum(d.badges)}</dd></div>
+        <div className="pts-row total"><dt>雀力分</dt><dd className="num">{d.total}</dd></div>
+      </dl>
+    </div>
+  );
+}
+
 export function RankView({ mine, loading }: { mine: MySession[]; loading: boolean }) {
   const st = statsOf(mine);
   // 由主頁撳成就入嚟：捲去成就／嗰一類，閃一閃
@@ -75,6 +102,7 @@ export function RankView({ mine, loading }: { mine: MySession[]; loading: boolea
   // 段位：淨係顯示而家嗰級，其他撳先展開
   const [allTiers, setAllTiers] = useState(false);
   const [howOpen, setHowOpen] = useState(false);
+  const [detailOpen, setDetailOpen] = useState(false);
 
   return (
     <main className="page">
@@ -86,13 +114,16 @@ export function RankView({ mine, loading }: { mine: MySession[]; loading: boolea
           <div className="grow">
             <h2>{t.tier.name}</h2>
             <p className="hero-sub"><CountUp value={st.points} /> 分 · {st.played} 次大局{st.rounds ? ` · ${st.rounds} 圈` : ''}</p>
-            <p className="hero-sub small">大局 {st.basePoints} 分＋成就 {st.achPoints} 分</p>
+            <button type="button" className="hero-sub small pts-toggle" aria-expanded={detailOpen} onClick={() => setDetailOpen((v) => !v)}>
+              <span>分數明細</span><Chevron up={detailOpen} />
+            </button>
           </div>
         </div>
         <div className="hero-tier">
           <Progress value={t.progress} />
           <small>{t.next ? `再 ${t.toNext} 分升「${t.next.name}」` : '已到最高段位'}</small>
         </div>
+        {detailOpen && <PointsBreakdown mine={mine} />}
       </section>
 
       <section className="stack">

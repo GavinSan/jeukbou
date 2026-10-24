@@ -102,9 +102,9 @@ test('舊枱（冇 liveUsers）：坐過嘅人入到數，可以補 liveUsers', 
 
 test('已轉：俾錢、收錢嘅人改到自己份；第三者唔得；場主、局主改得', async () => {
   const s = (uid) => doc(as(uid), 'groups', G, 'sessions', S);
-  await assertSucceeds(updateDoc(s('a'), { 'paid.a>b': { by: 'a', at: 1 }, lastPaid: 'a>b' }));
+  await assertSucceeds(updateDoc(s('a'), { 'paid.a>b': { by: 'a', at: 1, ok: false }, lastPaid: 'a>b' }));
   await assertSucceeds(updateDoc(s('b'), { 'paid.a>b': deleteField(), lastPaid: 'a>b' }));
-  await assertSucceeds(updateDoc(s('c'), { 'paid.c + d>a': { by: 'c', at: 1 }, lastPaid: 'c + d>a' }));
+  await assertSucceeds(updateDoc(s('c'), { 'paid.c + d>a': { by: 'c', at: 1, ok: false }, lastPaid: 'c + d>a' }));
   await assertFails(updateDoc(s('e'), { 'paid.a>b': { by: 'e', at: 1 }, lastPaid: 'a>b' }));
   await assertFails(updateDoc(s('e'), { 'paid.a>b': { by: 'e', at: 1 }, lastPaid: 'e>x' }));
   await assertFails(updateDoc(s('e'), { 'paid.a>b': { by: 'e', at: 1 } }));
@@ -145,9 +145,9 @@ test('直播室：每 2 秒最多一句（要同時寫 chatLast）；場主、�
   await assertSucceeds(say('b', '解禁啦'));
 });
 
-test('找數要確認：俾錢嘅人淨係標到「等確認」，收錢嘅人先確認到', async () => {
+test('找數一定要確認：俾錢嘅人淨係標到「等確認」，收錢嘅人先確認到（唔理牌友圈設定）', async () => {
   await env.withSecurityRulesDisabled(async (ctx) => {
-    await updateDoc(doc(ctx.firestore(), 'groups', G), { settle: { confirmPay: true } });
+    await updateDoc(doc(ctx.firestore(), 'groups', G), { settle: { confirmPay: false } });
   });
   const s = (uid) => doc(as(uid), 'groups', G, 'sessions', S);
   await assertFails(updateDoc(s('a'), { 'paid.a>b': { by: 'a', at: 1 }, lastPaid: 'a>b' }));

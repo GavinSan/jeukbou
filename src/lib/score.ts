@@ -187,8 +187,9 @@ function statsOf(steps: Step[]): TableStats {
       s.bestBy[w.player] = Math.max(s.bestBy[w.player] ?? 0, w.fan);
       if (!s.biggest || w.fan > s.biggest.fan) s.biggest = { player: w.player, fan: w.fan };
       if (w.fan > 0 && (!s.smallest || w.fan < s.smallest.fan)) s.smallest = { player: w.player, fan: w.fan };
-      if (event.winners.length > 1) s.multiWins[w.player] = (s.multiWins[w.player] ?? 0) + 1;
     }
+    // 響王：一炮雙響／三響嗰個出銃嘅人（負面）
+    if (event.winners.length > 1 && event.loser) s.multiWins[event.loser] = (s.multiWins[event.loser] ?? 0) + 1;
   }
   if (first !== null && last !== null) s.playMs = last - first;
   return s;

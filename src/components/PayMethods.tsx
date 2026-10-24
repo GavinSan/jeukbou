@@ -65,12 +65,12 @@ function MethodSheet({ initial, onSave, onDelete, onClose }: { initial: PayMetho
       {!initial && (
         <>
           <div className="region-pick" role="group" aria-label="地區">
-            {REGIONS.map((r) => <button key={r.key} type="button" className="chip" aria-pressed={region === r.key} onClick={() => { setRegion(r.key); setKind(null); }}>{r.flag} {r.name}</button>)}
+            {REGIONS.map((r) => <button key={r.key} type="button" className="region-chip" aria-pressed={region === r.key} onClick={() => { setRegion(r.key); setKind(null); }}>{r.flag} {r.name}</button>)}
           </div>
-          <div className="choices">
+          <div className="choices pay-kinds">
             {REGIONS.find((r) => r.key === region)!.kinds.map((x) => (
               <button key={x} type="button" className="choice" aria-pressed={kind === x} onClick={() => setKind(x)}>
-                <span className="ellipsis">{KINDS[x].name}</span>
+                <span>{KINDS[x].name}</span>
               </button>
             ))}
           </div>

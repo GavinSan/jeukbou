@@ -420,6 +420,21 @@ for (const scheme of ['light', 'dark']) {
       await page.waitForTimeout(600);
       await page.screenshot({ path: `${out}/wait-regroup.png`, fullPage: true });
     });
+    await step('round27', async () => {
+      await page.goto(`${base}/demo/paymethods`, { waitUntil: 'networkidle' });
+      await page.waitForTimeout(400);
+      await page.getByRole('button', { name: /加收款方法/ }).click();
+      await page.waitForTimeout(500);
+      await page.screenshot({ path: `${out}/paymethod-add.png` });
+      await page.goto(`${base}/demo/rank`, { waitUntil: 'networkidle' });
+      await page.waitForTimeout(500);
+      await page.getByRole('button', { name: /分數明細/ }).click();
+      await page.waitForTimeout(500);
+      await page.screenshot({ path: `${out}/rank-detail.png`, fullPage: true });
+      await page.goto(`${base}/demo`, { waitUntil: 'networkidle' });
+      await page.waitForTimeout(600);
+      await page.screenshot({ path: `${out}/session-kings.png`, fullPage: true });
+    });
     await step('paid', async () => {
       await page.goto(`${base}/demo/paid`, { waitUntil: 'networkidle' });
       await page.waitForTimeout(400);

@@ -222,12 +222,11 @@ service cloud.firestore {
             || (key is string && changed.hasOnly([key])
               && key.matches('(.*[^A-Za-z0-9])?' + request.auth.uid + '([^A-Za-z0-9].*)?'));
         }
-        // 牌友圈要收錢嘅人確認：俾錢嘅人淨係標得「等確認」（ok == false）；收錢嘅人、局主、場主先可以標搞掂
+        // 一定要收錢嘅人確認：俾錢嘅人淨係標得「等確認」（ok == false）；收錢嘅人、局主、場主先可以標搞掂
         function paidConfirmOk() {
           let key = request.resource.data.get('lastPaid', '');
           let v = request.resource.data.get('paid', {}).get(key, null);
-          return groupDoc(g).data.get('settle', {}).get('confirmPay', false) != true
-            || v == null || v.get('ok', true) == false
+          return v == null || v.get('ok', true) == false
             || isOwner(g) || resource.data.createdBy == request.auth.uid
             || (key is string && key.split('>').size() == 2
               && key.split('>')[1].matches('(.*[^A-Za-z0-9])?' + request.auth.uid + '([^A-Za-z0-9].*)?'));

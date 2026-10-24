@@ -53,7 +53,8 @@ const has = (key: string, uid: string) => key.split(' + ').includes(uid);
 /** 一個大局嘅轉賬（畀轉賬頁用） */
 export function itemsOf(g: Pick<Group, 'id' | 'name' | 'settle'>, s: Session, uid: string): PayItem[] {
   if (!s.payout) return [];
-  const confirm = !!(g.settle as { confirmPay?: boolean } | undefined)?.confirmPay;
+  // 一定要收錢嘅人確認（以前係牌友圈設定）
+  const confirm = true;
   return s.payout.transfers.map((t) => ({
     gid: g.id, gname: g.name, sid: s.id, sname: s.name, at: s.createdAt?.toMillis() ?? s.payout!.at,
     from: t.from, to: t.to, amount: t.amount, key: payKey(t),

@@ -62,7 +62,7 @@ export default function PayPage({ user, groupId, sessionId }: { user: User; grou
     const key = it.key;
     setBusy(key); setError('');
     // 俾錢嘅人撳「已轉」：牌友圈要確認嘅話就變「等確認」；收錢嘅人、局主、場主撳就即刻搞掂
-    try { await markPaid(groupId, sessionId, key, user.uid, on, on && it.confirm && it.dir === 'pay' && !manager); } catch (err) { setError(message(err)); } finally { setBusy(''); }
+    try { await markPaid(groupId, sessionId, key, user.uid, on, on && it.confirm && it.dir === 'pay'); } catch (err) { setError(message(err)); } finally { setBusy(''); }
   }
 
   return (
