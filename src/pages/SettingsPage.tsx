@@ -4,7 +4,7 @@ import { FeedbackButton, PrefsList, ProfileEditor, SignOutButton, SkinPicker } f
 import { useIsSuperAdmin } from '../lib/admin.ts';
 import { setPref, usePrefs } from '../lib/prefs.ts';
 import { useProfile } from '../lib/live.ts';
-import { useMyHistory, useTierSync } from '../lib/stats.ts';
+import { TIERS, badgesOf, statsOf, tierOf, useMyHistory, useTierSync } from '../lib/stats.ts';
 import { Link } from '../lib/router.tsx';
 import { TopBar } from '../ui.tsx';
 
@@ -15,10 +15,13 @@ export default function SettingsPage({ user }: { user: User }) {
   const profile = useProfile(user.uid);
   const h = useMyHistory(profile.loading ? null : user.uid, profile.data.groups);
   useTierSync(h, !profile.loading);
+  // 改名卷：1 張免費 + 每個段位 1 張 + 每 10 個成就 1 張
+  const st = statsOf(h.mine);
+  const renameAllow = 1 + Math.max(0, TIERS.indexOf(tierOf(st.points).tier)) + Math.floor(badgesOf(st).filter((b) => b.got).length / 10);
   return (
     <main className="page">
       <TopBar title="設定" />
-      <section className="panel"><ProfileEditor /></section>
+      <section className="panel"><ProfileEditor renameAllow={renameAllow} /></section>
       <section className="stack"><h2 className="section-head">風格</h2><SkinPicker /></section>
       <section className="stack"><PrefsList /></section>
       <FeedbackButton />

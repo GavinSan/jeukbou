@@ -27,7 +27,7 @@ export default function GroupPayPage({ user, groupId }: { user: User; groupId: s
   const g = group.data;
   if (!g) return <main className="page"><TopBar back={`/g/${groupId}`} /><Loading /></main>;
 
-  const pp = { me: user.uid, names: data.names, emails: data.emails };
+  const pp = { me: user.uid, names: data.names, emails: data.emails, pays: data.pays };
   // 同自己有關嘅排最頂
   const open = data.items.filter((x) => !x.paid).sort((a, b) => Number(b.dir !== 'other') - Number(a.dir !== 'other'));
   const paid = data.items.filter((x) => x.paid);

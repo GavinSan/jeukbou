@@ -3141,3 +3141,32 @@ body.entering .page { padding-bottom: calc(66vh + 24px); }
 .table-stats .my-line .king-tag { margin-left: 0; }
 .edit-who { display: grid; gap: 6px; }
 .edit-who .choices { margin-bottom: 4px; }
+/* 改名卷、撞名 */
+.rename-tickets { margin: 0; font-size: 14px; }
+.rename-tickets b { font-size: 17px; }
+.rename-tickets.none b { color: var(--loss); }
+.name-clash { border: 1.5px solid color-mix(in srgb, var(--loss) 45%, var(--line)); }
+.name-clash h3 { margin: 0; }
+/* 收款資料 */
+.paym { display: grid; grid-template-columns: 1fr auto; gap: 6px 10px; align-items: center; padding: 12px 14px; border-radius: 14px; border: 1px solid var(--line); background: var(--surface); }
+.paym.hidden { opacity: .6; border-style: dashed; }
+.paym-main { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.paym-kind { font-size: 12.5px; color: var(--muted); font-weight: 700; }
+.paym-value { font-size: 16px; overflow-wrap: anywhere; }
+.paym-qr { grid-row: span 2; padding: 0; border: 1px solid var(--line); border-radius: 10px; background: #fff; cursor: zoom-in; }
+.paym-qr img { display: block; width: 72px; height: 72px; object-fit: contain; border-radius: 9px; }
+.paym-acts { grid-column: 1 / -1; display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.paym-vis { grid-column: 1 / -1; font-size: 12px; }
+.region-pick { display: flex; flex-wrap: wrap; gap: 6px; }
+.region-pick .chip { padding: 6px 12px; border-radius: 999px; border: 1.5px solid var(--line); background: var(--surface); color: var(--ink); font: inherit; font-size: 14px; cursor: pointer; }
+.region-pick .chip[aria-pressed="true"] { border-color: var(--accent); background: var(--gain-soft); font-weight: 700; }
+.pay-person { display: grid; gap: 8px; }
+.pay-methods-row { display: flex; align-items: center; gap: 12px; }
+/* 等執位 */
+.felt-wait-stamp { position: absolute; z-index: 6; left: 50%; top: 50%; transform: translate(-50%, -50%) rotate(-10deg); font-size: 34px; padding: 4px 18px; color: #F2C14E; border-color: #F2C14E; background: rgba(0, 0, 0, .25); pointer-events: none; animation: sealIn .5s cubic-bezier(.2, 1.7, .4, 1) both; }
+.tcard { position: relative; }
+.tcard-wait-stamp { position: absolute; z-index: 2; right: 14px; top: 46px; font-size: 18px; padding: 0 10px; transform: rotate(-8deg); color: #B5541A; border-color: #B5541A; background: color-mix(in srgb, var(--surface) 80%, transparent); }
+.wait-note { margin: 0; padding: 10px 12px; border-radius: 12px; background: color-mix(in srgb, #F2C14E 18%, var(--surface)); font-size: 14px; }
+.wait-go .btn { flex: 1; }
+.sact-sub { display: block; font-size: 11px; font-weight: 500; color: var(--muted); }
+.sact { flex-wrap: wrap; }

@@ -1,9 +1,12 @@
-// 轉賬列表：邊個俾邊個、幾多、已轉未轉；撳人睇佢嘅 Interac email
+// 轉賬列表：邊個俾邊個、幾多、已轉未轉；撳人睇佢嘅收款資料（轉數快、Interac、PayMe…）
 import { useState } from 'react';
 import type { PayItem } from '../lib/pay.ts';
 import { Sheet } from '../ui.tsx';
 import { Link } from '../lib/router.tsx';
 import { money } from './SettleScreen.tsx';
+import { PayMethodCard } from './PayMethods.tsx';
+import { methodsOf, payLine } from '../lib/payMethods.ts';
+import type { PayMethod } from '../lib/payMethods.ts';
 
 const md = (t: number) => { const d = new Date(t); return `${d.getMonth() + 1}月${d.getDate()}日`; };
 
@@ -11,6 +14,8 @@ export interface PayPeople {
   me: string | null;
   names: Record<string, string>;
   emails: Record<string, string>;
+  /** 每人顯示咗嘅收款方法 */
+  pays?: Record<string, PayMethod[]>;
 }
 
 function nameOfKey(key: string, pp: PayPeople): string {
@@ -27,17 +32,12 @@ export function PersonSheet({ ids, pp, amount, onClose }: { ids: string[]; pp: P
     <Sheet onClose={onClose} label="收款資料">
       <h2>收款資料</h2>
       {ids.map((id) => {
-        const email = pp.emails[id];
+        const list = methodsOf(pp.pays?.[id], pp.emails[id]);
         return (
           <div key={id} className="pay-person">
             <b>{pp.names[id] ?? '玩家'}</b>
-            {email ? (
-              <div className="pay-email-row">
-                <span className="grow exp-text"><span className="ellipsis pay-email-text">{email}</span><small className="muted">Interac e-Transfer</small></span>
-                <button type="button" className={`btn small-btn${copied === id ? ' done' : ''}`} onClick={() => copy(id, email)}>{copied === id ? '✓ 已複製' : '複製 email'}</button>
-              </div>
-            ) : (
-              <p className="muted small">未有填 Interac email（佢可以喺「設定」加）。</p>
+            {list.length ? list.map((m) => <PayMethodCard key={m.id} m={m} />) : (
+              <p className="muted small">未有填收款資料（佢可以喺「設定 → 收款資料」加）。</p>
             )}
           </div>
         );
@@ -78,7 +78,7 @@ export function PayRows({ items, pp, showSession, busyKey, onToggle, canToggle =
                   <span className="pay-arrow" aria-label="俾">→</span>
                   <span className="pay-to">{nameOfKey(it.to, pp)}</span>
                 </span>
-                {it.dir === 'pay' && !it.paid && pp.emails[counter.split(' + ')[0]] && <small className="pay-hint">Interac：{pp.emails[counter.split(' + ')[0]]}</small>}
+                {it.dir === 'pay' && !it.paid && (() => { const id = counter.split(' + ')[0]; const first = methodsOf(pp.pays?.[id], pp.emails[id])[0]; return first ? <small className="pay-hint">{payLine(first)}</small> : null; })()}
               </span>
               </button>
               <b className={`num pay-amt ${it.dir === 'pay' ? 'loss' : it.dir === 'get' ? 'gain' : ''}`}>{money(it.amount)}</b>

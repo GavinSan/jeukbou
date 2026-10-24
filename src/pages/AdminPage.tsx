@@ -7,7 +7,7 @@ import type { FeedbackDoc, JoinMode } from '../lib/data.ts';
 import { useIsSuperAdmin } from '../lib/admin.ts';
 import {
   addToGroup, childCollections, listCollection, loadAllGroups, loadAllUsers, readDoc, removeDoc, removeFromGroup,
-  renameGroup, renameUser, reopenSession, sendReset, setOwner, writeDoc,
+  grantRename, renameGroup, renameUser, reopenSession, sendReset, setOwner, writeDoc,
 } from '../lib/adminData.ts';
 import type { AdminGroup, AdminUser } from '../lib/adminData.ts';
 import { Link } from '../lib/router.tsx';
@@ -281,7 +281,11 @@ function Users({ users, groups, onChanged, onData }: { users: AdminUser[]; group
           <div className="panel">
             <div className="between"><h2>{u.name || '（未改名）'}</h2><button type="button" className="textbtn" onClick={() => onData(`users/${u.uid}`)}>原始資料 ›</button></div>
             <p className="muted small">uid {u.uid}<br />真名：{[u.firstName, u.lastName].filter(Boolean).join(' ') || '—'}<br />生日：{u.birthday ? `${Number(u.birthday.slice(0, 2))}月${Number(u.birthday.slice(3, 5))}日` : '—'}<br />登入 email：{u.email || '—'}<br />收款 email：{u.payEmail || '—'}<br />最後更新：{md(u.updatedAt)}</p>
-            <label className="field"><span>改顯示名（會同步去所有牌友圈）</span>
+            <div className="row">
+              <span className="grow">🎟️ 送改名卷<small className="muted">　已送 {u.renameGrants ?? 0} 張</small></span>
+              <button type="button" className="btn plain small-btn" disabled={busy} onClick={() => run(() => grantRename(u.uid, (u.renameGrants ?? 0) + 1), '已送一張改名卷')}>＋1 張</button>
+            </div>
+            <label className="field"><span>改雀壇名（會同步去所有牌友圈；唔使改名卷，但唔可以撞名）</span>
               <div className="row"><input className="input grow" value={name} onChange={(e) => setName(e.target.value)} /><button type="button" className="btn small-btn" disabled={busy || !name.trim() || name === u.name} onClick={() => run(() => renameUser(u, name.trim()), '已改名')}>儲存</button></div>
             </label>
             <div className="field"><span>牌友圈</span>

@@ -29,6 +29,8 @@ import { MeetupsView, HomeMeetupsView } from './components/Meetups.tsx';
 import { AddSheet, GroupRowView, SearchAdd } from './pages/Groups.tsx';
 import { DashboardView, ResumeRow } from './pages/Home.tsx';
 import { RankView } from './pages/RankPage.tsx';
+import { PayMethodsEditor } from './components/PayMethods.tsx';
+import type { PayMethod } from './lib/payMethods.ts';
 import { MyPayView } from './pages/MyPayPage.tsx';
 import { AdminView } from './pages/AdminPage.tsx';
 import { LiveTv, bySeat, tvTablesOf } from './pages/LivePage.tsx';
@@ -237,9 +239,17 @@ export default function Demo() {
   const [expenses, setExpenses] = useState<ExpenseDoc[]>([
     { id: 'e1', kind: 'expense', label: '晚餐', payer: 'gavin', amount: 186.4, sharedBy: ['gavin', 'athena', 'ivan', 'viola', 'janice', 'sang', 'clau', 'af'], by: 'demo', at: null },
     { id: 'e2', kind: 'expense', label: '飲品', payer: 'guest-vincent', amount: 23.92, sharedBy: [], all: true, note: '奶茶', names: { 'guest-vincent': 'Vincent' }, by: 'demo', at: null },
+    { id: 'e3', kind: 'gift', label: '代打', payer: 'ivan', amount: 20, sharedBy: ['gavin'], note: '幫手打咗兩圈', by: 'demo', at: null },
   ]);
   const [demoDraw, setDemoDraw] = useState<Draw | null>(null);
   const [dayEnd, setDayEnd] = useState<number | null>(null);
+  // 等執位（示範）
+  const [demoWait, setDemoWait] = useState<string[]>([]);
+  const [demoPays, setDemoPays] = useState<PayMethod[]>([
+    { id: 'p1', kind: 'fps', value: '1234567', show: true },
+    { id: 'p2', kind: 'payme', value: 'https://payme.hsbc/gavin', show: true },
+    { id: 'p3', kind: 'interac', value: 'gavin@example.com', show: false },
+  ]);
   const [chats, setChats] = useState<Record<string, ChatMsg[]>>(() => ({
     a: [
       { id: '1', by: 'athena', name: 'Athena', text: 'Gavin 今晚好旺喎 🔥', at: Date.now() - 600000 },
@@ -329,6 +339,7 @@ export default function Demo() {
       { cat: '段位、風格、家規', items: [
         ['/demo/rank', '段位', '段位進度、成就'],
         ['/demo/skins', '風格', '18 款風格，各有光暗同質感（9 款 👑 豪華）'],
+        ['/demo/paymethods', '收款資料', '轉數快（QR）、PayMe、Interac、Zelle、PayPay…，逐個揀顯示定收埋'],
         ['/demo/rules', '家規', '番數表、抽水、拉'],
       ] },
       { cat: '管理同舊紀錄', items: [
@@ -445,6 +456,7 @@ export default function Demo() {
         legacy={[{ gid: 'a', gname: '不打不相識', sid: 'l1', sname: '9月19日 舊紀錄', at: Date.now() - 30 * 86400000, fan: -67, cash: -11.17 }]}
         names={{ gavin: 'Gavin', athena: 'Athena', tony: 'Tony Tsui', janice: 'Janice Yeung', kingsang: 'King Sang Li', ivan: 'Ivan' }}
         emails={{ tony: 'tony.tsui@example.com', kingsang: 'ksl@example.com' }}
+        pays={{ tony: [{ id: 't1', kind: 'fps', value: '9123 4567', show: true }, { id: 't2', kind: 'payme', value: 'https://payme.hsbc/tonytsui', show: true }], kingsang: [{ id: 'k1', kind: 'interac', value: 'ksl@example.com', show: true }, { id: 'k2', kind: 'zelle', value: '+1 415 555 0123', show: true }] }}
         loading={false}
         onToggle={(it, on) => setPayMarks((m) => ({ ...m, [`${it.sid}-${it.key}`]: on ? { by: 'gavin', at: Date.now(), ...(it.confirm && it.dir === 'pay' ? { ok: false } : {}) } : null }))}
         onRemind={async () => { await new Promise((r) => setTimeout(r, 600)); return '✓ 已催（示範）'; }}
@@ -473,6 +485,15 @@ export default function Demo() {
         <section className="panel stack"><h2>iPhone Safari</h2><InstallSteps p="ios-safari" inviteLink="/join/demo/abc" /></section>
         <section className="panel stack"><h2>iPhone 其他瀏覽器</h2><InstallSteps p="ios-other" /></section>
         <section className="panel stack"><h2>Android</h2><InstallSteps p="android" /></section>
+      </main>
+    );
+  }
+  if (path === '/demo/paymethods') {
+    return (
+      <main className="page">
+        <TopBar back="/demo/skins" title="收款資料" />
+        <p className="muted small">示範：唔會儲存。</p>
+        <PayMethodsEditor list={demoPays} onSave={async (l) => setDemoPays(l)} />
       </main>
     );
   }
@@ -677,6 +698,14 @@ export default function Demo() {
         table={table}
         computed={c}
         rules={rules}
+        regroupWait={(() => {
+          const others = tables.filter((t) => t.id !== table.id && computed[t.id] && !computed[t.id]!.state.ended);
+          if (!others.length) return undefined;
+          return {
+            waiting: demoWait.includes(table.id), othersOpen: others.length, othersWaiting: others.filter((t) => demoWait.includes(t.id)).length,
+            onWait: async (on: boolean) => setDemoWait((w) => (on ? [...w, table.id] : w.filter((x) => x !== table.id))), regroupHref: '/demo#regroup',
+          };
+        })()}
         reopen={(() => {
           const endStep = c.state.ended ? [...c.steps].reverse().find((st) => st.event.type === 'end') : undefined;
           if (!endStep) return undefined;
@@ -729,7 +758,7 @@ export default function Demo() {
     <SessionScreen
       title="10月18日 屋企局"
       back="/"
-      tables={tables}
+      tables={tables.map((t) => ({ ...t, waitRegroup: demoWait.includes(t.id) }))}
       computed={computed}
       tableHref={(t) => `/demo/t/${t.slice(1)}`}
       invite={null}

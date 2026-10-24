@@ -64,9 +64,25 @@ service cloud.firestore {
 
     // 玩家資料：淨係自己（同超級管理員）睇到同改到。其他人只會喺同一個牌友圈嘅成員名單見到你個名同頭像。
     match /users/{uid} {
+      // 雀壇名：認領咗（有 nameKey）之後，每改一次 renames 要加 1（改名卷）；nameKey 一定要係自己認領咗嘅 names/{key}
+      function nameOk() {
+        let before = resource == null ? {} : resource.data;
+        let after = request.resource.data;
+        let renamed = after.get('name', '') != before.get('name', '');
+        return after.get('renames', 0) is int
+          && after.get('renames', 0) >= before.get('renames', 0)
+          && after.get('renames', 0) <= 40 + before.get('renameGrants', 0)
+          && (!renamed || before.get('nameKey', null) == null || after.get('renames', 0) == before.get('renames', 0) + 1)
+          && (after.get('nameKey', null) == null || after.get('nameKey', null) == before.get('nameKey', null)
+            || getAfter(/databases/$(database)/documents/names/$(after.nameKey)).data.uid == request.auth.uid);
+      }
       allow read: if (signedIn() && request.auth.uid == uid) || isSuperAdmin();
       allow create, update: if signedIn() && request.auth.uid == uid
-        && request.resource.data.keys().hasOnly(['name', 'photoURL', 'avatar', 'updatedAt', 'groups', 'pending', 'payEmail', 'email', 'firstName', 'lastName', 'birthday', 'nudgedAt'])
+        && request.resource.data.keys().hasOnly(['name', 'photoURL', 'avatar', 'updatedAt', 'groups', 'pending', 'payEmail', 'email', 'firstName', 'lastName', 'birthday', 'nudgedAt', 'nameKey', 'renames', 'renameGrants', 'payMethods'])
+        && (resource == null || !request.resource.data.diff(resource.data).affectedKeys().hasAny(['renameGrants']))
+        && (resource != null || !('renameGrants' in request.resource.data))
+        && nameOk()
+        && (request.resource.data.get('payMethods', []) is list && request.resource.data.get('payMethods', []).size() <= 12)
         && (request.resource.data.get('avatar', null) == null || (request.resource.data.avatar is string && request.resource.data.avatar.size() < 200000));
       allow delete: if false;
 
@@ -99,6 +115,17 @@ service cloud.firestore {
       allow create, update: if signedIn() && request.auth.uid == u && request.resource.data.keys().hasOnly(['at']) && request.resource.data.at == request.time;
     }
 
+    // 雀壇名：全 app 唯一。key = 細楷、去頭尾空白；知道個名先查到（唔可以列晒）；淨係自己認領、放返
+    match /names/{key} {
+      allow get: if signedIn();
+      allow list: if false;
+      allow create: if signedIn() && key.size() <= 60 && request.resource.data.uid == request.auth.uid
+        && request.resource.data.keys().hasOnly(['uid', 'name', 'at']);
+      allow update: if signedIn() && resource.data.uid == request.auth.uid && request.resource.data.uid == request.auth.uid
+        && request.resource.data.keys().hasOnly(['uid', 'name', 'at']);
+      allow delete: if signedIn() && resource.data.uid == request.auth.uid;
+    }
+
     // 加入碼：知道個碼先讀到（唔可以列出所有碼）；淨係局主開或者刪
     match /codes/{code} {
       allow get: if signedIn();
@@ -121,8 +148,10 @@ service cloud.firestore {
       allow list: if isSuperAdmin();
       allow create: if signedIn() && request.resource.data.ownerId == request.auth.uid;
       // 局主改晒；有「改家規」權限嘅成員只改得家規、番數表、埋數設定
-      allow update: if isOwner(g) || (can(g, 'rules')
-        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['rules', 'fanTable', 'fanTableLog', 'settle']));
+      // 打法（牌型）開咗就唔改得（超級管理員除外）
+      allow update: if (isOwner(g) || (can(g, 'rules')
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['rules', 'fanTable', 'fanTableLog', 'settle'])))
+        && (!request.resource.data.diff(resource.data).affectedKeys().hasAny(['variant', 'region']) || isSuperAdmin());
       // 刪除牌友圈：局主或者超級管理員（app 會先刪晒入面嘅大局同成員）
       allow delete: if isOwner(g);
 
@@ -135,7 +164,11 @@ service cloud.firestore {
         // 自己改自己個名同頭像，唔可以改邀請碼同自己嘅權限；局主淨係改得權限
         allow update: if (signedIn() && request.auth.uid == uid && photoOk(request.resource.data)
           && request.resource.data.inviteCode == resource.data.inviteCode
-          && !request.resource.data.diff(resource.data).affectedKeys().hasAny(['perms']))
+          && !request.resource.data.diff(resource.data).affectedKeys().hasAny(['perms'])
+          // 認領咗雀壇名之後：成員名一定要同 users 個名一樣（唔可以喺個別牌友圈偷偷改名）
+          && (!request.resource.data.diff(resource.data).affectedKeys().hasAny(['name'])
+            || get(/databases/$(database)/documents/users/$(uid)).data.get('nameKey', null) == null
+            || request.resource.data.name == get(/databases/$(database)/documents/users/$(uid)).data.get('name', '')))
           || (isOwner(g) && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['perms']));
         allow delete: if can(g, 'remove') || (signedIn() && request.auth.uid == uid);
       }
@@ -283,7 +316,7 @@ service cloud.firestore {
           allow read: if isMember(g);
           // 座位、擲骰、坐喺度嘅人：淨係坐喺度嘅人改得；換人邀請、隔籬枱對調、舊枱補資料例外
           allow update: if isMember(g) && (
-            !request.resource.data.diff(resource.data).affectedKeys().hasAny(['dice', 'seats', 'liveUsers', 'names', 'lastReq', 'lastPair'])
+            !request.resource.data.diff(resource.data).affectedKeys().hasAny(['dice', 'seats', 'liveUsers', 'names', 'lastReq', 'lastPair', 'waitRegroup', 'waitAt'])
             || canPlay(resource.data)
             || (request.resource.data.diff(resource.data).affectedKeys().hasOnly(['names', 'liveUsers', 'lastReq'])
               && request.resource.data.get('lastReq', '') is string && request.resource.data.get('lastReq', '') != ''

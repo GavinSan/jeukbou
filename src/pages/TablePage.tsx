@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import type { User } from 'firebase/auth';
 import TableScreen, { ledgerSegments } from '../components/TableScreen.tsx';
 import Incoming from '../components/Incoming.tsx';
-import { canDo, appendEvent, applySwap, cancelSwap, declineSettle, requestSwap, reseat, rollDice, fanTableOf, settleConfigOf, deleteTable, isGuest, backfillLiveUsers } from '../lib/data.ts';
+import { setTableWait, canDo, appendEvent, applySwap, cancelSwap, declineSettle, requestSwap, reseat, rollDice, fanTableOf, settleConfigOf, deleteTable, isGuest, backfillLiveUsers } from '../lib/data.ts';
 import { useSuperAdmin } from '../lib/admin.ts';
 import { pullAlert } from '../lib/fns.ts';
 import { go } from '../lib/router.tsx';
@@ -155,6 +155,18 @@ export default function TablePage({ user, groupId, sessionId, tableId }: { user:
       }}
       swapDirect={admin}
       tvHref={`/live/${groupId}/${sessionId}?t=${tableId}`}
+      regroupWait={(() => {
+        // 其他打緊嘅枱（未完場）、有幾多張等緊執位
+        const others = tables.data.filter((t) => t.id !== tableId && computed[t.id] && !computed[t.id]!.state.ended);
+        if (!others.length) return undefined;
+        return {
+          waiting: !!table?.waitRegroup,
+          othersOpen: others.length,
+          othersWaiting: others.filter((t) => t.waitRegroup).length,
+          onWait: (on: boolean) => setTableWait(groupId, sessionId, tableId, on),
+          regroupHref: `/g/${groupId}/s/${sessionId}#regroup`,
+        };
+      })()}
       onDice={async () => { await rollDice(groupId, sessionId, tableId, user.uid, (table.dice?.n ?? 0) + 1); }}
       onScan={admin ? async (file) => (await import('../lib/scan.ts')).scanHand(file, fanTableOf(group.data)) : undefined}
     />

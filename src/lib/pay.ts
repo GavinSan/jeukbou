@@ -1,6 +1,7 @@
 // 找數：由每個已埋數大局嘅轉賬快照，計出「我要俾邊個幾多」「邊個要俾我」，同邊幾筆未轉
 import { useEffect, useState } from 'react';
 import { collection, doc, getDoc, getDocs } from 'firebase/firestore';
+import type { PayMethod } from './payMethods.ts';
 import { fs, legacyMap, paidState, payKey, savePayout, settleConfigOf } from './data.ts';
 import { computePayout, loadTeams } from './settleLoad.ts';
 import { PAYOUT_VERSION } from './settle.ts';
@@ -44,6 +45,7 @@ export interface PayData {
   legacy: LegacyOwe[];
   names: Record<string, string>;
   emails: Record<string, string>;
+  pays: Record<string, PayMethod[]>;
 }
 
 const has = (key: string, uid: string) => key.split(' + ').includes(uid);
@@ -60,7 +62,7 @@ export function itemsOf(g: Pick<Group, 'id' | 'name' | 'settle'>, s: Session, ui
   }));
 }
 
-async function loadGroup(gid: string, uid: string, all = false): Promise<{ items: PayItem[]; legacy: LegacyOwe[]; names: Record<string, string>; emails: Record<string, string> } | null> {
+async function loadGroup(gid: string, uid: string, all = false): Promise<{ items: PayItem[]; legacy: LegacyOwe[]; names: Record<string, string>; emails: Record<string, string>; pays: Record<string, PayMethod[]> } | null> {
   const gSnap = await getDoc(doc(fs(), 'groups', gid));
   if (!gSnap.exists()) return null;
   const g = toGroupDoc(gSnap.id, gSnap.data());
@@ -69,7 +71,8 @@ async function loadGroup(gid: string, uid: string, all = false): Promise<{ items
   const sessions: Session[] = sSnap.docs.map((d) => toSessionDoc(d.id, d.data()));
   const names: Record<string, string> = {};
   const emails: Record<string, string> = {};
-  for (const m of members) { names[m.uid] = m.name; if (m.payEmail) emails[m.uid] = m.payEmail; }
+  const pays: Record<string, PayMethod[]> = {};
+  for (const m of members) { names[m.uid] = m.name; if (m.payEmail) emails[m.uid] = m.payEmail; if (m.pay?.length) pays[m.uid] = m.pay; }
   const items: PayItem[] = [];
   const legacy: LegacyOwe[] = [];
   const lmap = legacyMap(g, members);
@@ -96,24 +99,25 @@ async function loadGroup(gid: string, uid: string, all = false): Promise<{ items
       if (fan) legacy.push({ gid, gname: g.name, sid: s.id, sname: s.name, at: s.createdAt?.toMillis() ?? 0, fan, cash: Math.round((fan / perUnit) * 100) / 100 });
     }
   }
-  return { items, legacy, names, emails };
+  return { items, legacy, names, emails, pays };
 }
 
 export function useMyPay(uid: string | null, groupIds: string[], tick = 0): PayData {
-  const [state, setState] = useState<PayData>({ loading: true, items: [], legacy: [], names: {}, emails: {} });
+  const [state, setState] = useState<PayData>({ loading: true, items: [], legacy: [], names: {}, emails: {}, pays: {} });
   const key = `${uid}|${groupIds.join(',')}|${tick}`;
   useEffect(() => {
     if (!uid) return;
     let alive = true;
     Promise.all(groupIds.map((g) => loadGroup(g, uid).catch(() => null))).then((list) => {
       if (!alive) return;
-      const out: PayData = { loading: false, items: [], legacy: [], names: {}, emails: {} };
+      const out: PayData = { loading: false, items: [], legacy: [], names: {}, emails: {}, pays: {} };
       for (const x of list) {
         if (!x) continue;
         out.items.push(...x.items);
         out.legacy.push(...x.legacy);
         Object.assign(out.names, x.names);
         Object.assign(out.emails, x.emails);
+        Object.assign(out.pays, x.pays);
       }
       out.items.sort((a, b) => b.at - a.at);
       out.legacy.sort((a, b) => b.at - a.at);
@@ -127,13 +131,13 @@ export function useMyPay(uid: string | null, groupIds: string[], tick = 0): PayD
 
 /** 一個牌友圈所有已埋數大局嘅轉賬（包括其他人之間嘅） */
 export function useGroupPay(uid: string | null, gid: string, tick = 0): PayData {
-  const [state, setState] = useState<PayData>({ loading: true, items: [], legacy: [], names: {}, emails: {} });
+  const [state, setState] = useState<PayData>({ loading: true, items: [], legacy: [], names: {}, emails: {}, pays: {} });
   useEffect(() => {
     if (!uid) return;
     let alive = true;
     loadGroup(gid, uid, true).catch(() => null).then((x) => {
       if (!alive) return;
-      const out: PayData = { loading: false, items: x?.items ?? [], legacy: x?.legacy ?? [], names: x?.names ?? {}, emails: x?.emails ?? {} };
+      const out: PayData = { loading: false, items: x?.items ?? [], legacy: x?.legacy ?? [], names: x?.names ?? {}, emails: x?.emails ?? {}, pays: x?.pays ?? {} };
       out.items.sort((a, b) => b.at - a.at);
       setState(out);
     });

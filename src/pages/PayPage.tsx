@@ -1,6 +1,7 @@
 // 一個大局嘅轉賬詳情：每筆邊個俾邊個、收款 email、已轉未轉
 import { useEffect, useState } from 'react';
 import type { User } from 'firebase/auth';
+import type { PayMethod } from '../lib/payMethods.ts';
 import { markPaid, savePayout } from '../lib/data.ts';
 import type { Payout } from '../lib/data.ts';
 import { computePayout, loadTeams } from '../lib/settleLoad.ts';
@@ -46,8 +47,9 @@ export default function PayPage({ user, groupId, sessionId }: { user: User; grou
   const items = itemsOf(g, s, user.uid);
   const names: Record<string, string> = { ...(s.payout?.names ?? {}) };
   const emails: Record<string, string> = {};
-  for (const m of members.data) { names[m.uid] = m.name; if (m.payEmail) emails[m.uid] = m.payEmail; }
-  const pp = { me: user.uid, names, emails };
+  const pays: Record<string, PayMethod[]> = {};
+  for (const m of members.data) { names[m.uid] = m.name; if (m.payEmail) emails[m.uid] = m.payEmail; if (m.pay?.length) pays[m.uid] = m.pay; }
+  const pp = { me: user.uid, names, emails, pays };
   const mine = items.filter((x) => x.dir !== 'other');
   const myPay = mine.filter((x) => x.dir === 'pay' && !x.paid).reduce((a, x) => a + x.amount, 0);
   const myGet = mine.filter((x) => x.dir === 'get' && !x.paid).reduce((a, x) => a + x.amount, 0);

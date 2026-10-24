@@ -41,7 +41,7 @@ export interface SettleBuilt {
 
 /** 「全部人」：新紀錄有 all；舊紀錄揀晒全部玩家就當係全部人（之後加入嘅人都計埋） */
 export function isAllShare(e: ExpenseDoc, playerIds: string[]): boolean {
-  if (e.kind === 'transfer') return false;
+  if (e.kind === 'transfer' || e.kind === 'gift') return false;
   if (typeof e.all === 'boolean') return e.all;
   return playerIds.length > 0 && playerIds.every((id) => e.sharedBy.includes(id));
 }
@@ -56,7 +56,7 @@ export function attendeesOf(players: Person[], people: Person[], expenses: Expen
 }
 
 export function sharesOf(e: ExpenseDoc, playerIds: string[], attendees: string[]): string[] {
-  if (e.kind === 'transfer') return e.sharedBy;
+  if (e.kind === 'transfer' || e.kind === 'gift') return e.sharedBy;
   if (!isAllShare(e, playerIds)) return e.sharedBy;
   return [...new Set([...attendees, ...e.sharedBy])];
 }
@@ -73,7 +73,10 @@ export function buildSettle(x: SettleInputs): SettleBuilt {
   const skip = new Set(x.skipTeams ?? []);
   const defaults = x.teams.filter((t) => teamActive(t) && !skip.has(t.id)).map((t) => t.members);
   const activePairs = effectiveGroups(defaults, x.pairs.filter(pairActive).map((p) => [p.a, p.b]), [...attendees, x.cfg.waterTo]);
-  const expenses: Expense[] = x.expenses.map((e) => ({ label: e.label, payer: e.payer, amount: e.amount, sharedBy: shares[e.id] }));
+  // 請飲茶：payer 請 sharedBy[0] → 等於被請嗰個「墊咗」、請人嗰個要俾返佢
+  const expenses: Expense[] = x.expenses.map((e) => (e.kind === 'gift'
+    ? { label: e.label, payer: e.sharedBy[0] ?? e.payer, amount: e.amount, sharedBy: [e.payer] }
+    : { label: e.label, payer: e.payer, amount: e.amount, sharedBy: shares[e.id] }));
   try {
     const r = settleSession({
       fan: x.fan, water: x.water, waterTo: x.cfg.waterTo, perUnit: x.cfg.perUnit, rounding: x.cfg.rounding,

@@ -10,7 +10,9 @@ import { askNotify, notifySupported } from '../lib/notify.ts';
 import { pushConfigured, registerPush, unregisterPush } from '../lib/push.ts';
 import { signOut } from 'firebase/auth';
 import { auth } from '../firebase.ts';
-import { displayName, sendFeedback, setAvatar, setPayEmail, setProfileDetails, syncMemberName } from '../lib/data.ts';
+import { displayName, sendFeedback, setAvatar, setProfileDetails, syncMemberName } from '../lib/data.ts';
+import { methodsOf } from '../lib/payMethods.ts';
+import { Link } from '../lib/router.tsx';
 import { shrinkImage } from '../lib/scan.ts';
 import { clearSnapCache, useProfile } from '../lib/live.ts';
 import { toAvatar } from '../lib/avatar.ts';
@@ -56,7 +58,8 @@ export function ProfileHead({ name, email, photo, busy, onPick, right }: {
 }
 
 /** 個人資料：換頭像、移除頭像、改名（會同步去所有牌友圈） */
-export function ProfileEditor() {
+/** renameAllow：總共可以改幾多次（1 張免費 + 每升一個段位 1 張 + 每 10 個成就 1 張 + 超級管理員送嘅） */
+export function ProfileEditor({ renameAllow }: { renameAllow?: number } = {}) {
   const user = auth?.currentUser ?? null;
   const profile = useProfile(user?.uid ?? null);
   const [editing, setEditing] = useState(false);
@@ -89,6 +92,8 @@ export function ProfileEditor() {
         <NameForm
           user={user}
           initial={name}
+          tickets={profile.data.nameKey ? (renameAllow ?? 1) + (profile.data.renameGrants ?? 0) - (profile.data.renames ?? 0) : undefined}
+          ticketNote="每升一個段位、每拎 10 個成就送一張"
           onDone={() => {
             setEditing(false);
             setTick((t) => t + 1);
@@ -104,7 +109,11 @@ export function ProfileEditor() {
           {profile.data.avatar && <button type="button" className="textbtn" disabled={busy} onClick={() => ask({ title: '移除頭像', detail: '會改返用名嘅第一個字做頭像。', action: '移除', run: () => task(() => setAvatar(user, null, groups)) })}>移除頭像</button>}
         </div>
       )}
-      <PayEmailField key={profile.data.payEmail} initial={profile.data.payEmail} onSave={(v) => task(() => setPayEmail(user, v, groups))} busy={busy} />
+      <Link to="/settings/pay" className="listrow list pay-methods-row">
+        <span className="feedback-icon" aria-hidden="true">💳</span>
+        <span className="grow">收款資料<small className="muted" style={{ display: 'block' }}>{(() => { const l = methodsOf(profile.data.payMethods, profile.data.payEmail); return l.length ? `${l.length} 個方法・${l.filter((m) => m.show).length} 個顯示俾牌友` : '轉數快、PayMe、Interac、Zelle、PayPay…'; })()}</small></span>
+        <span className="chev" aria-hidden="true">›</span>
+      </Link>
       <DetailsFields
         key={`${profile.data.firstName}|${profile.data.lastName}|${profile.data.birthday}`}
         first={profile.data.firstName}
@@ -152,22 +161,6 @@ function DetailsFields({ first, last, birthday, busy, onSave }: {
   );
 }
 
-/** 收錢 email：同圈嘅人找數時會見到 */
-function PayEmailField({ initial, onSave, busy }: { initial: string; onSave: (v: string) => void; busy: boolean }) {
-  const [v, setV] = useState(initial);
-  const changed = v.trim() !== initial;
-  const ok = !v.trim() || /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v.trim());
-  return (
-    <label className="field">
-      <span>收款 Interac e-Transfer email</span>
-      <div className="row">
-        <input className="input grow" type="email" inputMode="email" autoComplete="email" value={v} onChange={(e) => setV(e.target.value)} placeholder="例如 you@example.com" />
-        {changed && <button type="button" className="btn small-btn" disabled={busy || !ok} onClick={() => onSave(v)}>儲存</button>}
-      </div>
-      <small className="muted">{ok ? '同牌友圈嘅人找數時會見到，方便轉賬。' : 'Email 格式唔啱'}</small>
-    </label>
-  );
-}
 
 /** 介面風格：十八款，每款自己定光暗。基本款跟段位解鎖；豪華款要超級管理員開通（未開通都睇得到，但用唔到） */
 export function SkinPicker({ access: forced }: { access?: SkinAccess }) {

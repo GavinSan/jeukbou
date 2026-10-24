@@ -21,6 +21,7 @@ const PlayersPage = lazyPage(() => import('./pages/PlayersPage.tsx'));
 const GroupsPage = lazyPage(() => import('./pages/Groups.tsx'));
 const RankPage = lazyPage(() => import('./pages/RankPage.tsx'));
 const SettingsPage = lazyPage(() => import('./pages/SettingsPage.tsx'));
+const PayMethodsPage = lazyPage(() => import('./pages/PayMethodsPage.tsx'));
 const MyPayPage = lazyPage(() => import('./pages/MyPayPage.tsx'));
 const PayPage = lazyPage(() => import('./pages/PayPage.tsx'));
 const LivePage = lazyPage(() => import('./pages/LivePage.tsx'));
@@ -44,6 +45,7 @@ function Routes({ user, refresh }: { user: User; refresh: () => void }) {
   if (path === '/groups') return <GroupsPage user={user} />;
   if (path === '/rank') return <RankPage user={user} />;
   if (path === '/settings') return <SettingsPage user={user} />;
+  if (path === '/settings/pay') return <PayMethodsPage user={user} />;
   if (path === '/pay') return <MyPayPage user={user} />;
   if ((m = match('/join/:g/:code/s/:s', path))) return <Join user={user} groupId={m.g} code={m.code} sessionId={m.s} />;
   if ((m = match('/join/:g/:code', path))) return <Join user={user} groupId={m.g} code={m.code} />;
