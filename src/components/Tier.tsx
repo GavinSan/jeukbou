@@ -118,3 +118,19 @@ export function BadgeCats({ badges, stats }: { badges: Badge[]; stats?: Stats })
     </div>
   );
 }
+
+/** 雀力排行（一個牌友圈）：名、場數、段位、雀力分 */
+export function PointsLadder({ rows, me, tierOf }: { rows: { id: string; name: string; points: number; played: number }[]; me: string; tierOf: (points: number) => { tier: Tier } }) {
+  return (
+    <ol className="list ladder points">
+      {rows.map((r, i) => (
+        <li key={r.id} className={r.id === me ? 'here' : ''}>
+          <span className="rank-dot">{i + 1}</span>
+          <span className="grow ellipsis">{r.name}<small className="muted">　{r.played} 次</small></span>
+          <TierChip tier={tierOf(r.points).tier} />
+          <b className="num">{r.points}</b>
+        </li>
+      ))}
+    </ol>
+  );
+}

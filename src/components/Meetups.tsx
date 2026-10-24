@@ -13,8 +13,10 @@ export const meetupWhen = (t: number) => {
   return `${d.getMonth() + 1}月${d.getDate()}日（${WEEK[d.getDay()]}）${time}`;
 };
 
-export function MeetupCard({ m, me, onRsvp, onDelete, canDelete, onPing, onEdit }: {
+export function MeetupCard({ m, me, onRsvp, onDelete, canDelete, onPing, onEdit, startHref }: {
   m: Meetup; me: string; canDelete: boolean;
+  /** 開枱：用應咗「去」嘅人直接開大局（座位已經填好，可以再改） */
+  startHref?: string;
   onRsvp: (status: 'going' | 'no') => Promise<void>; onDelete: () => Promise<void>;
   /** 開約局嗰個：改日子時間、地點、枱數、備註 */
   onEdit?: (patch: MeetupInput) => Promise<void>;
@@ -61,6 +63,9 @@ export function MeetupCard({ m, me, onRsvp, onDelete, canDelete, onPing, onEdit 
         </button>
       )}
       {note && <p className="small gain">{note}</p>}
+      {startHref && (mine === 'going' || canDelete) && n > 0 && (
+        <Link to={startHref} className="btn meetup-start" ariaLabel="用約局嘅人開枱">🀄 開枱{n >= 4 ? `（${Math.floor(n / 4)} 張）` : ''}<small>{n >= 4 ? '已經填好座位' : `得 ${n} 個，其他位可以揀人或者加訪客`}</small></Link>
+      )}
       <div className="meetup-foot">
         <small className="muted grow"><span className="meetup-host">局主：{nm(host)}</span>{host !== m.by && `（${m.byName || '開局嗰個'} 唔去咗，由${host === me ? '你' : '佢'}接手）`}</small>
         {/* 取消約局：開局嗰個喺「改」入面；局主、管理員就喺呢度（遠離「改」，唔會撳錯；撳咗仲會問多次） */}
@@ -125,8 +130,9 @@ export function MeetupSheet({ onSave, onClose, existing = [], initial, onDelete 
 }
 
 /** 牌友圈頁嘅約局區（純顯示，示範都用） */
-export function MeetupsView({ list, me, ownerOrAdmin, onCreate, onRsvp, onDelete, onPing, onEdit }: {
+export function MeetupsView({ list, me, ownerOrAdmin, onCreate, onRsvp, onDelete, onPing, onEdit, startHref }: {
   list: Meetup[]; me: string; ownerOrAdmin: boolean;
+  startHref?: (m: Meetup) => string;
   onCreate: (m: MeetupInput) => Promise<void>;
   onRsvp: (id: string, status: 'going' | 'no') => Promise<void>;
   onDelete: (id: string) => Promise<void>;
@@ -146,7 +152,7 @@ export function MeetupsView({ list, me, ownerOrAdmin, onCreate, onRsvp, onDelete
         <button type="button" className="textbtn" onClick={() => setOpen(true)}>＋ 約局</button>
       </div>
       {list.length ? list.map((m) => (
-        <MeetupCard key={m.id} m={m} me={me} canDelete={ownerOrAdmin || meetupHost(m) === me} onRsvp={(s) => onRsvp(m.id, s)} onDelete={() => onDelete(m.id)} onPing={onPing && (() => onPing(m.id))} onEdit={onEdit && m.by === me ? (patch) => onEdit(m.id, patch) : undefined} />
+        <MeetupCard key={m.id} m={m} me={me} canDelete={ownerOrAdmin || meetupHost(m) === me} onRsvp={(s) => onRsvp(m.id, s)} onDelete={() => onDelete(m.id)} onPing={onPing && (() => onPing(m.id))} onEdit={onEdit && m.by === me ? (patch) => onEdit(m.id, patch) : undefined} startHref={startHref?.(m)} />
       )) : <button type="button" className="meetup-empty" onClick={() => setOpen(true)}>未有約局。約定日子時間，等大家揀「去」定「唔去」，夠腳就知；人多可以開幾張枱。</button>}
       {open && <MeetupSheet onSave={onCreate} onClose={() => setOpen(false)} existing={list} />}
     </section>

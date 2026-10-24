@@ -1,4 +1,4 @@
-// 首頁：自己嘅戰績（段位、雀力分、場數、勝率、走勢、最近幾場、成就）
+// 首頁：段位、Live、約局、打牌日曆、每月輸贏、走勢、最近幾場（數據同成就喺段位頁）
 import { HomeMeetups } from '../components/Meetups.tsx';
 import { InstallCard, NotifyCard } from '../components/InstallGuide.tsx';
 import { useCallback, useState } from 'react';
@@ -12,7 +12,7 @@ import { navContext } from '../lib/nav.ts';
 import { TIERS, badgesOf, sessionPoints, statsOf, tierOf, useMyHistory, useTierSync } from '../lib/stats.ts';
 import type { MySession } from '../lib/stats.ts';
 import LiveNow from '../components/LiveHome.tsx';
-import { BadgeTile, CountUp, Progress, Ring, TierTile } from '../components/Tier.tsx';
+import { CountUp, Progress, TierTile } from '../components/Tier.tsx';
 import { TrendChart } from '../components/Charts.tsx';
 
 const Chevron = () => (
@@ -128,7 +128,6 @@ function MonthBars({ months }: { months: { label: string; total: number; played:
     </div>
   );
 }
-const signed = (n: number) => fmt(Math.round(n));
 
 /** 上次去開嘅大局（未埋數先顯示） */
 function Resume({ g, s, t }: { g: string; s: string; t?: string }) {
@@ -158,11 +157,6 @@ export function DashboardView({ name, photo, joined, groupCount, mine, loading, 
   const t = tierOf(st.points);
   const badges = badgesOf(st);
   const got = badges.filter((b) => b.got);
-  // 每類攞最高級嗰個已拎到嘅，再加最就快拎到嘅
-  const topGot = Object.values(got.reduce((acc, b) => { if (!acc[b.cat] || b.level > acc[b.cat].level) acc[b.cat] = b; return acc; }, {} as Record<string, typeof got[number]>))
-    .sort((a, b) => b.level - a.level);
-  const nextBadges = badges.filter((b) => !b.got).sort((a, b) => b.progress - a.progress);
-  const preview = [...topGot.slice(0, 4), ...nextBadges.slice(0, 4)].slice(0, 8);
   const recent = [...mine].reverse().slice(0, 5);
 
   return (
@@ -204,29 +198,6 @@ export function DashboardView({ name, photo, joined, groupCount, mine, loading, 
         </section>
       ) : (
         <>
-          <section className="tiles">
-            <div className="tile-stat">
-              <small>{st.rounds ? '打咗幾多圈' : '大局'}</small>
-              <b className="num"><CountUp value={st.rounds || st.played} />{st.rounds ? <small className="unit"> 圈</small> : null}</b>
-              <span className="muted small">{st.played} 次大局 · 近 30 日 {st.month} 次</span>
-            </div>
-            <div className="tile-stat ring-tile">
-              <Ring value={st.winRate} label={`勝率 ${Math.round(st.winRate * 100)}%`} />
-              <span className="ring-text"><b className="num"><CountUp value={st.winRate * 100} format={(n) => `${Math.round(n)}%`} /></b><small>勝率</small></span>
-              <span className="muted small">贏 {st.wins} · 輸 {st.losses}</span>
-            </div>
-            <div className="tile-stat">
-              <small>總番數</small>
-              <b className={`num ${st.total > 0 ? 'gain' : st.total < 0 ? 'loss' : ''}`}><CountUp value={st.total} format={signed} /></b>
-              <span className="muted small">{st.rounds ? `平均每圈 ${st.total / st.rounds > 0 ? '+' : ''}${(st.total / st.rounds).toFixed(1)}` : `平均每次 ${fmt(st.avg)}`}</span>
-            </div>
-            <div className="tile-stat">
-              <small>最好一次</small>
-              <b className="num gain"><CountUp value={st.best} format={signed} /></b>
-              <span className="muted small">龍頭 {st.tops} 次 · 最長連贏 {st.bestStreak}</span>
-            </div>
-          </section>
-
           <section className="stack">
             <h2 className="section-head">打牌日曆</h2>
             <div className="list pad"><MonthCalendar mine={mine} sessionHref={sessionHref} /></div>
@@ -237,26 +208,10 @@ export function DashboardView({ name, photo, joined, groupCount, mine, loading, 
             <div className="list pad"><MonthBars months={st.months} /></div>
           </section>
 
-          {st.detailed > 0 && (
-            <section className="stack">
-              <h2 className="section-head">數據</h2>
-              <div className="my-stats">
-                <div className="ms ms-gold"><span className="ms-mark">食</span><b className="num"><CountUp value={st.handWins} /></b><small>食糊</small></div>
-                <div className="ms ms-green"><span className="ms-mark">摸</span><b className="num"><CountUp value={st.selfDraws} /></b><small>自摸</small></div>
-                <div className="ms ms-red"><span className="ms-mark">銃</span><b className="num"><CountUp value={st.dealIns} /></b><small>出銃</small></div>
-                <div className="ms ms-purple"><span className="ms-mark">大</span><b className="num"><CountUp value={st.bestFan} /></b><small>最大一鋪</small></div>
-              </div>
-              {st.rounds > 0 && <p className="muted small">每圈平均：食糊 {(st.handWins / st.rounds).toFixed(1)} 次・自摸 {(st.selfDraws / st.rounds).toFixed(1)} 次・出銃 {(st.dealIns / st.rounds).toFixed(1)} 次（共 {st.rounds} 圈）</p>}
-            </section>
-          )}
-
-          <section className="stack">
-            <div className="section-head">
-              <h2>成就</h2>
-              <Link to={`${rankHref}#badges`} className="textbtn">已解鎖 {got.length} 個 ›</Link>
-            </div>
-            <div className="badge-row">{preview.map((b) => <BadgeTile key={b.key} b={b} href={`${rankHref}#badge-${b.cat}`} />)}</div>
-          </section>
+          <Link to={rankHref} className="listrow list dash-more">
+            <span className="grow"><b>數據同成就</b><small className="muted">食糊、自摸、勝率、已解鎖 {got.length} 個成就</small></span>
+            <Chevron />
+          </Link>
 
           {st.curve.length > 2 && (
             <section className="stack">
@@ -317,7 +272,7 @@ function ProfileNudge({ uid, profile }: { uid: string; profile: { payEmail: stri
 
 function joinedText(user: User): string {
   const t = user.metadata.creationTime ? new Date(user.metadata.creationTime) : null;
-  return t ? `${t.getFullYear()}年${t.getMonth() + 1}月加入` : '雀簿玩家';
+  return t ? `${t.getFullYear()}年${t.getMonth() + 1}月加入` : '玩家';
 }
 
 export default function Home({ user }: { user: User; refresh?: () => void }) {

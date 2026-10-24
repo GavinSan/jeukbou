@@ -1571,7 +1571,7 @@ a.link-card { text-decoration: none; }
 .king-tag.self { background: linear-gradient(135deg, #2F9A6B, #1C6B48); }
 .king-tag::after { content: ''; position: absolute; inset: 0; background: linear-gradient(110deg, transparent 30%, rgba(255,255,255,.6) 50%, transparent 70%); transform: translateX(-120%); animation: kingShine 3.2s ease-in-out infinite; }
 @keyframes kingShine { 0%, 60% { transform: translateX(-120%); } 85%, 100% { transform: translateX(120%); } }
-.fact.quick { background: color-mix(in srgb, var(--tile-loss) 14%, var(--sunk)); color: var(--tile-loss); font-weight: 700; }
+.fact.qk { background: color-mix(in srgb, var(--tile-loss) 14%, var(--sunk)); color: var(--tile-loss); font-weight: 700; }
 .awards.compact { grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); }
 .awards.compact .award { padding: 8px 10px; gap: 8px; }
 .awards.compact .award-mark { width: 28px; height: 36px; font-size: 18px; }
@@ -2704,7 +2704,7 @@ input, textarea, [contenteditable="true"], .selectable { -webkit-user-select: te
 /* 揀風格：每張卡一樣高；說明一行，太長就「…」 */
 .skin-pick .skin-card { min-width: 0; }
 .skin-pick .skin-card b { display: flex; align-items: center; gap: 2px; min-width: 0; white-space: nowrap; }
-.skin-pick .skin-card small { display: block; width: 100%; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.skin-pick .skin-card small { display: block; width: 100%; white-space: normal; overflow-wrap: anywhere; line-height: 1.35; }
 .skin-card.locked { cursor: not-allowed; }
 .skin-card.locked .skin-sw, .skin-card.locked b { opacity: .55; }
 .skin-card.locked:not(.premium) { filter: grayscale(.35); }
@@ -2890,3 +2890,94 @@ body.entering .page { padding-bottom: calc(66vh + 24px); }
 @media (max-aspect-ratio: 1/1) { .tv-chat-float { max-width: calc(100vw - 32px); } }
 .tile .t-name-text { line-height: 1.25; padding-bottom: 1px; }
 .tile .t-name { flex-shrink: 0; }
+
+/* ---------- Round 22：牌內排位 ----------
+   名 → 籌碼（被拉先有）→ 分數 → 拉／被拉 tag（貼底，多幾個會自己轉行）；門風喺右上角。
+   長名自動細字；同一張枱四隻牌一樣高，唔會有隻高有隻矮。 */
+.tile .t-wind { position: absolute; top: 9px; right: 10px; margin: 0; font-family: var(--font-kai); font-weight: 700; color: var(--tile-muted); font-size: 14px; line-height: 1.2; }
+.tile .t-name { padding-right: 18px; }
+.tile .t-name.long { font-size: 13.5px; }
+.tile .t-name.xlong { font-size: 12px; }
+.tile .t-chips { display: flex; align-items: center; gap: 4px; min-height: 16px; font-family: var(--font-num); font-weight: 600; font-size: 13px; line-height: 1; }
+.tile .t-chips .chips { transform: scale(.82); transform-origin: left center; margin-right: -4px; }
+.tile .t-tags { display: flex; flex-wrap: wrap; gap: 3px 4px; margin-top: auto; padding-top: 2px; }
+.tile .t-la { display: inline-flex; align-items: center; gap: 2px; }
+.tile .t-la b { font-family: var(--font-num); font-weight: 700; }
+.tile .tv-dealer-mark { top: -9px; right: -6px; }
+.felt { grid-template-rows: repeat(3, 1fr); }
+.felt > .tile { min-height: 92px; }
+
+/* 圈風牌：正方形、少少立體；擺喺起莊嗰個人右手邊嘅角（向住枱中間），唔會撞到骰 */
+.wind-cube { position: relative; width: 34px; height: 34px; border-radius: 7px; background: linear-gradient(145deg, color-mix(in srgb, var(--tile) 100%, #fff 0%), color-mix(in srgb, var(--tile) 88%, #000)); color: var(--tile-ink);
+  display: inline-flex; align-items: center; justify-content: center; flex: none;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, .7), 3px 3px 0 var(--tile-back), 5px 5px 0 var(--tile-back-deep), 6px 9px 12px rgba(0, 0, 0, .35); }
+.wind-cube b { font-family: var(--font-kai); font-weight: 800; font-size: 20px; line-height: 1; }
+.wind-cube::after { content: ''; position: absolute; inset: 3px; border-radius: 5px; border: 1px solid color-mix(in srgb, var(--tile-ink) 14%, transparent); pointer-events: none; }
+.wind-cube.sm { width: 26px; height: 26px; border-radius: 6px; box-shadow: inset 0 1px 0 rgba(255, 255, 255, .7), 2px 2px 0 var(--tile-back), 3px 3px 0 var(--tile-back-deep), 4px 6px 8px rgba(0, 0, 0, .35); }
+.wind-cube.sm b { font-size: 16px; }
+.felt > .wind-cube { z-index: 1; margin: 2px 6px; }
+.felt > .wind-cube.at-br { grid-column: 3; grid-row: 3; justify-self: start; align-self: start; }
+.felt > .wind-cube.at-tr { grid-column: 3; grid-row: 1; justify-self: start; align-self: end; }
+.felt > .wind-cube.at-tl { grid-column: 1; grid-row: 1; justify-self: end; align-self: end; }
+.felt > .wind-cube.at-bl { grid-column: 1; grid-row: 3; justify-self: end; align-self: start; }
+
+/* 電視：四隻牌塞滿綠絨（2×2），資料喺枱上面 */
+.tv-felt-wrap { display: flex; flex-direction: column; gap: 6px; }
+.tv-felt-info { height: 30px; display: flex; align-items: center; gap: 8px; padding: 0 4px; color: #EAF2EE; white-space: nowrap; overflow: hidden; }
+.tv-felt-name { font-size: 17px; font-family: var(--font-kai); }
+.tv-felt-meta { font-size: 14px; opacity: .85; overflow: hidden; text-overflow: ellipsis; }
+.tv-felt-water { margin-left: auto; font-size: 13px; opacity: .65; }
+.tv-felt.quad { height: 340px !important; padding: 10px !important; gap: 10px !important; grid-template-columns: repeat(2, minmax(0, 1fr)) !important; grid-template-rows: repeat(2, minmax(0, 1fr)) !important; }
+.tv-felt.quad .tile { height: auto; min-height: 0; padding: 10px 12px; gap: 4px; justify-content: flex-start; }
+.tv-felt.quad .q-tl { grid-column: 1; grid-row: 1; } .tv-felt.quad .q-tr { grid-column: 2; grid-row: 1; }
+.tv-felt.quad .q-br { grid-column: 2; grid-row: 2; } .tv-felt.quad .q-bl { grid-column: 1; grid-row: 2; }
+.tv-felt.quad .t-name { font-size: 20px; padding-right: 24px; }
+.tv-felt.quad .t-name.long { font-size: 16px; }
+.tv-felt.quad .t-name.xlong { font-size: 14px; }
+.tv-felt.quad .t-wind { font-size: 18px; top: 10px; right: 12px; }
+.tv-felt.quad .t-score { font-size: 40px; margin-top: 2px; }
+.tv-felt.quad .t-chips { font-size: 15px; }
+.tv-felt.quad .t-chips .chips { transform: none; margin-right: 0; }
+.tv-felt.quad .t-la { font-size: 13px; line-height: 20px; padding: 0 6px; }
+.tv-felt.quad .float { font-size: 30px; }
+
+/* Live round 3：風格跟揀咗嘅 skin；留言淡出；直播室收埋掣 */
+.tv.airplay { background: radial-gradient(130% 100% at 50% 0%, color-mix(in srgb, var(--felt-deep) 55%, #070A09) 0%, color-mix(in srgb, var(--felt-deep) 18%, #040605) 75%) !important; }
+.tv-chat-float { max-height: calc(3 * 1.35 * clamp(13px, 1.6vw, 20px) + 6px); overflow: hidden; justify-content: flex-end; }
+.tv-chat-float p, .tv-chat-float p:nth-last-child(2), .tv-chat-float p:nth-last-child(3) { opacity: 1; transition: opacity 2.4s ease; flex: none; }
+.tv-chat-float p.out { opacity: 0; }
+.tv-chat-top { display: flex; align-items: center; gap: 8px; }
+.tv-chat-top .textbtn { color: #93A69D; }
+.tv-theme { gap: 10px; }
+.tv-skins { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 6px; }
+.tv-skin { display: flex; flex-direction: column; align-items: flex-start; gap: 4px; padding: 8px; border-radius: 10px; border: 1.5px solid var(--tv-line); background: #0B1210; color: inherit; font: inherit; text-align: left; cursor: pointer; }
+.tv-skin b { font-size: 13px; }
+.tv-skin.on { border-color: #5FD48F; background: color-mix(in srgb, #5FD48F 16%, #0B1210); }
+.tv-skin.locked { opacity: .45; cursor: not-allowed; }
+.tv-skin .skin-sw i { width: 14px; height: 14px; border-radius: 4px; display: inline-block; }
+.tv-skin-app { height: 16px; padding: 0 6px; border-radius: 4px; font-size: 10px; font-weight: 700; line-height: 16px; background: #22342D; color: #93A69D; }
+/* 主頁 Live：名太長就 …，莊 tag 放喺分數隔籬，唔會爆出格 */
+.live-score { width: 100%; }
+.live-name { display: flex; align-items: center; min-width: 0; max-width: 100%; }
+.live-name .ellipsis { min-width: 0; }
+.live-v { display: flex; align-items: center; gap: 4px; min-width: 0; max-width: 100%; }
+.live-v .live-dealer { margin-left: 0; white-space: nowrap; }
+/* 約局：開枱 */
+.meetup-start { display: flex; flex-direction: column; align-items: center; gap: 2px; text-align: center; }
+.meetup-start small { font-size: 12px; font-weight: 500; opacity: .85; }
+.topbar-spacer { width: 44px; flex: none; }
+/* 段位頁：其他段位撳先展開；點樣攞分＝最底一張說明卡（虛線、淡色，同上面唔同） */
+.tier-ladder li.tier-more { min-height: 0; padding: 4px 16px; justify-content: center; background: none; }
+.tier-ladder li.tier-more .textbtn { font-size: 14px; }
+.how-points { border: 1.5px dashed var(--line); border-radius: 16px; background: color-mix(in srgb, var(--sunk) 60%, transparent); overflow: hidden; }
+.how-points-head { width: 100%; display: flex; align-items: center; gap: 12px; padding: 12px 14px; border: none; background: none; color: var(--ink); font: inherit; text-align: left; cursor: pointer; }
+.how-points-head b { display: block; font-size: 15px; }
+.how-points-head small { display: block; color: var(--muted); font-size: 12.5px; margin-top: 2px; }
+.how-points-icon { width: 28px; height: 28px; border-radius: 50%; flex: none; display: inline-flex; align-items: center; justify-content: center; background: var(--tile); color: var(--tile-ink); font-family: var(--font-kai); font-weight: 800; box-shadow: 0 2px 0 var(--tile-back); }
+.how-points .chev { color: var(--muted); }
+.how-points-list { margin: 0; padding: 0 14px 12px; display: grid; gap: 0; }
+.how-points-list > div { display: flex; justify-content: space-between; gap: 10px; padding: 7px 0; border-top: 1px dashed var(--line); font-size: 14px; }
+.how-points-list dt { color: var(--ink); }
+.how-points-list dd { margin: 0; font-weight: 700; white-space: nowrap; }
+.dash-more small { display: block; }
+.tile.is-dealer .t-wind { top: 14px; }

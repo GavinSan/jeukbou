@@ -1,15 +1,14 @@
-// 電視（AirPlay）用嘅枱面：同枱頁一模一樣嘅綠絨布同四隻牌（東下、南右、西上、北左），
+// 電視（AirPlay）用嘅枱面：綠絨布，四隻牌順時針塞滿四個角（左上東、右上南、右下西、左下北），
 // 淨係睇唔撳；分數一變就飄「+N」。ScaleFit 將佢放大縮細塞滿個格（幾多張枱都一版睇晒）。
+// TileBody／WindCube 枱頁都用。
 import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import type { CSSProperties, ReactNode } from 'react';
 import type { Computed } from '../lib/score.ts';
 import { seatWind } from '../engine/table.ts';
-import { Chips, RollingNumber, fmt } from '../ui.tsx';
+import { Chips, RollingNumber, fmt, tone } from '../ui.tsx';
 
-const SPOTS = ['s-bottom', 's-right', 's-top', 's-left'];
 const WIND = ['東', '南', '西', '北'];
 const CN = ['零', '一', '二', '三', '四', '五', '六', '七', '八', '九', '十'];
-const tone = (n: number) => (n > 0 ? 'gain' : n < 0 ? 'loss' : 'even');
 
 /** 分數變咗就記低差額，幾秒後消失 */
 function useDeltas(values: Record<string, number>) {
@@ -31,10 +30,45 @@ function useDeltas(values: Record<string, number>) {
   return fx;
 }
 
-export function TvFelt({ c, names, title, me }: { c: Computed; names: Record<string, string>; title?: string; me?: string | null }) {
-  const name = (id: string) => names[id] ?? '玩家';
-  const seats = c.state.seats;
-  const ended = c.state.ended;
+/** 名嘅闊度（中文字當兩格）：長名細字，唔好逼爆個格 */
+export function nameCls(nm: string): string {
+  let w = 0;
+  for (const ch of nm) w += /[\u2e80-\uffff]/.test(ch) ? 2 : 1;
+  return w > 14 ? ' xlong' : w > 9 ? ' long' : '';
+}
+
+/** 起莊嗰個位（東圈東位）：圈風牌擺喺佢前面，打完四圈換位先郁 */
+export const startSeatOf = (st: { dealerSeat: number; dealerTurns: number }) => (((st.dealerSeat - st.dealerTurns) % 4) + 4) % 4;
+
+/** 圈風牌：正方形、少少立體 */
+export function WindCube({ wind, className = '' }: { wind: string; className?: string }) {
+  return <span className={`wind-cube ${className}`} aria-label={`${wind}圈`}><b>{wind}</b></span>;
+}
+
+/** 牌入面嘅內容（枱頁、電視共用）：名 → 籌碼 → 分數 → 拉／被拉 tag；門風喺右上角 */
+export function TileBody({ name, settled, owe, collect, pulledLabel, pulling, wind, pop, score }: {
+  name: string; settled: number; owe?: number; collect?: number; pulledLabel: string; pulling: number; wind: string; pop?: boolean;
+  /** 想用其他方式顯示分數（例如 RollingNumber 以外） */
+  score?: ReactNode;
+}) {
+  return (
+    <>
+      <span className="t-wind">{wind}</span>
+      <span className={`t-name${nameCls(name)}`}><span className="t-name-text">{name}</span></span>
+      {owe ? <span className="t-chips"><Chips key={`c${owe}`} amount={owe} pop={pop} /><RollingNumber value={-owe} className="t-loss" /></span> : null}
+      {score ?? <RollingNumber value={settled} className={`t-score t-${tone(settled)}`} />}
+      {owe || collect ? (
+        <span className="t-tags">
+          {owe ? <span className="t-la loss" title="被拉緊第幾拉">{pulledLabel}</span> : null}
+          {collect ? <span className="t-la gain" title="拉緊幾多家"><b className="num">+{collect}</b>拉{pulling}家</span> : null}
+        </span>
+      ) : null}
+    </>
+  );
+}
+
+/** 拉／被拉數據 */
+export function chainInfo(c: Computed) {
   const owe: Record<string, number> = {};
   const collect: Record<string, number> = {};
   for (const ch of c.state.chains) {
@@ -43,34 +77,39 @@ export function TvFelt({ c, names, title, me }: { c: Computed; names: Record<str
   }
   const pulling = (id: string) => c.state.chains.filter((ch) => ch.puller === id).length;
   const pulledLabel = (id: string) => `被拉${c.state.chains.filter((ch) => ch.pulled === id).map((ch) => CN[ch.count] ?? ch.count).join('・')}`;
+  return { owe, collect, pulling, pulledLabel };
+}
+
+// 電視：順時針，左上東（起莊）、右上南、右下西、左下北；四隻牌塞滿綠絨，枱名、圈、位、鋪數放上面
+const QUADS = ['q-tl', 'q-tr', 'q-br', 'q-bl'];
+
+export function TvFelt({ c, names, title, me }: { c: Computed; names: Record<string, string>; title?: string; me?: string | null }) {
+  const name = (id: string) => names[id] ?? '玩家';
+  const seats = c.state.seats;
+  const ended = c.state.ended;
+  const { owe, collect, pulling, pulledLabel } = chainInfo(c);
   const fx = useDeltas(Object.fromEntries(seats.map((id) => [id, (c.state.settled[id] ?? 0) + (c.pending[id] ?? 0)])));
+  const s0 = startSeatOf(c.state);
   return (
     <div className="tv-felt-wrap">
-      <div className="tv-felt-title">{title ?? '\u00a0'}</div>
-      <section className="felt tv-felt" aria-label={title ?? '枱面'}>
+      <div className="tv-felt-info">
+        <WindCube wind={ended ? '完' : c.info.roundWind} className="sm" />
+        {title && <b className="tv-felt-name">{title}</b>}
+        <span className="tv-felt-meta">{ended ? '已完場' : `${c.info.roundWind}圈${WIND[c.state.dealerTurns % 4]}位・第 ${c.info.hand} 鋪`}</span>
+        <span className="tv-felt-water">水 {c.state.water}</span>
+      </div>
+      <section className="felt tv-felt quad" aria-label={title ?? '枱面'}>
         {seats.map((id, i) => {
           const settled = c.state.settled[id] ?? 0;
           const isDealer = c.info.dealer === id && !ended;
-          const nm = name(id);
           return (
-            <div key={id} className={`tile ${SPOTS[i]}${isDealer ? ' is-dealer' : ''}${id === me ? ' is-me' : ''}`}>
+            <div key={id} className={`tile ${QUADS[(i - s0 + 4) % 4]}${isDealer ? ' is-dealer' : ''}${id === me ? ' is-me' : ''}`}>
               {isDealer && <span className="dealer-mark tv-dealer-mark">莊{c.state.streak ? c.state.streak : ''}</span>}
-              <span className={`t-name${nm.length > 6 ? ' long' : ''}`}><span className="t-name-text">{nm}</span></span>
-              <RollingNumber value={settled} className={`t-score t-${tone(settled)}`} />
-              <span className="t-foot">
-                {owe[id] ? <><Chips amount={owe[id]} /><RollingNumber value={-owe[id]} className="t-loss" /><span className="t-la loss">{pulledLabel(id)}</span></> : null}
-                {collect[id] ? <><RollingNumber value={collect[id]} className="t-gain" /><span className="t-la gain">拉{pulling(id)}家</span></> : null}
-                <span className="t-wind">{seatWind(c.state, id)}</span>
-              </span>
+              <TileBody name={name(id)} settled={settled} owe={owe[id]} collect={collect[id]} pulledLabel={pulledLabel(id)} pulling={pulling(id)} wind={seatWind(c.state, id)} />
               {fx.d[id] ? <span key={`f${fx.key}`} className={`float ${fx.d[id] > 0 ? 'gain' : 'loss'}`}>{fmt(fx.d[id])}</span> : null}
             </div>
           );
         })}
-        <div className="felt-center">
-          <span className="wind-tile">{ended ? '完' : c.info.roundWind}</span>
-          <span className="small">{ended ? '已完場' : `${WIND[c.state.dealerTurns % 4]}位 · 第 ${c.info.hand} 鋪`}</span>
-          <span className="felt-water">水 {c.state.water}</span>
-        </div>
       </section>
     </div>
   );

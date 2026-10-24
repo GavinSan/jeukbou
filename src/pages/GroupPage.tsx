@@ -19,7 +19,7 @@ import { boardRows, useHistory } from '../lib/history.ts';
 import type { SessionResult } from '../lib/history.ts';
 import { money } from '../components/SettleScreen.tsx';
 import { PlayerSheet } from '../components/BoardView.tsx';
-import { TierChip } from '../components/Tier.tsx';
+import { PointsLadder, TierChip } from '../components/Tier.tsx';
 import { pointsFor, tierOf } from '../lib/stats.ts';
 
 const MODES: { key: JoinMode; label: string; note: string }[] = [
@@ -336,6 +336,14 @@ const lastTxt = (t: number) => {
 };
 
 /** 每個人喺呢堆大局入面：場數、總數、雀力分、最近一次 */
+/** 雀力排行：呢個牌友圈每個打過嘅人（連訪客、舊紀錄），按雀力分排 */
+export function ladderOf(sessions: SessionResult[], nameOf: (id: string) => string) {
+  const ids = new Set(sessions.flatMap((x) => Object.keys(x.totals)));
+  return [...ids]
+    .map((id) => ({ id, name: nameOf(id), points: pointsFor(id, sessions), played: sessions.filter((x) => id in x.totals).length }))
+    .sort((a, b) => b.points - a.points);
+}
+
 export function memberStatsOf(sessions: { at: number; totals: Record<string, number> }[], points: (id: string) => number): Record<string, MemberStat> {
   const out: Record<string, MemberStat> = {};
   for (const s of sessions) {
@@ -419,6 +427,7 @@ export default function GroupPage({ user, groupId }: { user: User; groupId: stri
   const canRemove = canDo(g, meM, user.uid, admin, 'remove');
   const canRecords = canDo(g, meM, user.uid, admin, 'records');
   const memberStats = memberStatsOf(history.sessions, (id) => pointsFor(id, history.sessions));
+  const ladder = ladderOf(history.sessions, (id) => memberNames[id] ?? history.names[id] ?? '玩家');
 
   return (
     <main className="page">
@@ -461,6 +470,7 @@ export default function GroupPage({ user, groupId }: { user: User; groupId: stri
         onRsvp={(id, st) => rsvpMeetup(groupId, id, user, st)}
         onDelete={(id) => deleteMeetup(groupId, id)}
         onEdit={(id, patch) => updateMeetup(groupId, id, patch)}
+        startHref={(m) => `/g/${groupId}/new?m=${m.id}`}
         onPing={async (id) => {
           const r = await pingMeetup(groupId, id);
           if (!r.people) return '全部人都應咗（去或者唔去），冇人要問';
@@ -524,6 +534,13 @@ export default function GroupPage({ user, groupId }: { user: User; groupId: stri
         </section>
       )}
 
+
+      {ladder.length > 0 && (
+        <section className="stack">
+          <h2 className="section-head">雀力排行</h2>
+          <PointsLadder rows={ladder} me={user.uid} tierOf={tierOf} />
+        </section>
+      )}
 
       <Birthdays members={members.data} />
 

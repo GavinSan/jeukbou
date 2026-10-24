@@ -77,6 +77,8 @@ export function RollingNumber({ value, className }: { value: number; className?:
 }
 
 export function TopBar({ back, title, right }: { back?: string; title?: ReactNode; right?: ReactNode }) {
+  // App 入面唔再顯示「雀簿」字同個雀 icon：冇返回、冇標題就唔使頂部條
+  if (!back && !title && !right) return null;
   return (
     <header className="topbar">
       {back ? (
@@ -84,7 +86,7 @@ export function TopBar({ back, title, right }: { back?: string; title?: ReactNod
           <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" aria-hidden="true"><path d="M15 6l-6 6 6 6" /></svg>
         </Link>
       ) : (
-        <Link to="/" className="brand"><Logo /><span className="brand-name">雀簿</span></Link>
+        <span className="topbar-spacer" aria-hidden="true" />
       )}
       <div className="topbar-title">{typeof title === 'string' ? <h1>{title}</h1> : title}</div>
       <div className="topbar-right">{right}</div>

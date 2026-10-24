@@ -271,7 +271,7 @@ export default function SessionScreen({ title, back, tables, computed, tableHref
                   {c.state.dealerTurns > 0 && <span className="fact"><b>{String(Math.round((c.state.dealerTurns / 4) * 100) / 100)}</b> 圈</span>}
                   <span className="fact"><b>{c.stats.hands}</b> 鋪</span>
                   {paceOf(c.stats.roundMs) && <span className="fact">速度 <b>{paceOf(c.stats.roundMs)}</b></span>}
-                  {quickTags(c).map((q, i) => <span key={q + i} className="fact quick">{q}</span>)}
+                  {quickTags(c).map((q, i) => <span key={q + i} className="fact qk">{q}</span>)}
                   {c.stats.biggest && <span className="fact">最大 <b>{c.stats.biggest.fan}</b> 番（{name(c.stats.biggest.player)}）</span>}
                   {c.stats.selfDraws > 0 && <span className="fact">自摸 <b>{c.stats.selfDraws}</b></span>}
                   <span className="fact">水 <b>{c.state.water}</b></span>

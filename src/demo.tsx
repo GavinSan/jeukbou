@@ -38,10 +38,11 @@ import { Sheet } from './ui.tsx';
 import { LiveCardView } from './components/LiveHome.tsx';
 import type { ChatMsg } from './lib/live.ts';
 import type { PayItem } from './lib/pay.ts';
-import { Invite, JoinRequestsView, MemberList, memberStatsOf } from './pages/GroupPage.tsx';
+import { Invite, JoinRequestsView, MemberList, ladderOf, memberStatsOf } from './pages/GroupPage.tsx';
+import { PointsLadder } from './components/Tier.tsx';
 import type { MemberStat } from './pages/GroupPage.tsx';
 import { PlayerSheet } from './components/BoardView.tsx';
-import { mySessions, pointsFor } from './lib/stats.ts';
+import { mySessions, pointsFor, tierOf } from './lib/stats.ts';
 import type { GroupResults } from './lib/stats.ts';
 import TeamsEditor from './components/Teams.tsx';
 import { NoticeBar } from './components/Watch.tsx';
@@ -246,7 +247,6 @@ export default function Demo() {
     b: OTHER_LIVE.b.chat,
     c: OTHER_LIVE.c.chat,
   }));
-  const [demoMusic, setDemoMusic] = useState<Record<string, string>>({});
   const [groupSheet, setGroupSheet] = useState(false);
   const [demoPull, setDemoPull] = useState<PullPush>('table');
   const [payMarks, setPayMarks] = useState<Record<string, PaidMark | null>>({ 's3-gavin>kingsang': { by: 'gavin', at: Date.now(), ok: false } });
@@ -369,13 +369,11 @@ export default function Demo() {
         tables={tv}
         ranking={[...acc.values()].sort((a, b) => b.v - a.v)}
         chat={chats[c] ?? []}
-        music={demoMusic[c] || undefined}
         me="gavin"
         backHref="/demo/home"
         channels={channels}
         current={c}
         onSend={async (t) => setChats((m) => ({ ...m, [c]: [...(m[c] ?? []), { id: `${c}${Date.now()}`, by: 'gavin', name: 'Gavin', text: t, at: Date.now() }] }))}
-        onMusic={async (u) => setDemoMusic((m) => ({ ...m, [c]: u.trim() }))}
         moderate={{ blocked: demoBlocked, onBlock: async (uid, on) => setDemoBlocked((m) => { const n = { ...m }; if (on) n[uid] = Date.now() + 24 * 3600000; else delete n[uid]; return n; }) }}
       />
     );
@@ -489,7 +487,7 @@ export default function Demo() {
   }
 
   if (path === '/demo/rank') {
-    return <RankView me="gavin" mine={mySessions(DEMO_GROUPS, 'gavin')} groups={DEMO_GROUPS} loading={false} />;
+    return <RankView mine={mySessions(DEMO_GROUPS, 'gavin')} loading={false} />;
   }
 
   if (path === '/demo/groups') {
@@ -542,12 +540,17 @@ export default function Demo() {
           }))}
           onDelete={async (id) => setMeets((l) => l.filter((m) => m.id !== id))}
           onEdit={async (id, patch) => setMeets((l) => l.map((m) => (m.id === id ? { ...m, ...patch } : m)).sort((a, b) => a.at - b.at))}
+          startHref={() => '/demo/group#meetups'}
           onPing={async (id) => {
             const m = meets.find((x) => x.id === id);
             const left = members.length - (m ? m.going.length + m.no.length : 0);
             return `（示範）已經通知 ${Math.max(0, left)} 個未應嘅人`;
           }}
         />
+        <section className="stack">
+          <h2 className="section-head">雀力排行</h2>
+          <PointsLadder rows={ladderOf(hist.sessions, (id) => hist.names[id] || DEMO_NAMES[id] || '玩家')} me="gavin" tierOf={tierOf} />
+        </section>
         <section className="stack">
           <div className="section-head">
             <h2>成員（{members.length}）</h2>
