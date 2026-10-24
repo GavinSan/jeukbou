@@ -199,8 +199,8 @@ test('問題回報：每分鐘最多一次；淨係超級管理員睇到', async
 });
 
 test('等執位：淨係坐喺度嘅人改到', async () => {
-  await assertSucceeds(updateDoc(doc(as('a'), T, 't1'), { waitRegroup: true, waitAt: 1 }));
   await assertFails(updateDoc(doc(as('e'), T, 't1'), { waitRegroup: true, waitAt: 1 }));
+  await assertSucceeds(updateDoc(doc(as('a'), T, 't1'), { waitRegroup: true, waitAt: 1 }));
 });
 
 test('打法開咗就唔改得（超級管理員除外）', async () => {
