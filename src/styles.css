@@ -2980,3 +2980,4 @@ body.entering .page { padding-bottom: calc(66vh + 24px); }
 .how-points-list dt { color: var(--ink); }
 .how-points-list dd { margin: 0; font-weight: 700; white-space: nowrap; }
 .dash-more small { display: block; }
+.tile.is-dealer .t-wind { top: 14px; }
