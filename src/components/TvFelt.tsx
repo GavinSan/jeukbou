@@ -46,10 +46,12 @@ export function WindCube({ wind, className = '' }: { wind: string; className?: s
 }
 
 /** 牌入面嘅內容（枱頁、電視共用）：名 → 籌碼 → 分數 → 拉／被拉 tag；門風喺右上角 */
-export function TileBody({ name, settled, owe, collect, pulledLabel, pulling, wind, pop, score, chipsBelow }: {
+export function TileBody({ name, settled, owe, collect, pulledLabel, pulling, wind, pop, score, chipsBelow, day }: {
   name: string; settled: number; owe?: number; collect?: number; pulledLabel: string; pulling: number; wind: string; pop?: boolean;
   /** 電視：籌碼擺喺大數字下面 */
   chipsBelow?: boolean;
+  /** 電視：當日大數（成個大局所有枱加埋） */
+  day?: number;
   /** 想用其他方式顯示分數（例如 RollingNumber 以外） */
   score?: ReactNode;
 }) {
@@ -67,6 +69,7 @@ export function TileBody({ name, settled, owe, collect, pulledLabel, pulling, wi
           {collect ? <span className="t-la gain" title="拉緊幾多家"><b className="num">+{collect}</b>拉{pulling}家</span> : null}
         </span>
       ) : null}
+      {day !== undefined && <span className="t-day">今日<b className={`num t-${tone(day)}`}>{fmt(day)}</b></span>}
     </>
   );
 }
@@ -87,7 +90,7 @@ export function chainInfo(c: Computed) {
 // 電視：跟而家嘅門風擺，東永遠喺左上、南左下、西右下、北右上（同真枱一樣逆時針）；四隻牌塞滿綠絨，枱名、圈、位、鋪數放上面
 const QUAD_OF: Record<string, string> = { 東: 'q-tl', 南: 'q-bl', 西: 'q-br', 北: 'q-tr' };
 
-export function TvFelt({ c, names, title, me }: { c: Computed; names: Record<string, string>; title?: string; me?: string | null }) {
+export function TvFelt({ c, names, title, me, day }: { c: Computed; names: Record<string, string>; title?: string; me?: string | null; day?: Record<string, number> }) {
   const name = (id: string) => names[id] ?? '玩家';
   const seats = c.state.seats;
   const ended = c.state.ended;
@@ -108,7 +111,7 @@ export function TvFelt({ c, names, title, me }: { c: Computed; names: Record<str
           return (
             <div key={id} className={`tile ${QUAD_OF[w] ?? ['q-tl', 'q-bl', 'q-br', 'q-tr'][i]}${isDealer ? ' is-dealer' : ''}${id === me ? ' is-me' : ''}`}>
               {isDealer && <span className="dealer-mark tv-dealer-mark">莊{c.state.streak ? c.state.streak : ''}</span>}
-              <TileBody name={name(id)} settled={settled} owe={owe[id]} collect={collect[id]} pulledLabel={pulledLabel(id)} pulling={pulling(id)} wind={w} chipsBelow />
+              <TileBody name={name(id)} settled={settled} owe={owe[id]} collect={collect[id]} pulledLabel={pulledLabel(id)} pulling={pulling(id)} wind={w} chipsBelow day={day ? (day[id] ?? 0) : undefined} />
               {fx.d[id] ? <span key={`f${fx.key}`} className={`float ${fx.d[id] > 0 ? 'gain' : 'loss'}`}>{fmt(fx.d[id])}</span> : null}
             </div>
           );

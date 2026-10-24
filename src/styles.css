@@ -2995,3 +2995,11 @@ body.entering .page { padding-bottom: calc(66vh + 24px); }
 /* 入開支：大局頁快捷、埋數頁頂部 */
 .exp-link-icon { width: 34px; height: 34px; flex: none; display: inline-flex; align-items: center; justify-content: center; border-radius: 10px; background: var(--sunk); font-size: 18px; }
 .topbar-right .exp-quick { white-space: nowrap; }
+/* Live：當日大數，長期喺每隻牌底 */
+.tile .t-day { margin-top: auto; align-self: flex-end; display: inline-flex; align-items: baseline; gap: 5px; padding: 2px 9px; border-radius: 999px; background: color-mix(in srgb, var(--tile-ink) 8%, transparent); color: var(--tile-muted, var(--tile-ink)); font-size: 13px; font-weight: 700; line-height: 1.4; white-space: nowrap; }
+.tile .t-day b { font-family: var(--font-num); font-size: 17px; }
+.tile .t-day .t-gain { color: var(--tile-gain); } .tile .t-day .t-loss { color: var(--tile-loss); }
+.tv-felt.quad .t-day { font-size: 14px; }
+.tv-felt.quad .t-day b { font-size: 20px; }
+.tv-felt.quad { height: 390px !important; }
+.tile .t-tags + .t-day { margin-top: 4px; }
