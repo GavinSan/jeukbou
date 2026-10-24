@@ -1,10 +1,9 @@
-// 電視（AirPlay）用嘅枱面：綠絨布，四隻牌塞滿四個角（左上東、左下南、右下西、右上北，跟門風），
+// 電視（AirPlay）用嘅枱面：綠絨布，四隻牌塞滿四個角（左上東位、左下南位、右下西位、右上北位；莊跟位行），
 // 淨係睇唔撳；分數一變就飄「+N」。ScaleFit 將佢放大縮細塞滿個格（幾多張枱都一版睇晒）。
 // TileBody／WindCube 枱頁都用。
 import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import type { CSSProperties, ReactNode } from 'react';
 import type { Computed } from '../lib/score.ts';
-import { seatWind } from '../engine/table.ts';
 import { Chips, RollingNumber, fmt, tone } from '../ui.tsx';
 
 const WIND = ['東', '南', '西', '北'];
@@ -87,8 +86,9 @@ export function chainInfo(c: Computed) {
   return { owe, collect, pulling, pulledLabel };
 }
 
-// 電視：跟而家嘅門風擺，東永遠喺左上、南左下、西右下、北右上（同真枱一樣逆時針）；四隻牌塞滿綠絨，枱名、圈、位、鋪數放上面
-const QUAD_OF: Record<string, string> = { 東: 'q-tl', 南: 'q-bl', 西: 'q-br', 北: 'q-tr' };
+// 電視：跟「位」擺（起莊嗰個位 = 東位），東位永遠喺左上、南位左下、西位右下、北位右上（同真枱一樣逆時針）；
+// 人唔郁，莊跟位行：東圈北位 = 北位（右上）做莊。四隻牌塞滿綠絨，枱名、圈、位、鋪數放上面
+const QUADS = ['q-tl', 'q-bl', 'q-br', 'q-tr'];
 
 export function TvFelt({ c, names, title, me, day }: { c: Computed; names: Record<string, string>; title?: string; me?: string | null; day?: Record<string, number> }) {
   const name = (id: string) => names[id] ?? '玩家';
@@ -96,6 +96,7 @@ export function TvFelt({ c, names, title, me, day }: { c: Computed; names: Recor
   const ended = c.state.ended;
   const { owe, collect, pulling, pulledLabel } = chainInfo(c);
   const fx = useDeltas(Object.fromEntries(seats.map((id) => [id, (c.state.settled[id] ?? 0) + (c.pending[id] ?? 0)])));
+  const s0 = startSeatOf(c.state);
   return (
     <div className="tv-felt-wrap">
       <div className="tv-felt-info">
@@ -107,9 +108,10 @@ export function TvFelt({ c, names, title, me, day }: { c: Computed; names: Recor
         {seats.map((id, i) => {
           const settled = c.state.settled[id] ?? 0;
           const isDealer = c.info.dealer === id && !ended;
-          const w = seatWind(c.state, id);
+          const pos = (i - s0 + 4) % 4;
+          const w = WIND[pos];
           return (
-            <div key={id} className={`tile ${QUAD_OF[w] ?? ['q-tl', 'q-bl', 'q-br', 'q-tr'][i]}${isDealer ? ' is-dealer' : ''}${id === me ? ' is-me' : ''}`}>
+            <div key={id} className={`tile ${QUADS[pos]}${isDealer ? ' is-dealer' : ''}${id === me ? ' is-me' : ''}`}>
               {isDealer && <span className="dealer-mark tv-dealer-mark">莊{c.state.streak ? c.state.streak : ''}</span>}
               <TileBody name={name(id)} settled={settled} owe={owe[id]} collect={collect[id]} pulledLabel={pulledLabel(id)} pulling={pulling(id)} wind={w} chipsBelow day={day ? (day[id] ?? 0) : undefined} />
               {fx.d[id] ? <span key={`f${fx.key}`} className={`float ${fx.d[id] > 0 ? 'gain' : 'loss'}`}>{fmt(fx.d[id])}</span> : null}
