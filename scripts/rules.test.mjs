@@ -169,7 +169,7 @@ test('風格：人人讀到開放設定；淨係超級管理員改設定同開�
   await assertFails(updateDoc(doc(as('a'), 'skinGrants', 'a'), { skins: ['jade', 'palace'] }));
 });
 
-test('雀壇名：唔可以搶人哋個名；第一次認領免費，之後改名要用卷（renames + 1）', async () => {
+test('雀壇名：唔可以搶人哋個名；第一次認領免費，之後改名要用券（renames + 1）', async () => {
   const claim = async (db, uid, name, renames, oldKey) => {
     const b = writeBatch(db);
     b.set(doc(db, 'names', name.toLowerCase()), { uid, name, at: serverTimestamp() });
@@ -183,7 +183,7 @@ test('雀壇名：唔可以搶人哋個名；第一次認領免費，之後改�
   // a 改名唔加 renames：唔得；加 1：得
   await assertFails(claim(as('a'), 'a', 'Gavin2', 0, 'gavin'));
   await assertSucceeds(claim(as('a'), 'a', 'Gavin2', 1, 'gavin'));
-  // 自己唔可以送自己改名卷
+  // 自己唔可以送自己改名券
   await assertFails(setDoc(doc(as('a'), 'users', 'a'), { renameGrants: 5 }, { merge: true }));
 });
 
@@ -207,4 +207,11 @@ test('打法開咗就唔改得（超級管理員除外）', async () => {
   await assertFails(updateDoc(doc(as('owner'), 'groups', G), { variant: 'riichi' }));
   await assertSucceeds(updateDoc(doc(as('owner'), 'groups', G), { name: '新名' }));
   await assertSucceeds(updateDoc(doc(admin(), 'groups', G), { variant: 'riichi' }));
+});
+
+test('開新圈：普通用家只開得港式台牌；試驗中嘅打法淨係超級管理員', async () => {
+  await assertSucceeds(setDoc(doc(as('a'), 'groups', 'new1'), { name: '新圈', ownerId: 'a', variant: 'hktw' }));
+  await assertSucceeds(setDoc(doc(as('a'), 'groups', 'new2'), { name: '舊 app', ownerId: 'a' }));
+  await assertFails(setDoc(doc(as('a'), 'groups', 'new3'), { name: '日麻圈', ownerId: 'a', variant: 'riichi' }));
+  await assertSucceeds(setDoc(doc(admin(), 'groups', 'new4'), { name: '日麻圈', ownerId: 'boss', variant: 'riichi' }));
 });

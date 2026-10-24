@@ -3141,7 +3141,7 @@ body.entering .page { padding-bottom: calc(66vh + 24px); }
 .table-stats .my-line .king-tag { margin-left: 0; }
 .edit-who { display: grid; gap: 6px; }
 .edit-who .choices { margin-bottom: 4px; }
-/* 改名卷、撞名 */
+/* 改名券、撞名 */
 .rename-tickets { margin: 0; font-size: 14px; }
 .rename-tickets b { font-size: 17px; }
 .rename-tickets.none b { color: var(--loss); }
@@ -3289,3 +3289,24 @@ body.entering .page { padding-bottom: calc(66vh + 24px); }
 :root[data-festival="halloween"] .hero::before { content: '🎃'; } :root[data-festival="christmas"] .hero::before { content: '🎄'; }
 :root[data-festival="lny"] .hero::before { content: '🧧'; } :root[data-festival="newyear"] .hero::before { content: '🎆'; } :root[data-festival="easter"] .hero::before { content: '🐣'; }
 :root[data-festival] .hero::before { position: absolute; right: 12px; bottom: 10px; font-size: 26px; opacity: .9; pointer-events: none; }
+
+/* 開新圈：揀打法（超級管理員／示範） */
+.variant-pick .choices { grid-template-columns: 1fr; }
+.variant-choice { min-height: 0; align-items: flex-start; text-align: left; padding: 10px 12px; }
+.variant-choice b { display: flex; align-items: center; gap: 6px; }
+.variant-beta { font-family: var(--font-body); font-size: 11px; font-weight: 600; padding: 1px 6px; border-radius: 99px; background: var(--line); color: var(--muted); }
+
+/* 收費版示範 */
+.paid-trials { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
+.paid-trial { display: flex; align-items: center; gap: 8px; text-align: left; min-height: 52px; padding: 8px 12px; border-radius: 12px; border: 1.5px dashed var(--line); background: var(--surface); color: inherit; font: inherit; font-size: 14px; cursor: pointer; }
+.paid-trial.open { border-style: solid; border-color: var(--gain); }
+.paid-table { display: grid; gap: 0; font-size: 13px; border: 1px solid var(--line); border-radius: 12px; overflow: hidden; }
+.paid-row { display: grid; grid-template-columns: 1.3fr repeat(3, minmax(0, 1fr)); align-items: center; }
+.paid-row > span { padding: 8px 6px; border-top: 1px solid var(--line); text-align: center; min-width: 0; }
+.paid-row > span:first-child { text-align: left; color: var(--muted); padding-left: 10px; }
+.paid-row.head > span { border-top: 0; display: flex; flex-direction: column; gap: 1px; }
+.paid-row.head small { color: var(--muted); font-size: 11px; }
+.paid-row.head .on { background: var(--gain-soft); }
+.paid-row.head .on b { color: var(--gain); }
+.paid-free { margin: 0; padding-left: 20px; display: grid; gap: 4px; }
+.paid-free li::marker { content: '✓  '; color: var(--gain); }

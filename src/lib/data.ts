@@ -752,7 +752,7 @@ export class NameTakenError extends Error {
 
 /**
  * 認領雀壇名（全 app 唯一）：有人用緊就 NameTakenError。
- * 第一次認領（冇 nameKey）免費；之後每改一次用一張改名卷（renames + 1，資料庫規則會核對）。
+ * 第一次認領（冇 nameKey）免費；之後每改一次用一張改名券（renames + 1，資料庫規則會核對）。
  */
 export async function claimName(user: User, raw: string): Promise<void> {
   const name = raw.trim();

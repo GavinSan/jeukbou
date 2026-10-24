@@ -64,7 +64,7 @@ service cloud.firestore {
 
     // 玩家資料：淨係自己（同超級管理員）睇到同改到。其他人只會喺同一個牌友圈嘅成員名單見到你個名同頭像。
     match /users/{uid} {
-      // 雀壇名：認領咗（有 nameKey）之後，每改一次 renames 要加 1（改名卷）；nameKey 一定要係自己認領咗嘅 names/{key}
+      // 雀壇名：認領咗（有 nameKey）之後，每改一次 renames 要加 1（改名券）；nameKey 一定要係自己認領咗嘅 names/{key}
       function nameOk() {
         let before = resource == null ? {} : resource.data;
         let after = request.resource.data;
@@ -146,7 +146,9 @@ service cloud.firestore {
     match /groups/{g} {
       allow get: if isMember(g);
       allow list: if isSuperAdmin();
-      allow create: if signedIn() && request.resource.data.ownerId == request.auth.uid;
+      // 打法：普通用家只開得港式台牌；其他打法試驗中，淨係超級管理員開得
+      allow create: if signedIn() && request.resource.data.ownerId == request.auth.uid
+        && (request.resource.data.get('variant', 'hktw') == 'hktw' || isSuperAdmin());
       // 局主改晒；有「改家規」權限嘅成員只改得家規、番數表、埋數設定
       // 打法（牌型）開咗就唔改得（超級管理員除外）
       allow update: if (isOwner(g) || (can(g, 'rules')

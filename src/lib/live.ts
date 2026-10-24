@@ -180,7 +180,7 @@ export interface Profile {
   nudgedAt: number;
   /** 認領咗嘅雀壇名 key（冇 = 未認領，第一次改名免費） */
   nameKey?: string;
-  /** 用咗幾多張改名卷；超級管理員送咗幾多張 */
+  /** 用咗幾多張改名券；超級管理員送咗幾多張 */
   renames?: number;
   renameGrants?: number;
   /** 收款方法 */
