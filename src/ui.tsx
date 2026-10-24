@@ -8,6 +8,7 @@ import { chipsFor } from './engine/chips.ts';
 import { db } from './firebase.ts';
 import { Link } from './lib/router.tsx';
 import { usePrefs } from './lib/prefs.ts';
+import { claimName, nameTaken } from './lib/data.ts';
 
 /** 一隻寫住「雀」嘅牌 */
 export function Logo({ size = 30 }: { size?: number }) {
@@ -250,23 +251,38 @@ export async function saveProfile(user: User) {
   const data: Record<string, unknown> = { photoURL: user.photoURL ?? null, updatedAt: serverTimestamp() };
   // 超級管理員要見到 email 先幫到手（例如重設密碼）
   if (user.email) data.email = user.email;
-  if (user.displayName?.trim()) data.name = user.displayName.trim();
+  // 雀壇名由 claimName 寫（要檢查唔撞名、改名卷），呢度唔寫
   await setDoc(doc(db, 'users', user.uid), data, { merge: true });
 }
 
-export function NameForm({ user, initial, onDone, onCancel }: { user: User; initial: string; onDone: () => void; onCancel?: () => void }) {
+/**
+ * 改雀壇名：全 app 唯一；第一次免費，之後每次用一張改名卷。
+ * tickets = 仲有幾多張（undefined = 唔使卷，例如第一次起名）
+ */
+export function NameForm({ user, initial, onDone, onCancel, tickets, ticketNote }: { user: User; initial: string; onDone: () => void; onCancel?: () => void; tickets?: number; ticketNote?: string }) {
   const [value, setValue] = useState(initial);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
+  const [taken, setTaken] = useState(false);
+  const noTicket = tickets !== undefined && tickets <= 0;
+  // 打字停一停就查吓有冇人用緊
+  useEffect(() => {
+    const n = value.trim();
+    setTaken(false);
+    if (!n || n === initial.trim()) return;
+    const t = setTimeout(() => { nameTaken(user, n).then(setTaken).catch(() => undefined); }, 450);
+    return () => clearTimeout(t);
+  }, [value, initial, user]);
 
   async function save(e: FormEvent) {
     e.preventDefault();
     const name = value.trim();
-    if (!name) { setError('請輸入名稱'); return; }
-    
+    if (!name) { setError('請輸入雀壇名'); return; }
+    if (noTicket && name !== initial.trim()) { setError('冇改名卷喇'); return; }
     setBusy(true);
     setError('');
     try {
+      await claimName(user, name);
       await updateProfile(user, { displayName: name });
       await saveProfile(user);
       onDone();
@@ -282,10 +298,13 @@ export function NameForm({ user, initial, onDone, onCancel }: { user: User; init
       <label className="field">
         <span>雀壇名</span>
         <input id="display-name" value={value} onChange={(e) => setValue(clampName(e.target.value))} autoComplete="nickname" />
-        <small className="muted">江湖上嘅名：牌友圈、枱、Live 都用呢個。最多 6 個中文字或 12 個英文字母</small>
+        <small className={taken ? 'loss' : 'muted'}>{taken ? `「${value.trim()}」已經有人用緊，諗過第個` : '江湖上嘅名：牌友圈、枱、Live 都用呢個，全 app 唯一。最多 6 個中文字或 12 個英文字母'}</small>
       </label>
+      {tickets !== undefined && (
+        <p className={`rename-tickets${noTicket ? ' none' : ''}`}>🎟️ 改名卷 <b>{Math.max(0, tickets)}</b> 張{ticketNote ? <small className="muted">　{ticketNote}</small> : null}</p>
+      )}
       <div className="row">
-        <button type="submit" className="btn" disabled={busy}>儲存</button>
+        <button type="submit" className="btn" disabled={busy || taken || (noTicket && value.trim() !== initial.trim())}>{tickets !== undefined && value.trim() !== initial.trim() ? '用一張卷改名' : '儲存'}</button>
         {onCancel && <button type="button" className="btn plain" onClick={onCancel}>取消</button>}
       </div>
       {error && <p className="error" role="alert">{error}</p>}

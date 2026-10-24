@@ -57,6 +57,7 @@ export default function RulesPage({ user, groupId, sessionId }: { user: User; gr
               cfg={cfg}
               canEdit={canEdit}
               accounts={members.data.map((m) => ({ id: m.uid, name: m.name }))}
+              region={group.data?.region}
               busy={busy}
               error={error}
               onSave={async (c) => {

@@ -27,6 +27,8 @@ import type { MoneyRounding } from '../engine/settlement.ts';
 import { DEFAULT_FAN_TABLE } from './fanTable.ts';
 import type { FanTable } from './fanTable.ts';
 import { withRules } from '../engine/rules.ts';
+import { regionOfTz } from './payMethods.ts';
+import type { PayMethod } from './payMethods.ts';
 
 export type RulesPatch = Parameters<typeof withRules>[0];
 
@@ -58,6 +60,8 @@ export interface Group {
   visibility?: 'public' | 'private';
   /** 麻雀打法（牌型）：開牌友圈時揀，之後唔改得；冇 = 港式台牌 */
   variant?: string;
+  /** 開牌友圈時局主喺邊（時區估）：HK、CA、US… */
+  region?: string;
 }
 
 /** 成員權限：局主分配 */
@@ -102,6 +106,8 @@ export interface Member {
   legacyKey?: string;
   /** 收錢用嘅 Interac e-Transfer email */
   payEmail?: string;
+  /** 收款方法（淨係佢揀咗顯示嘅） */
+  pay?: PayMethod[];
   /** 生日（MM-DD），同圈嘅人見到 */
   birthday?: string;
   /** 局主分配嘅權限 */
@@ -417,6 +423,20 @@ export async function setPayEmail(user: User, email: string, groupIds: string[])
   }));
 }
 
+/** 收款方法：存喺自己度；顯示嘅（show）同步去每個牌友圈嘅成員資料，等牌友找數時見到 */
+export async function setPayMethods(user: User, list: PayMethod[], groupIds: string[]): Promise<void> {
+  const clean = list.slice(0, 12).map((m) => JSON.parse(JSON.stringify(m)) as PayMethod);
+  const shown = clean.filter((m) => m.show);
+  // 舊版只識 Interac email：保留第一個顯示嘅 Interac email
+  const legacy = shown.find((m) => m.kind === 'interac' && m.value.includes('@'))?.value ?? '';
+  await setDoc(doc(fs(), 'users', user.uid), { payMethods: clean, payEmail: legacy || deleteField(), updatedAt: serverTimestamp() }, { merge: true });
+  await Promise.all(groupIds.map(async (g) => {
+    const ref = doc(fs(), 'groups', g, 'members', user.uid);
+    const snap = await getDoc(ref);
+    if (snap.exists()) await updateDoc(ref, { pay: shown, payEmail: legacy || deleteField() });
+  }));
+}
+
 /** 真名（只係局主同超級管理員睇）同生日（月-日，同圈嘅人見到，方便一齊慶祝） */
 export async function setProfileDetails(user: User, d: { firstName: string; lastName: string; birthday: string }, groupIds: string[]): Promise<void> {
   const bday = /^\d{2}-\d{2}$/.test(d.birthday) ? d.birthday : '';
@@ -448,6 +468,8 @@ export interface SettleConfig {
   rounding: MoneyRounding;
   /** 俾錢嗰個撳「已轉」之後，要收錢嗰個確認先算數 */
   confirmPay?: boolean;
+  /** 顯示貨幣（閂 = 預設港幣，唔顯示貨幣代號）；舊牌友圈冇設定 = 顯示 */
+  showCurrency?: boolean;
 }
 
 export const DEFAULT_SETTLE: SettleConfig = { currency: 'CAD', perUnit: 6, waterTo: '', rounding: 'none' };
@@ -459,17 +481,19 @@ export function settleConfigOf(g: Group | null | undefined): SettleConfig {
   if (!raw.rounding && raw.roundUp !== undefined) c.rounding = raw.roundUp ? 'up' : 'none';
   delete (c as { roundUp?: boolean }).roundUp;
   if (!c.waterTo && g) c.waterTo = g.ownerId;
+  if (c.showCurrency === undefined) c.showCurrency = true;
   return c;
 }
 
 /** 開支（晚餐、的士…）或者已經私下轉咗嘅錢；同麻雀數分開 */
 export interface ExpenseDoc {
   id: string;
-  kind: 'expense' | 'transfer';
+  /** expense 開支；transfer 已經私下轉咗；gift 請飲茶／打賞（payer 請 sharedBy[0]，埋數時一齊找） */
+  kind: 'expense' | 'transfer' | 'gift';
   label: string;
   payer: string;
   amount: number;
-  /** 分嘅人；transfer 就係收錢嗰個 */
+  /** 分嘅人；transfer 就係收錢嗰個；gift 就係被請嗰個 */
   sharedBy: string[];
   /** 冇打牌但有份嘅訪客名（id → 名） */
   names?: Record<string, string>;
@@ -511,6 +535,8 @@ export interface TableDoc {
   dice?: Dice | null;
   /** 夠拉時輸家揀咗「不找」：`puller>pulled#count`，全枱同步 */
   declined?: string[];
+  /** 打完圈數，等其他枱一齊執位 */
+  waitRegroup?: boolean;
 }
 
 /** 換人請求：換入嚟嘅人接受先生效 */
@@ -579,10 +605,15 @@ export function guestId(): string {
 }
 
 /** 開新牌友圈，自己做局主 */
-export async function createGroup(user: User, name: string, photo: string | null = user.photoURL): Promise<string> {
+export async function createGroup(user: User, name: string, photo: string | null = user.photoURL, opts: { variant?: string } = {}): Promise<string> {
   const ref = doc(collection(fs(), 'groups'));
   const inviteCode = randomCode();
-  await setDoc(ref, { name, ownerId: user.uid, inviteCode, joinMode: 'auto', rules: {}, createdAt: serverTimestamp() });
+  // 新牌友圈：預設用港幣、唔顯示貨幣；記低局主喺邊（由時區估），開咗「顯示貨幣」就跟呢個揀
+  const region = regionOfTz();
+  await setDoc(ref, {
+    name, ownerId: user.uid, inviteCode, joinMode: 'auto', rules: {}, createdAt: serverTimestamp(),
+    region, settle: { currency: 'HKD', showCurrency: false }, variant: opts.variant || 'hktw',
+  });
   await setDoc(doc(fs(), 'groups', ref.id, 'members', user.uid), {
     name: displayName(user),
     photoURL: photo ?? null,
@@ -712,6 +743,43 @@ export async function lookupJoinCode(code: string): Promise<{ g: string; invite:
 }
 
 /** 改名或者換頭像之後同步去所有牌友圈 */
+/** 雀壇名 → 唯一 key（細楷、去頭尾空白、多個空白當一個；「/」唔用得做 id） */
+export const nameKeyOf = (n: string) => n.trim().toLowerCase().replace(/\s+/g, ' ').replace(/\//g, '∕');
+
+export class NameTakenError extends Error {
+  constructor(name: string) { super(`「${name}」已經有人用緊，諗過第個`); }
+}
+
+/**
+ * 認領雀壇名（全 app 唯一）：有人用緊就 NameTakenError。
+ * 第一次認領（冇 nameKey）免費；之後每改一次用一張改名卷（renames + 1，資料庫規則會核對）。
+ */
+export async function claimName(user: User, raw: string): Promise<void> {
+  const name = raw.trim();
+  if (!name) throw new Error('請輸入雀壇名');
+  const key = nameKeyOf(name);
+  await runTransaction(fs(), async (tx) => {
+    const nref = doc(fs(), 'names', key);
+    const uref = doc(fs(), 'users', user.uid);
+    const [ns, us] = await Promise.all([tx.get(nref), tx.get(uref)]);
+    if (ns.exists() && ns.data().uid !== user.uid) throw new NameTakenError(name);
+    const u = us.exists() ? us.data() : {};
+    const oldKey: string | null = typeof u.nameKey === 'string' ? u.nameKey : null;
+    const renames = Number(u.renames ?? 0) + (oldKey && u.name !== name ? 1 : 0);
+    tx.set(nref, { uid: user.uid, name, at: serverTimestamp() });
+    if (oldKey && oldKey !== key) tx.delete(doc(fs(), 'names', oldKey));
+    tx.set(uref, { name, nameKey: key, renames, updatedAt: serverTimestamp() }, { merge: true });
+  });
+}
+
+/** 個名有冇人用緊（改名時即時提示） */
+export async function nameTaken(user: User, raw: string): Promise<boolean> {
+  const key = nameKeyOf(raw);
+  if (!key) return false;
+  const snap = await getDoc(doc(fs(), 'names', key));
+  return snap.exists() && snap.data().uid !== user.uid;
+}
+
 export async function syncMemberName(user: User, groupIds: string[], photo: string | null = user.photoURL): Promise<void> {
   await Promise.all(
     groupIds.map(async (g) => {
@@ -1115,7 +1183,13 @@ export async function setSkinMode(skin: string, mode: 'auto' | 'open' | 'closed'
 export async function setSkinRule(skin: string, rule: 'default' | 'open' | 'closed' | 'grant' | number): Promise<void> {
   const mode = rule === 'open' ? 'open' : rule === 'closed' ? 'closed' : 'auto';
   const tier = rule === 'grant' ? -2 : typeof rule === 'number' ? rule : null;
-  await setDoc(doc(fs(), 'config', 'skins'), { modes: { [skin]: mode }, tiers: { [skin]: tier === null ? deleteField() : tier } }, { merge: true });
+  // tiers2 = 新 15 個段位；舊 tiers 嗰格清走
+  await setDoc(doc(fs(), 'config', 'skins'), { modes: { [skin]: mode }, tiers: { [skin]: deleteField() }, tiers2: { [skin]: tier === null ? deleteField() : tier } }, { merge: true });
+}
+
+/** 超級管理員：開／收節日風格（null = 收） */
+export async function setFestival(key: string | null): Promise<void> {
+  await setDoc(doc(fs(), 'config', 'festival'), { key: key ?? null, at: Date.now() });
 }
 
 /** 超級管理員：開／收一款豪華風格俾某個用家 */
@@ -1153,6 +1227,11 @@ export async function setSessionWaterTo(g: string, s: string, uid: string): Prom
 }
 
 export type PullPush = 'off' | 'table' | 'session' | 'group';
+/** 等執位：打完圈數嘅枱等其他枱打完一齊執位；on = false 就取消（例如決定打快東） */
+export async function setTableWait(g: string, s: string, t: string, on: boolean): Promise<void> {
+  await updateDoc(doc(fs(), 'groups', g, 'sessions', s, 'tables', t), on ? { waitRegroup: true, waitAt: Date.now() } : { waitRegroup: deleteField(), waitAt: deleteField() });
+}
+
 /** 是日終結（冇枱打緊先撳得）：記低時間，計「打咗幾耐」；on = false 就取消 */
 export async function setSessionEnded(g: string, s: string, user: User, on: boolean): Promise<void> {
   await updateDoc(sessionDoc(g, s), on ? { endedAt: Date.now(), endedBy: user.uid } : { endedAt: deleteField(), endedBy: deleteField() });

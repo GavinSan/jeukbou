@@ -8,6 +8,7 @@ import { paidState, payKey } from '../lib/data.ts';
 import { buildSettle, payoutOf, samePayout } from '../lib/settle.ts';
 import { Hint, NumInput, Sheet, TopBar, clampName, message, useConfirm } from '../ui.tsx';
 import { go } from '../lib/router.tsx';
+import { currencyOfRegion } from '../lib/payMethods.ts';
 
 export interface Player {
   id: string;
@@ -93,7 +94,7 @@ export interface SettleScreenProps {
 }
 
 const LABELS = ['晚餐', '宵夜', '飲品', '的士', '場租', '其他'];
-const CURRENCIES = ['CAD', 'HKD', 'USD'];
+const CURRENCIES = ['HKD', 'CAD', 'USD', 'GBP', 'AUD', 'JPY'];
 const ROUND_LABEL: Record<MoneyRounding, string> = { up: '每人金額向上取整', round: '每人金額四捨五入', none: '' };
 
 /** 金額輸入：淨係數字同一個小數點，最多兩位小數，唔會有「01」 */
@@ -187,7 +188,7 @@ export default function SettleScreen(p: SettleScreenProps) {
     .filter((x) => Math.abs(x.game) > 0.004 || Math.abs(x.exp) > 0.004)
     .sort((a, b) => b.total - a.total) : [];
   const items = p.expenses.filter((e) => e.kind === 'expense');
-  const moves = p.expenses.filter((e) => e.kind === 'transfer');
+  const moves = p.expenses.filter((e) => e.kind === 'transfer' || e.kind === 'gift');
   const expTotal = items.reduce((a, e) => a + e.amount, 0);
   const tfTotal = led ? led.transfers.reduce((a, t) => a + t.amount, 0) : 0;
   const showPaid = view === 'combined' && closed && !!p.onMarkPaid;
@@ -225,6 +226,8 @@ export default function SettleScreen(p: SettleScreenProps) {
       for (const e of p.expenses) {
         out.push(e.kind === 'transfer'
           ? `${nameOf(e.payer)} 已付 ${nameOf(e.sharedBy[0] ?? '')} ${money(e.amount)}`
+          : e.kind === 'gift'
+          ? `${nameOf(e.payer)} 請 ${nameOf(e.sharedBy[0] ?? '')} ${e.label} ${money(e.amount)}${e.note ? `：${e.note}` : ''}`
           : `${e.label} ${money(e.amount)}（${nameOf(e.payer)} 俾，${shareLabel(e)}）${e.note ? `：${e.note}` : ''}`);
       }
     }
@@ -274,7 +277,8 @@ export default function SettleScreen(p: SettleScreenProps) {
     const sh = shares[e.id] ?? e.sharedBy;
     return (e.payer === id ? e.amount : 0) - (sh.includes(id) ? e.amount / sh.length : 0);
   };
-  const moveCell = (id: string) => moves.reduce((a, e) => a + (e.payer === id ? e.amount : 0) - (e.sharedBy.includes(id) ? e.amount : 0), 0);
+  // 已轉賬：俾咗嘅人 +；請飲茶：請人嗰個 −、被請嗰個 +
+  const moveCell = (id: string) => moves.reduce((a, e) => a + (e.kind === 'gift' ? -1 : 1) * ((e.payer === id ? e.amount : 0) - (e.sharedBy.includes(id) ? e.amount : 0)), 0);
   const matrixRows = r ? matrixPeople.map((id) => ({ id, cells: items.map((e) => cell(e, id)), move: moveCell(id), total: r.expense[id] ?? 0 })).sort((a, b) => b.total - a.total) : [];
 
   return (
@@ -286,7 +290,7 @@ export default function SettleScreen(p: SettleScreenProps) {
       <button type="button" className="rate" onClick={() => (p.settingsHref ? go(p.settingsHref) : setSheet('config'))}>
         <span className="rate-fan"><b className="num">{cfg.perUnit}</b> 番</span>
         <span className="rate-eq">=</span>
-        <span className="rate-cash"><b className="num">$1</b> {cfg.currency}</span>
+        <span className="rate-cash"><b className="num">$1</b>{cfg.showCurrency !== false ? ` ${cfg.currency}` : ''}</span>
         <span className="rate-edit">{p.canEdit ? '在家規修改' : '家規'}</span>
       </button>
       {(ROUND_LABEL[cfg.rounding] || (p.canSetWater && p.onSetWaterTo && p.waterOptions?.length)) && (
@@ -492,11 +496,11 @@ export default function SettleScreen(p: SettleScreenProps) {
             {p.expenses.map((e) => (
               <li key={e.id} className="exp-row">
                 <button type="button" className="exp-edit" aria-label={`修改 ${e.label}`} disabled={locked} onClick={() => { setError(''); setSheet({ edit: e }); }}>
-                  <span className="exp-tag">{e.kind === 'transfer' ? '轉' : e.label.slice(0, 1)}</span>
+                  <span className="exp-tag">{e.kind === 'transfer' ? '轉' : e.kind === 'gift' ? '🍵' : e.label.slice(0, 1)}</span>
                   <span className="grow exp-text">
-                    <span>{e.kind === 'transfer' ? `${nameOf(e.payer)} 已付 ${nameOf(e.sharedBy[0] ?? '')}` : e.label}</span>
+                    <span>{e.kind === 'transfer' ? `${nameOf(e.payer)} 已付 ${nameOf(e.sharedBy[0] ?? '')}` : e.kind === 'gift' ? `${nameOf(e.payer)} 請 ${nameOf(e.sharedBy[0] ?? '')}` : e.label}</span>
                     <small className="muted">
-                      {e.kind === 'transfer' ? '已轉賬' : `${nameOf(e.payer)} 俾 · ${shareLabel(e)}`}
+                      {e.kind === 'transfer' ? '已轉賬' : e.kind === 'gift' ? `${e.label}・埋數時 ${nameOf(e.payer)} 俾 ${nameOf(e.sharedBy[0] ?? '')}` : `${nameOf(e.payer)} 俾 · ${shareLabel(e)}`}
                       {e.note ? ` · ${e.note}` : ''}
                     </small>
                   </span>
@@ -653,11 +657,13 @@ function PersonBreakdown({ k, r, nameOf, perTable, fan, water, expenses, shares,
   const expLines: { key: string; label: string; note?: string; v: number }[] = [];
   for (const e of expenses) {
     for (const id of ids) {
-      const sh = e.kind === 'transfer' ? e.sharedBy : shares[e.id] ?? e.sharedBy;
-      const paid = e.payer === id ? e.amount : 0;
-      const part = sh.includes(id) ? (e.kind === 'transfer' ? e.amount : e.amount / sh.length) : 0;
+      const gift = e.kind === 'gift';
+      const sh = e.kind === 'transfer' || gift ? e.sharedBy : shares[e.id] ?? e.sharedBy;
+      // 請飲茶：請人嗰個要俾、被請嗰個收
+      const paid = gift ? (sh.includes(id) ? e.amount : 0) : e.payer === id ? e.amount : 0;
+      const part = gift ? (e.payer === id ? e.amount : 0) : sh.includes(id) ? (e.kind === 'transfer' ? e.amount : e.amount / sh.length) : 0;
       if (!paid && !part) continue;
-      const label = e.kind === 'transfer' ? `已轉賬 ${nameOf(e.payer)} → ${nameOf(e.sharedBy[0] ?? '')}` : e.label;
+      const label = e.kind === 'transfer' ? `已轉賬 ${nameOf(e.payer)} → ${nameOf(e.sharedBy[0] ?? '')}` : gift ? `${e.label}：${nameOf(e.payer)} 請 ${nameOf(e.sharedBy[0] ?? '')}` : e.label;
       const bits = [paid ? `俾咗 ${money(paid)}` : '', part ? `份 ${money(part)}` : ''].filter(Boolean).join('，');
       expLines.push({ key: `${e.id}-${id}`, label: `${who(id)}${label}`, note: [bits, e.note].filter(Boolean).join(' · '), v: paid - part });
     }
@@ -717,7 +723,7 @@ function ExpenseSheet({ roster, playerIds, others, me, busy, error, onClose, onS
   onAddPerson?: (p: Player) => Promise<void>;
 }) {
   void playerIds;
-  const [kind, setKind] = useState<'expense' | 'transfer'>(initial?.kind ?? 'expense');
+  const [kind, setKind] = useState<'expense' | 'transfer' | 'gift'>(initial?.kind ?? 'expense');
   const [label, setLabel] = useState(initial && initial.kind === 'expense' ? (LABELS.includes(initial.label) ? initial.label : '其他') : '晚餐');
   const [custom, setCustom] = useState(initial && initial.kind === 'expense' && !LABELS.includes(initial.label) ? initial.label : '');
   const [amount, setAmount] = useState(initial ? String(initial.amount) : '');
@@ -725,7 +731,8 @@ function ExpenseSheet({ roster, playerIds, others, me, busy, error, onClose, onS
   const [payer, setPayer] = useState(initial?.payer ?? (me && roster.some((x) => x.id === me) ? me : ''));
   const [all, setAll] = useState(initial ? initialAll : true);
   const [shared, setShared] = useState<string[]>(initial && initial.kind === 'expense' ? initial.sharedBy : roster.map((x) => x.id));
-  const [to, setTo] = useState(initial && initial.kind === 'transfer' ? initial.sharedBy[0] ?? '' : '');
+  const [to, setTo] = useState(initial && initial.kind !== 'expense' ? initial.sharedBy[0] ?? '' : '');
+  const [giftLabel, setGiftLabel] = useState(initial && initial.kind === 'gift' ? initial.label : '請飲茶');
   const [adding, setAdding] = useState(false);
   const [guest, setGuest] = useState('');
   const [addBusy, setAddBusy] = useState(false);
@@ -733,7 +740,7 @@ function ExpenseSheet({ roster, playerIds, others, me, busy, error, onClose, onS
   const finalLabel = label === '其他' ? custom.trim() || '其他' : label;
   const count = all ? roster.length : shared.length;
   const each = count ? n / count : 0;
-  const ok = n > 0 && payer && (kind === 'transfer' ? to && to !== payer : count > 0);
+  const ok = n > 0 && payer && (kind !== 'expense' ? to && to !== payer : count > 0);
   const toggleShared = (id: string) => setShared((s) => (s.includes(id) ? s.filter((x) => x !== id) : [...s, id]));
 
   async function add(pl: Player) {
@@ -752,7 +759,17 @@ function ExpenseSheet({ roster, playerIds, others, me, busy, error, onClose, onS
       <div className="seg wide" role="group" aria-label="類別">
         <button type="button" aria-pressed={kind === 'expense'} onClick={() => setKind('expense')}>開支</button>
         <button type="button" aria-pressed={kind === 'transfer'} onClick={() => setKind('transfer')}>已轉賬</button>
+        <button type="button" aria-pressed={kind === 'gift'} onClick={() => setKind('gift')}>🍵 請飲茶</button>
       </div>
+      {kind === 'gift' && (
+        <div className="field">
+          <span>請咩</span>
+          <div className="chips-row">
+            {['請飲茶', '打賞', '代打', '利是'].map((l) => <button key={l} type="button" className="pill" aria-pressed={giftLabel === l} onClick={() => setGiftLabel(l)}>{l}</button>)}
+          </div>
+          <small className="muted">記低請人／俾人嘅錢，埋數時同麻雀數一齊找，唔使另外轉。</small>
+        </div>
+      )}
 
       {kind === 'expense' && (
         <div className="field">
@@ -778,14 +795,14 @@ function ExpenseSheet({ roster, playerIds, others, me, busy, error, onClose, onS
       </label>
 
       <div className="field">
-        <span>邊個俾</span>
-        <PeoplePick roster={roster} me={me} value={payer ? [payer] : []} onToggle={(id) => setPayer(id)} label="邊個俾" />
+        <span>{kind === 'gift' ? '邊個請' : '邊個俾'}</span>
+        <PeoplePick roster={roster} me={me} value={payer ? [payer] : []} onToggle={(id) => setPayer(id)} label={kind === 'gift' ? '邊個請' : '邊個俾'} />
       </div>
 
-      {kind === 'transfer' ? (
+      {kind !== 'expense' ? (
         <div className="field">
-          <span>俾咗邊個</span>
-          <PeoplePick roster={roster.filter((pl) => pl.id !== payer)} me={me} value={to ? [to] : []} onToggle={(id) => setTo(id)} label="俾咗邊個" />
+          <span>{kind === 'gift' ? '請邊個' : '俾咗邊個'}</span>
+          <PeoplePick roster={roster.filter((pl) => pl.id !== payer)} me={me} value={to ? [to] : []} onToggle={(id) => setTo(id)} label={kind === 'gift' ? '請邊個' : '俾咗邊個'} />
         </div>
       ) : (
         <div className="field">
@@ -841,12 +858,14 @@ function ExpenseSheet({ roster, playerIds, others, me, busy, error, onClose, onS
         className="btn big"
         disabled={busy || !ok}
         onClick={() => {
-          const sharedBy = kind === 'transfer' ? [to] : all ? roster.map((x) => x.id) : shared;
+          const sharedBy = kind !== 'expense' ? [to] : all ? roster.map((x) => x.id) : shared;
           const used = new Set([payer, ...sharedBy]);
           const names = Object.fromEntries(roster.filter((x) => isGuest(x.id) && used.has(x.id)).map((x) => [x.id, x.name]));
           const extra = { ...(Object.keys(names).length ? { names } : {}), ...(note.trim() ? { note: note.trim() } : {}) };
           onSave(kind === 'transfer'
             ? { kind, label: '已轉賬', payer, amount: n, sharedBy, ...extra }
+            : kind === 'gift'
+            ? { kind, label: giftLabel, payer, amount: n, sharedBy, ...extra }
             : { kind, label: finalLabel, payer, amount: n, sharedBy, all, ...extra });
         }}
       >
@@ -890,11 +909,14 @@ function ConfigSheet({ cfg, canEdit, accounts, busy, error, onClose, onSave }: {
 }
 
 /** 埋數設定表格：埋數頁同家規頁共用 */
-export function SettleConfigForm({ cfg, canEdit, accounts, busy, error, onSave }: {
+export function SettleConfigForm({ cfg, canEdit, accounts, busy, error, onSave, region }: {
   cfg: SettleConfig; canEdit: boolean; accounts: Player[]; busy: boolean; error: string; onSave: (c: SettleConfig) => void;
+  /** 局主開牌友圈時喺邊（開「顯示貨幣」時預設用嗰度嘅貨幣） */
+  region?: string;
 }) {
   const [per, setPer] = useState(cfg.perUnit);
   const [cur, setCur] = useState(cfg.currency);
+  const [showCur, setShowCur] = useState(cfg.showCurrency !== false);
   const waterTo = cfg.waterTo;
   void accounts;
   const [rounding, setRounding] = useState<MoneyRounding>(cfg.rounding);
@@ -908,16 +930,26 @@ export function SettleConfigForm({ cfg, canEdit, accounts, busy, error, onSave }
         <span>匯率</span>
         <div className="rate-edit-row">
           <NumInput className="input num" big decimal value={per} min={0.01} max={10000} fallback={cfg.perUnit || 6} disabled={d} onChange={setPer} label="幾多番" />
-          <span>番 = $1</span>
+          <span>番 = $1{showCur ? ` ${cur}` : ''}</span>
         </div>
       </div>
-      <div className="field">
-        <span>貨幣</span>
-        <div className="seg" role="group" aria-label="貨幣">
-          {CURRENCIES.map((c) => <button key={c} type="button" disabled={d} aria-pressed={cur === c} onClick={() => setCur(c)}>{c}</button>)}
-          <input className="seg-input" value={CURRENCIES.includes(cur) ? '' : cur} disabled={d} placeholder="其他" maxLength={6} onChange={(e) => setCur(e.target.value.toUpperCase())} aria-label="其他貨幣" />
-        </div>
+      <div className="rule-row">
+        <span className="grow">顯示貨幣<small>{showCur ? '開咗：跟局主開牌友圈時嘅地區揀貨幣，可以改' : '閂咗：用港幣，唔顯示貨幣'}</small></span>
+        <button type="button" role="switch" className="switch" aria-checked={showCur} aria-label="顯示貨幣" disabled={d} onClick={() => {
+          const on = !showCur;
+          setShowCur(on);
+          setCur(on ? (cur && cur !== 'HKD' ? cur : currencyOfRegion(region)) : 'HKD');
+        }} />
       </div>
+      {showCur && (
+        <div className="field">
+          <span>貨幣</span>
+          <div className="seg" role="group" aria-label="貨幣">
+            {CURRENCIES.map((c) => <button key={c} type="button" disabled={d} aria-pressed={cur === c} onClick={() => setCur(c)}>{c}</button>)}
+            <input className="seg-input" value={CURRENCIES.includes(cur) ? '' : cur} disabled={d} placeholder="其他" maxLength={6} onChange={(e) => setCur(e.target.value.toUpperCase())} aria-label="其他貨幣" />
+          </div>
+        </div>
+      )}
       <div className="field">
         <span>金額取整（差額計入水）</span>
         <div className="seg wide" role="group" aria-label="金額取整">
@@ -931,7 +963,7 @@ export function SettleConfigForm({ cfg, canEdit, accounts, busy, error, onSave }
         <button type="button" role="switch" className="switch" aria-checked={confirmPay} aria-label="找數要收錢嘅人確認" disabled={d} onClick={() => setConfirmPay((v) => !v)} />
       </div>
       {error && <p className="error">{error}</p>}
-      {canEdit && <button type="button" className="btn big" disabled={busy || !(n > 0) || !cur.trim()} onClick={() => onSave({ perUnit: n, currency: cur.trim(), waterTo, rounding, confirmPay })}>儲存埋數設定</button>}
+      {canEdit && <button type="button" className="btn big" disabled={busy || !(n > 0) || !cur.trim()} onClick={() => onSave({ perUnit: n, currency: showCur ? cur.trim() : 'HKD', waterTo, rounding, confirmPay, showCurrency: showCur })}>儲存埋數設定</button>}
     </div>
   );
 }

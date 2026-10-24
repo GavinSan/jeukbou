@@ -1,5 +1,6 @@
 // 超級管理員用嘅讀寫：所有牌友圈、用家、任何一份文件（規則淨係俾超級管理員）
 import { collection, deleteDoc, doc, getDoc, getDocs, setDoc, updateDoc, Timestamp } from 'firebase/firestore';
+import { nameKeyOf } from './data.ts';
 import { sendPasswordResetEmail } from 'firebase/auth';
 import { auth } from '../firebase.ts';
 import { fs } from './data.ts';
@@ -19,6 +20,7 @@ export interface AdminUser {
   name: string;
   email: string;
   payEmail: string;
+  renameGrants?: number;
   groups: string[];
   updatedAt: number;
   firstName: string;
@@ -51,7 +53,7 @@ export async function loadAllUsers(): Promise<AdminUser[]> {
   return snap.docs.map((d) => {
     const x = d.data();
     return {
-      uid: d.id, name: String(x.name ?? ''), email: String(x.email ?? ''), payEmail: String(x.payEmail ?? ''),
+      uid: d.id, name: String(x.name ?? ''), email: String(x.email ?? ''), payEmail: String(x.payEmail ?? ''), renameGrants: Number(x.renameGrants ?? 0),
       firstName: String(x.firstName ?? ''), lastName: String(x.lastName ?? ''), birthday: String(x.birthday ?? ''),
       groups: Array.isArray(x.groups) ? x.groups.map(String) : [], updatedAt: ms(x.updatedAt),
     };
@@ -72,12 +74,25 @@ export async function reopenSession(g: string, s: string) {
 
 /** 改用家顯示名：自己資料 + 所有牌友圈成員資料 */
 export async function renameUser(u: AdminUser, name: string) {
-  await setDoc(doc(fs(), 'users', u.uid), { name }, { merge: true });
+  // 雀壇名全 app 唯一：管理員改都要認領；唔使改名卷
+  const key = nameKeyOf(name);
+  const taken = await getDoc(doc(fs(), 'names', key));
+  if (taken.exists() && taken.data().uid !== u.uid) throw new Error(`「${name}」已經有人用緊`);
+  const userSnap = await getDoc(doc(fs(), 'users', u.uid));
+  const oldKey = userSnap.exists() ? userSnap.data().nameKey : null;
+  await setDoc(doc(fs(), 'names', key), { uid: u.uid, name, at: Timestamp.now() });
+  if (typeof oldKey === 'string' && oldKey !== key) await deleteDoc(doc(fs(), 'names', oldKey));
+  await setDoc(doc(fs(), 'users', u.uid), { name, nameKey: key }, { merge: true });
   await Promise.all(u.groups.map(async (g) => {
     const ref = doc(fs(), 'groups', g, 'members', u.uid);
     const snap = await getDoc(ref);
     if (snap.exists()) await updateDoc(ref, { name });
   }));
+}
+
+/** 送改名卷（總數） */
+export async function grantRename(uid: string, total: number) {
+  await setDoc(doc(fs(), 'users', uid), { renameGrants: Math.max(0, Math.round(total)) }, { merge: true });
 }
 
 /** 加用家入牌友圈（唔使邀請碼） */

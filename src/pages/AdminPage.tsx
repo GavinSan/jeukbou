@@ -7,15 +7,16 @@ import type { FeedbackDoc, JoinMode } from '../lib/data.ts';
 import { useIsSuperAdmin } from '../lib/admin.ts';
 import {
   addToGroup, childCollections, listCollection, loadAllGroups, loadAllUsers, readDoc, removeDoc, removeFromGroup,
-  renameGroup, renameUser, reopenSession, sendReset, setOwner, writeDoc,
+  grantRename, renameGroup, renameUser, reopenSession, sendReset, setOwner, writeDoc,
 } from '../lib/adminData.ts';
 import type { AdminGroup, AdminUser } from '../lib/adminData.ts';
 import { Link } from '../lib/router.tsx';
 import { sendBroadcast, sendTestPush } from '../lib/fns.ts';
-import { listSkinGrants, setSkinGrant, setSkinRule } from '../lib/data.ts';
+import { listSkinGrants, setFestival, setSkinGrant, setSkinRule } from '../lib/data.ts';
 import { SKINS, SKIN_TIER, TIER_NAMES } from '../lib/prefs.ts';
 import type { Skin, SkinMode } from '../lib/prefs.ts';
-import { useSkinConfig } from '../lib/live.ts';
+import { useFestival, useSkinConfig } from '../lib/live.ts';
+import { FESTIVALS, upcomingFestival } from '../lib/festival.ts';
 import { ConfirmDelete, Loading, TopBar, message, useConfirm } from '../ui.tsx';
 
 type Tab = 'overview' | 'groups' | 'users' | 'feedback' | 'skins' | 'push' | 'test' | 'data';
@@ -281,7 +282,11 @@ function Users({ users, groups, onChanged, onData }: { users: AdminUser[]; group
           <div className="panel">
             <div className="between"><h2>{u.name || '（未改名）'}</h2><button type="button" className="textbtn" onClick={() => onData(`users/${u.uid}`)}>原始資料 ›</button></div>
             <p className="muted small">uid {u.uid}<br />真名：{[u.firstName, u.lastName].filter(Boolean).join(' ') || '—'}<br />生日：{u.birthday ? `${Number(u.birthday.slice(0, 2))}月${Number(u.birthday.slice(3, 5))}日` : '—'}<br />登入 email：{u.email || '—'}<br />收款 email：{u.payEmail || '—'}<br />最後更新：{md(u.updatedAt)}</p>
-            <label className="field"><span>改顯示名（會同步去所有牌友圈）</span>
+            <div className="row">
+              <span className="grow">🎟️ 送改名卷<small className="muted">　已送 {u.renameGrants ?? 0} 張</small></span>
+              <button type="button" className="btn plain small-btn" disabled={busy} onClick={() => run(() => grantRename(u.uid, (u.renameGrants ?? 0) + 1), '已送一張改名卷')}>＋1 張</button>
+            </div>
+            <label className="field"><span>改雀壇名（會同步去所有牌友圈；唔使改名卷，但唔可以撞名）</span>
               <div className="row"><input className="input grow" value={name} onChange={(e) => setName(e.target.value)} /><button type="button" className="btn small-btn" disabled={busy || !name.trim() || name === u.name} onClick={() => run(() => renameUser(u, name.trim()), '已改名')}>儲存</button></div>
             </label>
             <div className="field"><span>牌友圈</span>
@@ -437,6 +442,8 @@ function SkinAdmin({ users }: { users: AdminUser[] }) {
   const defaultText = (key: Skin, isPremium: boolean) => (isPremium ? '要授權' : SKIN_TIER[key] ? `升到${SKIN_TIER[key]!.name}` : '一開始就有');
   return (
     <div className="stack">
+      <h2 className="section-head">節日風格</h2>
+      <FestivalAdmin />
       <h2 className="section-head">每款風格點開放</h2>
       <p className="muted small">揀要升到邊個段位先用得、要你授權、全部人都用得或者暫停。豪華款揀咗段位之後，升到就自動開放；你授權過嘅人照用得。你自己全部都用得。</p>
       <div className="list skin-rules">
@@ -551,6 +558,30 @@ function FeedbackList() {
         </article>
       ))}
       {big && <button type="button" className="feedback-big" onClick={() => setBig('')}><img src={big} alt="截圖（大）" /></button>}
+    </div>
+  );
+}
+
+/** 節日風格：開咗全部人即刻見到（背景節日嘢、主頁祝福） */
+function FestivalAdmin() {
+  const fest = useFestival(true);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState('');
+  const cur = fest.data ?? null;
+  const up = upcomingFestival();
+  const pick = async (k: string | null) => { setBusy(true); setError(''); try { await setFestival(k); } catch (e) { setError(message(e)); } finally { setBusy(false); } };
+  return (
+    <div className="panel stack tight">
+      {up && <p className="muted small">下一個：{up.f.name}（{up.at.getMonth() + 1}月{up.at.getDate()}日，{up.days <= 0 ? '今日' : `仲有 ${up.days} 日`}）</p>}
+      <div className="choices">
+        <button type="button" className="choice" aria-pressed={!cur} disabled={busy} onClick={() => pick(null)}>冇</button>
+        {FESTIVALS.map((f) => (
+          <button key={f.key} type="button" className="choice" aria-pressed={cur === f.key} disabled={busy} onClick={() => pick(f.key)}>
+            <span>{f.deco[0]} {f.name}</span>
+          </button>
+        ))}
+      </div>
+      {error && <p className="error">{error}</p>}
     </div>
   );
 }

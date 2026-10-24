@@ -1,13 +1,15 @@
 // 首頁：段位、Live、約局、打牌日曆、每月輸贏、走勢、最近幾場（數據同成就喺段位頁）
 import { HomeMeetups } from '../components/Meetups.tsx';
 import { InstallCard, NotifyCard } from '../components/InstallGuide.tsx';
-import { useCallback, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import type { ReactNode } from 'react';
 import type { User } from 'firebase/auth';
-import { displayName, markNudged } from '../lib/data.ts';
-import { useProfile, useSession } from '../lib/live.ts';
+import { NameTakenError, claimName, displayName, markNudged, syncMemberName } from '../lib/data.ts';
+import { useFestival, useProfile, useSession } from '../lib/live.ts';
+import { FestivalGreeting, FestivalReminder } from '../components/Festival.tsx';
+import { useSuperAdmin } from '../lib/admin.ts';
 import { Link } from '../lib/router.tsx';
-import { Avatar, TopBar, fmt } from '../ui.tsx';
+import { Avatar, NameForm, TopBar, fmt } from '../ui.tsx';
 import { navContext } from '../lib/nav.ts';
 import { TIERS, badgesOf, sessionPoints, statsOf, tierOf, useMyHistory, useTierSync } from '../lib/stats.ts';
 import type { MySession } from '../lib/stats.ts';
@@ -252,10 +254,10 @@ export function DashboardView({ name, photo, joined, groupCount, mine, loading, 
 }
 
 /** 溫和咁提用家補資料（Interac email、生日、真名）；可以略過，兩個禮拜先再提 */
-function ProfileNudge({ uid, profile }: { uid: string; profile: { payEmail: string; birthday: string; firstName: string; lastName: string; nudgedAt: number } | null }) {
+function ProfileNudge({ uid, profile }: { uid: string; profile: { payEmail: string; payMethods?: unknown[]; birthday: string; firstName: string; lastName: string; nudgedAt: number } | null }) {
   const [hidden, setHidden] = useState(false);
   if (!profile || hidden) return null;
-  const missing = [!profile.payEmail && 'Interac email', !profile.birthday && '生日', !(profile.firstName || profile.lastName) && '真名'].filter(Boolean) as string[];
+  const missing = [!profile.payEmail && !profile.payMethods?.length && '收款資料', !profile.birthday && '生日', !(profile.firstName || profile.lastName) && '名'].filter(Boolean) as string[];
   if (!missing.length || Date.now() - profile.nudgedAt < 14 * 86400000) return null;
   const later = () => { setHidden(true); markNudged(uid).catch(() => undefined); };
   return (
@@ -278,8 +280,30 @@ function joinedText(user: User): string {
   return t ? `${t.getFullYear()}年${t.getMonth() + 1}月加入` : '玩家';
 }
 
+/** 舊用家：自動認領而家個雀壇名；撞咗名就叫佢改一個（免費） */
+function NameClaim({ user, claimed, ready, groups }: { user: User; claimed: boolean; ready: boolean; groups: string[] }) {
+  const [clash, setClash] = useState(false);
+  const [done, setDone] = useState(false);
+  const tried = useRef(false);
+  useEffect(() => {
+    if (!ready || claimed || tried.current) return;
+    tried.current = true;
+    claimName(user, displayName(user)).catch((err) => { if (err instanceof NameTakenError) setClash(true); });
+  }, [ready, claimed, user]);
+  if (!clash || done) return null;
+  return (
+    <section className="panel name-clash">
+      <h3>你個雀壇名撞咗名</h3>
+      <p className="muted small">「{displayName(user)}」已經有其他人用緊。雀壇名全 app 唯一，請改一個（今次免費）。</p>
+      <NameForm user={user} initial="" onDone={() => { setDone(true); syncMemberName(user, groups).catch(() => undefined); window.dispatchEvent(new Event('jeukbou-nav')); }} />
+    </section>
+  );
+}
+
 export default function Home({ user }: { user: User; refresh?: () => void }) {
   const profile = useProfile(user.uid);
+  const fest = useFestival(true);
+  const admin = useSuperAdmin(user.uid);
   const groups = profile.data.groups;
   const history = useMyHistory(profile.loading ? null : user.uid, groups);
   useTierSync(history, !profile.loading);
@@ -294,7 +318,7 @@ export default function Home({ user }: { user: User; refresh?: () => void }) {
       mine={history.mine}
       loading={profile.loading || history.loading}
       resume={last.g && last.s ? <Resume g={last.g} s={last.s} t={last.t} /> : null}
-      nudge={<><InstallCard /><NotifyCard uid={user.uid} /><ProfileNudge uid={user.uid} profile={profile.loading ? null : profile.data} /></>}
+      nudge={<><FestivalGreeting festKey={fest.data ?? null} />{admin && <FestivalReminder current={fest.data ?? null} />}<NameClaim user={user} claimed={!!profile.data.nameKey} ready={!profile.loading} groups={groups} /><InstallCard /><NotifyCard uid={user.uid} /><ProfileNudge uid={user.uid} profile={profile.loading ? null : profile.data} /></>}
       live={<><LiveNow groupIds={groups} me={user.uid} onLive={onLive} /><HomeMeetups groupIds={groups} me={user.uid} /></>}
       pinned={<MyTableNow groupIds={groups} me={user.uid} />}
       sessionHref={(s) => `/g/${s.gid}/s/${s.sid}`}

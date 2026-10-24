@@ -75,6 +75,8 @@ export interface TableScreenProps {
   onCancelSwap?: (id: string) => Promise<void>;
   onReseat?: (seats: string[]) => Promise<void>;
   onDice?: () => Promise<void>;
+  /** 等執位：打完圈數，同時有其他枱打緊 */
+  regroupWait?: { waiting: boolean; othersOpen: number; othersWaiting: number; onWait: (on: boolean) => Promise<void>; regroupHref: string };
   /** 超級管理員：換人唔使對方同意，即刻換 */
   swapDirect?: boolean;
   /** 電視模式（AirPlay／螢幕鏡像）頁 */
@@ -697,6 +699,7 @@ export default function TableScreen(props: TableScreenProps) {
           {(corner?.values ?? idleDice(table.id)).map((v, i) => <Die key={i} value={v} rolling={false} size={24} />)}
           {corner && <span className="felt-dice-sum">{corner.values.reduce((a, b) => a + b, 0)}</span>}
         </button>
+        {props.regroupWait?.waiting && <span className="stamp felt-wait-stamp" aria-label="等執位">等執位</span>}
         <div className="felt-center">
           <span className="wind-tile">{ended ? '完' : c.info.roundWind}</span>
           <span className="small">{ended ? '已完場' : `${WIND_NAMES[c.state.dealerTurns % 4]}位 · 第 ${c.info.hand} 鋪`}</span>
@@ -725,9 +728,22 @@ export default function TableScreen(props: TableScreenProps) {
               <p className="muted small">仲有冇人繼續？繼續打，拉住嘅數照拉。</p>
             </div>
           </div>
+          {(() => {
+            const rw = props.regroupWait;
+            if (!rw || rw.othersOpen <= 0) return null;
+            const allWaiting = rw.othersWaiting >= rw.othersOpen;
+            if (rw.waiting) return <p className="wait-note">⏳ 等緊其他 {rw.othersOpen - rw.othersWaiting > 0 ? `${rw.othersOpen - rw.othersWaiting} 張` : ''}枱打完一齊執位。改變主意可以照打快圈或者再打四圈。</p>;
+            return (
+              <div className="rounds-go wait-go">
+                {allWaiting
+                  ? <Link to={rw.regroupHref} className="btn">🀄 {rw.othersOpen + 1} 張枱執位<small>其他枱都等緊</small></Link>
+                  : <button type="button" className="btn plain" disabled={busy} onClick={() => run(() => rw.onWait(true), '等執位')}>⏳ 等執位<small>等其他 {rw.othersOpen - rw.othersWaiting} 張枱打完</small></button>}
+              </div>
+            );
+          })()}
           <div className="rounds-go">
-            <button type="button" className="btn" disabled={busy} onClick={() => push({ type: 'extend', rounds: 1 }, `打${c.info.nextQuick}`)}>打{c.info.nextQuick}<small>一圈</small></button>
-            <button type="button" className="btn plain" disabled={busy} onClick={() => push({ type: 'extend', rounds: 4 }, '再打四圈')}>再打四圈</button>
+            <button type="button" className="btn" disabled={busy} onClick={() => { if (props.regroupWait?.waiting) props.regroupWait.onWait(false).catch(() => undefined); push({ type: 'extend', rounds: 1 }, `打${c.info.nextQuick}`); }}>打{c.info.nextQuick}<small>一圈</small></button>
+            <button type="button" className="btn plain" disabled={busy} onClick={() => { if (props.regroupWait?.waiting) props.regroupWait.onWait(false).catch(() => undefined); push({ type: 'extend', rounds: 4 }, '再打四圈'); }}>再打四圈</button>
           </div>
           <div className="acts rounds-acts">
             {props.onReseat && (

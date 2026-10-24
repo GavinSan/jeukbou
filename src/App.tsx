@@ -1,3 +1,4 @@
+import { FestivalLayer } from './components/Festival.tsx';
 import { Suspense, useEffect, useState } from 'react';
 import { ErrorBoundary, lazyPage } from './lib/lazy.tsx';
 import { onAuthStateChanged } from 'firebase/auth';
@@ -21,6 +22,7 @@ const PlayersPage = lazyPage(() => import('./pages/PlayersPage.tsx'));
 const GroupsPage = lazyPage(() => import('./pages/Groups.tsx'));
 const RankPage = lazyPage(() => import('./pages/RankPage.tsx'));
 const SettingsPage = lazyPage(() => import('./pages/SettingsPage.tsx'));
+const PayMethodsPage = lazyPage(() => import('./pages/PayMethodsPage.tsx'));
 const MyPayPage = lazyPage(() => import('./pages/MyPayPage.tsx'));
 const PayPage = lazyPage(() => import('./pages/PayPage.tsx'));
 const LivePage = lazyPage(() => import('./pages/LivePage.tsx'));
@@ -29,7 +31,7 @@ const GroupPayPage = lazyPage(() => import('./pages/GroupPayPage.tsx'));
 import TabBar, { HOME_DEMO_TABS, appTabs } from './components/TabBar.tsx';
 import { navContext } from './lib/nav.ts';
 import { applySkin, prefs, updateSkinAccess, usePrefs } from './lib/prefs.ts';
-import { useSkinConfig, useSkinGrants } from './lib/live.ts';
+import { useFestival, useSkinConfig, useSkinGrants } from './lib/live.ts';
 import { useSuperAdminState } from './lib/admin.ts';
 import { GroupWatchers, NoticeBar } from './components/Watch.tsx';
 import { UpdateWatcher } from './lib/update.tsx';
@@ -44,6 +46,7 @@ function Routes({ user, refresh }: { user: User; refresh: () => void }) {
   if (path === '/groups') return <GroupsPage user={user} />;
   if (path === '/rank') return <RankPage user={user} />;
   if (path === '/settings') return <SettingsPage user={user} />;
+  if (path === '/settings/pay') return <PayMethodsPage user={user} />;
   if (path === '/pay') return <MyPayPage user={user} />;
   if ((m = match('/join/:g/:code/s/:s', path))) return <Join user={user} groupId={m.g} code={m.code} sessionId={m.s} />;
   if ((m = match('/join/:g/:code', path))) return <Join user={user} groupId={m.g} code={m.code} />;
@@ -64,6 +67,12 @@ function Routes({ user, refresh }: { user: User; refresh: () => void }) {
   return <Home user={user} refresh={refresh} />;
 }
 
+/** 節日風格：全 app 背景裝飾 */
+function FestivalSync() {
+  const f = useFestival(true);
+  return <FestivalLayer festKey={f.data ?? null} />;
+}
+
 /** 風格解鎖：超級管理員、開放設定、我嘅豪華授權（段位喺主頁／段位頁／設定計） */
 function SkinAccessSync({ uid }: { uid: string }) {
   const admin = useSuperAdminState(uid);
@@ -82,8 +91,8 @@ export default function App() {
   const [, setTick] = useState(0);
   const refresh = () => setTick((t) => t + 1);
   const path = usePath();
-  const { skin } = usePrefs();
-  useEffect(() => { applySkin(skin); }, [skin]);
+  const { skin, mode } = usePrefs();
+  useEffect(() => { applySkin(skin); }, [skin, mode]);
   // 手機打字時鍵盤會將底部 tab 頂上嚟、跟住碌嚟碌去：打字期間收埋佢
   useEffect(() => {
     const typing = (el: EventTarget | null) => el instanceof HTMLElement && (el.tagName === 'TEXTAREA' || el.tagName === 'SELECT'
@@ -185,6 +194,8 @@ export default function App() {
           <a href="/" className="demo-pill exit" onClick={(e) => { e.preventDefault(); go('/'); }}>退出示範</a>
         </div>}
         <Suspense fallback={<main className="page narrow"><Loading /></main>}><Demo /></Suspense>
+        {/* ?fest=halloween：試節日風格 */}
+        <FestivalLayer festKey={typeof location !== 'undefined' ? new URLSearchParams(location.search).get('fest') : null} />
         {path === '/demo/admin' || path.startsWith('/demo/live') || path === '/demo/tv' ? null : path === '/demo/home' || path === '/demo/rank' || path === '/demo/groups' || path === '/demo/pay' || path === '/demo/skins'
           ? <TabBar tabs={HOME_DEMO_TABS} active={path === '/demo/rank' ? 'rank' : path === '/demo/groups' ? 'groups' : path === '/demo/pay' ? 'pay' : path === '/demo/skins' ? 'settings' : 'home'} />
           : <TabBar tabs={demoTabs} active={active} />}
@@ -221,6 +232,7 @@ export default function App() {
       {!path.startsWith('/join/') && !path.startsWith('/live/') && !path.startsWith('/tv/') && path !== '/admin' && <TabBar tabs={nav.tabs} active={nav.active} />}
       <GroupWatchers uid={user.uid} />
       <SkinAccessSync uid={user.uid} />
+      <FestivalSync />
       <NoticeBar />
       <UpdateWatcher />
     </>

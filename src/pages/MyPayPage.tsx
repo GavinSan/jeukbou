@@ -1,6 +1,7 @@
 // 我的找數：所有牌友圈、所有已埋數大局入面，我要俾／要收、未轉嘅數，同埋舊紀錄未找
 import { useState } from 'react';
 import type { User } from 'firebase/auth';
+import type { PayMethod } from '../lib/payMethods.ts';
 import { markPaid } from '../lib/data.ts';
 import { remindPay, remindResult } from '../lib/fns.ts';
 import { useProfile } from '../lib/live.ts';
@@ -13,14 +14,14 @@ import { Link } from '../lib/router.tsx';
 
 const md = (t: number) => { const d = new Date(t); return `${d.getMonth() + 1}月${d.getDate()}日`; };
 
-export function MyPayView({ me, items, legacy, names, emails, loading, onToggle, busyKey, onRemind }: {
+export function MyPayView({ me, items, legacy, names, emails, pays, loading, onToggle, busyKey, onRemind }: {
   me: string; items: PayItem[]; legacy: { gid: string; gname: string; sid: string; sname: string; at: number; fan: number; cash: number }[];
-  names: Record<string, string>; emails: Record<string, string>; loading: boolean; onToggle?: (it: PayItem, on: boolean) => void; busyKey?: string;
+  names: Record<string, string>; emails: Record<string, string>; pays?: Record<string, PayMethod[]>; loading: boolean; onToggle?: (it: PayItem, on: boolean) => void; busyKey?: string;
   /** 催找數：回覆一句結果 */
   onRemind?: (items: PayItem[]) => Promise<string>;
 }) {
   const [who, setWho] = useState<{ ids: string[]; amount: number } | null>(null);
-  const pp = { me, names, emails };
+  const pp = { me, names, emails, pays };
   const open = items.filter((x) => !x.paid);
   const toPay = open.filter((x) => x.dir === 'pay');
   const toGet = open.filter((x) => x.dir === 'get');
@@ -101,6 +102,7 @@ export default function MyPayPage({ user }: { user: User }) {
         legacy={data.legacy}
         names={data.names}
         emails={data.emails}
+        pays={data.pays}
         loading={profile.loading || data.loading}
         busyKey={busy}
         onRemind={remindText}

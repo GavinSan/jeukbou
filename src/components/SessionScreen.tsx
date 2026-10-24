@@ -107,6 +107,13 @@ export default function SessionScreen({ title, back, tables, computed, tableHref
     sfx.chips();
     buzz('win');
   }, [myTurn, draw]);
+  // 由枱頁「N 張枱執位」過嚟（#regroup）：打開一齊執位
+  useEffect(() => {
+    if (window.location.hash !== '#regroup' || !rg) return;
+    try { window.history.replaceState(null, '', window.location.pathname); } catch { /* 唔緊要 */ }
+    if (rg.draw) setBoardOpen(true); else setDrawSetup(true);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [!!rg]);
   // 底部中間「＋ 開枱」：網址帶 #add-table 就打開加枱
   const canAdd = !!onAddTable;
   useEffect(() => {
@@ -231,7 +238,7 @@ export default function SessionScreen({ title, back, tables, computed, tableHref
           {rg && !draw && openTables.length >= 1 && (rg.canForce || seatedMe) && (
             <button type="button" className="sact" onClick={() => { setError(''); setDrawSetup(true); }}>
               <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M4 7h11l-3-3M20 17H9l3 3" /></svg>
-              {openTables.length > 1 ? `${openTables.length} 張枱執位` : '執位'}
+              {openTables.length > 1 ? `${openTables.length} 張枱執位` : '執位'}{openTables.some((t) => t.waitRegroup) && <small className="sact-sub">{openTables.filter((t) => t.waitRegroup).length} 張等緊</small>}
             </button>
           )}
           {onEndDay && !openTables.length && tables.length > 0 && !endedAt && (
@@ -310,6 +317,7 @@ export default function SessionScreen({ title, back, tables, computed, tableHref
           const seats = c?.state.seats ?? t.seats;
           return (
             <Link key={t.id} to={tableHref(t.id)} className={`tcard${t.id === myTable ? ' tcard-mine' : ''}`} id={`tcard-${t.id}`}>
+              {t.waitRegroup && c && !c.state.ended && <span className="stamp tcard-wait-stamp">等執位</span>}
               <div className="tcard-head">
                 <h3>{t.name}</h3>
                 <span className="muted small">{!c ? '' : c.state.ended ? '已完場' : `${c.info.roundWind}圈${WINDS[c.state.dealerTurns % 4]}位 第 ${c.info.hand} 鋪`}</span>

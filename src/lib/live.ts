@@ -2,6 +2,9 @@
 import { useEffect, useMemo, useState } from 'react';
 import { collection, doc, limit, onSnapshot, orderBy, query, where } from 'firebase/firestore';
 import type { DocumentData } from 'firebase/firestore';
+import { parsePayMethods } from './payMethods.ts';
+import { OLD_TIER_TO_NEW } from './prefs.ts';
+import type { PayMethod } from './payMethods.ts';
 import { fs, tableNameUpper } from './data.ts';
 import type { Dice, ExpenseDoc, Meetup, FanTableLog, Group, JoinRequest, Member, TeamDoc, PairDoc, Session, StoredEvent, SwapRequest, TableDoc } from './data.ts';
 
@@ -92,6 +95,8 @@ const toGroup = (id: string, d: DocumentData): Group => ({
   icon: typeof d.icon === 'string' ? d.icon : undefined,
   description: typeof d.description === 'string' ? d.description : undefined,
   visibility: d.visibility === 'public' ? 'public' : 'private',
+  variant: typeof d.variant === 'string' ? d.variant : undefined,
+  region: typeof d.region === 'string' ? d.region : undefined,
 });
 const millis = (v: unknown): number | null => (v && typeof (v as { toMillis?: unknown }).toMillis === 'function' ? (v as { toMillis: () => number }).toMillis() : null);
 function toLog(d: DocumentData | undefined): FanTableLog | null {
@@ -101,7 +106,7 @@ function toLog(d: DocumentData | undefined): FanTableLog | null {
 const toJoinRequest = (id: string, d: DocumentData): JoinRequest => ({
   uid: id, name: String(d.name ?? '玩家'), photoURL: d.photoURL ?? null, inviteCode: String(d.inviteCode ?? ''), at: millis(d.at),
 });
-const toMember = (id: string, d: DocumentData): Member => ({ uid: id, name: String(d.name ?? '玩家'), photoURL: d.photoURL ?? null, legacyKey: d.legacyKey ? String(d.legacyKey) : undefined, payEmail: d.payEmail ? String(d.payEmail) : undefined, birthday: typeof d.birthday === 'string' ? d.birthday : undefined, perms: Array.isArray(d.perms) ? d.perms.map(String) as Member['perms'] : undefined });
+const toMember = (id: string, d: DocumentData): Member => ({ uid: id, name: String(d.name ?? '玩家'), photoURL: d.photoURL ?? null, legacyKey: d.legacyKey ? String(d.legacyKey) : undefined, payEmail: d.payEmail ? String(d.payEmail) : undefined, pay: parsePayMethods(d.pay), birthday: typeof d.birthday === 'string' ? d.birthday : undefined, perms: Array.isArray(d.perms) ? d.perms.map(String) as Member['perms'] : undefined });
 const toSession = (id: string, d: DocumentData): Session => ({
   id, name: String(d.name ?? ''), createdBy: String(d.createdBy ?? ''), createdAt: d.createdAt ?? null, rules: d.rules ?? undefined,
   rulesLog: Array.isArray(d.rulesLog) ? d.rulesLog.map((x: DocumentData) => ({ at: Number(x.at ?? 0), rules: x.rules ?? {} })) : undefined,
@@ -129,7 +134,7 @@ const toSession = (id: string, d: DocumentData): Session => ({
   endedBy: d.endedBy ? String(d.endedBy) : undefined,
 });
 const toExpense = (id: string, d: DocumentData): ExpenseDoc => ({
-  id, kind: d.kind === 'transfer' ? 'transfer' : 'expense', label: String(d.label ?? ''), payer: String(d.payer ?? ''),
+  id, kind: d.kind === 'transfer' ? 'transfer' : d.kind === 'gift' ? 'gift' : 'expense', label: String(d.label ?? ''), payer: String(d.payer ?? ''),
   amount: Number(d.amount ?? 0), sharedBy: Array.isArray(d.sharedBy) ? d.sharedBy.map(String) : [], by: String(d.by ?? ''),
   note: d.note ? String(d.note) : undefined,
   all: typeof d.all === 'boolean' ? d.all : undefined,
@@ -147,6 +152,7 @@ export const toTable = (id: string, d: DocumentData): TableDoc => ({
   dice: toDice(d.dice),
   liveUsers: Array.isArray(d.liveUsers) ? d.liveUsers.map(String) : undefined,
   declined: Array.isArray(d.declined) ? d.declined.map(String) : [],
+  waitRegroup: d.waitRegroup === true,
 });
 const toRequest = (id: string, d: DocumentData): SwapRequest => ({
   id, tableId: String(d.tableId ?? ''), out: String(d.out ?? ''), in: String(d.in ?? ''), inName: String(d.inName ?? ''),
@@ -172,6 +178,13 @@ export interface Profile {
   /** 生日（MM-DD） */
   birthday: string;
   nudgedAt: number;
+  /** 認領咗嘅雀壇名 key（冇 = 未認領，第一次改名免費） */
+  nameKey?: string;
+  /** 用咗幾多張改名卷；超級管理員送咗幾多張 */
+  renames?: number;
+  renameGrants?: number;
+  /** 收款方法 */
+  payMethods?: PayMethod[];
 }
 
 const toProfile = (_id: string, d: DocumentData): Profile => ({
@@ -183,6 +196,10 @@ const toProfile = (_id: string, d: DocumentData): Profile => ({
   groups: Array.isArray(d.groups) ? d.groups.map(String) : [],
   pending: d.pending && typeof d.pending === 'object' ? Object.fromEntries(Object.entries(d.pending).map(([k, v]) => [k, String(v)])) : {},
   avatar: typeof d.avatar === 'string' ? d.avatar : null,
+  nameKey: typeof d.nameKey === 'string' ? d.nameKey : undefined,
+  renames: Number(d.renames ?? 0),
+  renameGrants: Number(d.renameGrants ?? 0),
+  payMethods: parsePayMethods(d.payMethods),
 });
 
 export function useProfile(uid: string | null): Live<Profile> {
@@ -310,7 +327,13 @@ export const toTeamDoc = toTeam;
 export const useSkinConfig = (on: boolean) => useLiveDoc(on ? ['config', 'skins'] : null, (_id, d) => ({
   modes: d.modes && typeof d.modes === 'object' ? Object.fromEntries(Object.entries(d.modes).filter(([, v]) => v === 'auto' || v === 'open' || v === 'closed')) as Record<string, 'auto' | 'open' | 'closed'> : {},
   /** 超級管理員改咗嘅解鎖段位：TIERS 位置；-2 = 要授權 */
-  tiers: d.tiers && typeof d.tiers === 'object' ? Object.fromEntries(Object.entries(d.tiers).filter(([, v]) => typeof v === 'number' && Number.isInteger(v) && v >= -2 && v <= 9)) as Record<string, number> : {},
+  // 新設定（tiers2，15 個段位）；舊設定（tiers，10 個段位）轉做新位置
+  tiers: {
+    ...(d.tiers && typeof d.tiers === 'object' ? Object.fromEntries(Object.entries(d.tiers).filter(([, v]) => typeof v === 'number' && Number.isInteger(v) && v >= -2 && v <= 9).map(([k, v]) => [k, (v as number) >= 0 ? OLD_TIER_TO_NEW[v as number] : v])) : {}),
+    ...(d.tiers2 && typeof d.tiers2 === 'object' ? Object.fromEntries(Object.entries(d.tiers2).filter(([, v]) => typeof v === 'number' && Number.isInteger(v) && v >= -2 && v <= 14)) : {}),
+  } as Record<string, number>,
 }), true);
+/** 節日風格（超級管理員開）：key 或者 null */
+export const useFestival = (on: boolean) => useLiveDoc(on ? ['config', 'festival'] : null, (_id, d) => (typeof d.key === 'string' && d.key ? d.key : null) as string | null, true);
 /** 超級管理員開咗俾我嘅豪華風格 */
 export const useSkinGrants = (uid: string | null) => useLiveDoc(uid ? ['skinGrants', uid] : null, (_id, d) => (Array.isArray(d.skins) ? d.skins.map(String) : []) as string[], true);
