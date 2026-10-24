@@ -166,6 +166,8 @@ export function LiveTv({ groupName, icon, sessionName, tables, ranking, chat, me
     if (el && stick.current) el.scrollTop = el.scrollHeight;
   }, [chat.length, chatOpen]);
   const floating = useFloatingChat(chat);
+  // 當日大數：成個大局（連完咗場、換咗枱）每人加埋，長期顯示喺每隻牌底
+  const day = useMemo(() => Object.fromEntries(ranking.map((r) => [r.id, r.v])), [ranking]);
   // Live 風格：用 App 嘅風格（解鎖規矩一樣），只套喺 Live，出返去就變返
   const [liveSkin, setLiveSkin] = useState<Skin | ''>(readLiveSkin);
   useEffect(() => { setSkinOverride(liveSkin || null); return () => setSkinOverride(null); }, [liveSkin]);
@@ -265,7 +267,7 @@ export function LiveTv({ groupName, icon, sessionName, tables, ranking, chat, me
           {tables.map((t) => (
             t.c && t.names ? (
               <section key={t.id} className="tv-felt-cell">
-                <ScaleFit base={FELT_W}><TvFelt c={t.c} names={t.names} title={t.name} me={me} /></ScaleFit>
+                <ScaleFit base={FELT_W}><TvFelt c={t.c} names={t.names} title={t.name} me={me} day={day} /></ScaleFit>
               </section>
             ) : null
           ))}
@@ -365,9 +367,9 @@ export function LiveTv({ groupName, icon, sessionName, tables, ranking, chat, me
   );
 }
 
-/** 電視枱面嘅原本大細（ScaleFit 會放大縮細）：闊 400；高 = 資料行 30 + 間距 6 + 綠絨 340 */
+/** 電視枱面嘅原本大細（ScaleFit 會放大縮細）：闊 400；高 = 資料行 30 + 間距 6 + 綠絨 390 */
 const FELT_W = 400;
-const FELT_H = 386;
+const FELT_H = 436;
 
 export default function LivePage({ user, groupId, sessionId }: { user: User; groupId: string; sessionId: string }) {
   const group = useGroup(groupId);
