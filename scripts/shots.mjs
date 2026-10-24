@@ -420,6 +420,20 @@ for (const scheme of ['light', 'dark']) {
       await page.waitForTimeout(600);
       await page.screenshot({ path: `${out}/wait-regroup.png`, fullPage: true });
     });
+    await step('paid', async () => {
+      await page.goto(`${base}/demo/paid`, { waitUntil: 'networkidle' });
+      await page.waitForTimeout(400);
+      await page.screenshot({ path: `${out}/paid.png`, fullPage: true });
+      await page.getByRole('button', { name: /今晚開第 3 張枱/ }).click();
+      await page.waitForTimeout(400);
+      await page.screenshot({ path: `${out}/paid-limit.png` });
+      await page.getByRole('button', { name: /升級牌友圈＋/ }).click();
+      await page.waitForTimeout(400);
+      await page.screenshot({ path: `${out}/paid-upgrade.png` });
+      await page.goto(`${base}/demo/groups?create=1`, { waitUntil: 'networkidle' });
+      await page.waitForTimeout(500);
+      await page.screenshot({ path: `${out}/variant-pick.png` });
+    });
     await step('install', async () => {
       await page.goto(`${base}/demo/install`, { waitUntil: 'networkidle' });
       await page.waitForTimeout(300);

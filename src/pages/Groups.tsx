@@ -9,6 +9,9 @@ import GroupIcon from '../components/GroupIcon.tsx';
 import { useGroup, useJoinRequests, useMyJoinRequest, useMyMember, useProfile } from '../lib/live.ts';
 import { Link, go } from '../lib/router.tsx';
 import { Sheet, TopBar, message, useConfirm } from '../ui.tsx';
+import { useSuperAdmin } from '../lib/admin.ts';
+import { VARIANTS } from '../lib/variants.ts';
+import type { Variant } from '../lib/variants.ts';
 import { seenAt } from '../lib/notify.ts';
 
 const Chevron = () => (
@@ -94,8 +97,9 @@ function PendingRow({ g, name, uid }: { g: string; name: string; uid: string }) 
   );
 }
 
-export function AddSheet({ user, photo, groups, onClose }: { user: User | null; photo: string | null; groups: string[]; onClose: () => void }) {
-  const [mode, setMode] = useState<'join' | 'create'>('join');
+export function AddSheet({ user, photo, groups, onClose, variants = false, startCreate = false }: { user: User | null; photo: string | null; groups: string[]; onClose: () => void; variants?: boolean; startCreate?: boolean }) {
+  const [mode, setMode] = useState<'join' | 'create'>(startCreate ? 'create' : 'join');
+  const [variant, setVariant] = useState<Variant>('hktw');
   const [name, setName] = useState('');
   const [code, setCode] = useState('');
   const [busy, setBusy] = useState(false);
@@ -110,7 +114,7 @@ export function AddSheet({ user, photo, groups, onClose }: { user: User | null; 
     try {
       if (mode === 'create') {
         if (!name.trim()) return;
-        const id = await createGroup(user, name.trim(), photo);
+        const id = await createGroup(user, name.trim(), photo, { variant: variants ? variant : 'hktw' });
         go(`/g/${id}`);
         return;
       }
@@ -169,6 +173,20 @@ export function AddSheet({ user, photo, groups, onClose }: { user: User | null; 
               <input id="group-name" value={name} onChange={(e) => setName(e.target.value)} placeholder="例如：不打不相識" maxLength={30} />
             </label>
           )}
+          {mode === 'create' && variants && (
+            <div className="field variant-pick">
+              <span>打法 <small className="muted">（開咗之後唔改得）</small></span>
+              <div className="choices" role="radiogroup" aria-label="打法">
+                {VARIANTS.map((v) => (
+                  <button key={v.key} type="button" role="radio" className="choice variant-choice" aria-checked={variant === v.key} aria-pressed={variant === v.key} onClick={() => setVariant(v.key)}>
+                    <b>{v.name}{!v.ready && <span className="variant-beta">試驗中</span>}</b>
+                    <small className="muted">{v.note}</small>
+                  </button>
+                ))}
+              </div>
+              {!VARIANTS.find((v) => v.key === variant)?.ready && <small className="muted">呢個打法仲做緊：暫時用港式台牌嘅計番，之後會跟返呢個打法計。只有超級管理員同示範見到。</small>}
+            </div>
+          )}
           {error && <p className="error" role="alert">{error}</p>}
           <button type="submit" className="btn big" disabled={busy || (mode === 'join' ? code.length !== 6 : !name.trim())}>
             {busy ? '請稍候…' : mode === 'join' ? '加入' : '建立'}
@@ -185,6 +203,7 @@ export default function GroupsPage({ user }: { user: User }) {
   const pending = Object.entries(profile.data.pending).filter(([g]) => !groups.includes(g));
   const photo = profile.data.avatar ?? user.photoURL;
   const [adding, setAdding] = useState(() => new URLSearchParams(location.search).has('add'));
+  const admin = useSuperAdmin(user.uid);
   const [q, setQ] = useState('');
 
   return (
@@ -207,7 +226,7 @@ export default function GroupsPage({ user }: { user: User }) {
         )}
       </section>
       <PublicResults q={q.trim()} mine={groups} />
-      {adding && <AddSheet user={user} photo={photo} groups={groups} onClose={() => setAdding(false)} />}
+      {adding && <AddSheet user={user} photo={photo} groups={groups} variants={admin} onClose={() => setAdding(false)} />}
     </main>
   );
 }

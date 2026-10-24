@@ -208,3 +208,10 @@ test('打法開咗就唔改得（超級管理員除外）', async () => {
   await assertSucceeds(updateDoc(doc(as('owner'), 'groups', G), { name: '新名' }));
   await assertSucceeds(updateDoc(doc(admin(), 'groups', G), { variant: 'riichi' }));
 });
+
+test('開新圈：普通用家只開得港式台牌；試驗中嘅打法淨係超級管理員', async () => {
+  await assertSucceeds(setDoc(doc(as('a'), 'groups', 'new1'), { name: '新圈', ownerId: 'a', variant: 'hktw' }));
+  await assertSucceeds(setDoc(doc(as('a'), 'groups', 'new2'), { name: '舊 app', ownerId: 'a' }));
+  await assertFails(setDoc(doc(as('a'), 'groups', 'new3'), { name: '日麻圈', ownerId: 'a', variant: 'riichi' }));
+  await assertSucceeds(setDoc(doc(admin(), 'groups', 'new4'), { name: '日麻圈', ownerId: 'boss', variant: 'riichi' }));
+});

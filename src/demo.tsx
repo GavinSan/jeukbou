@@ -51,6 +51,7 @@ import TeamsEditor from './components/Teams.tsx';
 import { NoticeBar } from './components/Watch.tsx';
 import { markSeen, pushNotice } from './lib/notify.ts';
 import { InstallSteps } from './components/InstallGuide.tsx';
+import PaidDemo from './components/PaidDemo.tsx';
 
 const TABLES: TableDoc[] = [
   { id: 't0', name: '第壹枱', order: 0, seats: ['gavin', 'athena', 'ivan', 'viola'], names: { gavin: 'Gavin', athena: 'Athena', ivan: 'Ivan', viola: 'Viola' } },
@@ -271,6 +272,8 @@ export default function Demo() {
   // 首頁示範
   const [q, setQ] = useState('');
   const [adding, setAdding] = useState(false);
+  // /demo/groups?create=1：直接打開「開新牌友圈」
+  useEffect(() => { if (path === '/demo/groups' && new URLSearchParams(location.search).has('create')) setAdding(true); }, [path]);
   const [manageDemo, setManageDemo] = useState(false);
   const [pickDemo, setPickDemo] = useState<string | null>(null);
   const [joinMode, setJoinModeDemo] = useState<JoinMode>('approve');
@@ -310,6 +313,7 @@ export default function Demo() {
       { cat: '主頁同牌友圈', items: [
         ['/demo/home', '主頁', '戰績、3 個 Live 牌友圈、日曆、加主畫面提示、補資料提示'],
         ['/demo/groups', '牌友圈列表', '搜尋、公開牌友圈、加入碼'],
+        ['/demo/groups?create=1', '開新牌友圈：揀打法', '港式台牌、廣東牌、台牌、日麻、跑馬仔（開咗唔改得；暫時淨係超級管理員同示範見到）'],
         ['/demo/group', '牌友圈頁', '約局（去／唔去、📣 問有冇人打、局主唔去由下一個接手）、⚙︎ 設定睇抽水、成員、邀請'],
         ['/demo/install', '加主畫面教學', 'iPhone Safari、其他瀏覽器、Android'],
       ] },
@@ -342,6 +346,9 @@ export default function Demo() {
         ['/demo/skins', '風格', '18 款風格，各有光暗同質感（9 款 👑 豪華）'],
         ['/demo/paymethods', '收款資料', '轉數快（QR）、PayMe、Interac、Zelle、PayPay…，逐個揀顯示定收埋'],
         ['/demo/rules', '家規', '番數表、抽水、拉'],
+      ] },
+      { cat: '收費版（示範）', items: [
+        ['/demo/paid', '收費方案', '免費、雀簿＋、牌友圈＋：試吓撞上限（第 3 張枱、Live、舊記錄…）同升級畫面，唔會收錢'],
       ] },
       { cat: '管理同舊紀錄', items: [
         ['/demo/admin', '超級管理員', '用戶、牌友圈、發通知'],
@@ -490,6 +497,7 @@ export default function Demo() {
       </main>
     );
   }
+  if (path === '/demo/paid') return <PaidDemo />;
   if (path === '/demo/paymethods') {
     return (
       <main className="page">
@@ -534,7 +542,7 @@ export default function Demo() {
             {shown.map((x) => <GroupRowView key={x.id} href="/demo/group" name={x.name} fresh={x.fresh} badge={x.asks ? <span className="tag ask">{x.asks} 人申請</span> : null} />)}
           </div>
         </section>
-        {adding && <AddSheet user={null} photo={null} groups={[]} onClose={() => setAdding(false)} />}
+        {adding && <AddSheet user={null} photo={null} groups={[]} variants startCreate={new URLSearchParams(location.search).has('create')} onClose={() => setAdding(false)} />}
       </main>
     );
   }
