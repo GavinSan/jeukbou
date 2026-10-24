@@ -48,6 +48,10 @@ export interface TableStats {
   /** 流局次數、食糊總番數 */
   draws: number;
   fanTotal: number;
+  /** 最細一鋪（食糊）：邊個、幾多番 */
+  smallest: { player: string; fan: number } | null;
+  /** 每人喺雙響／三響入面食咗幾多次 */
+  multiWins: Record<string, number>;
 }
 
 export interface Computed {
@@ -132,6 +136,7 @@ function statsOf(steps: Step[]): TableStats {
   const s: TableStats = {
     hands: 0, biggest: null, selfDraws: 0, wins: {}, dealIns: {}, selfDrawBy: {}, bestBy: {}, falseWins: {}, specials: 0,
     maxStreak: null, maxChain: null, roundMs: [], playMs: 0, pulls: {}, rounds: {}, specialBy: {}, draws: 0, fanTotal: 0,
+    smallest: null, multiWins: {},
   };
   let first: number | null = null;
   let last: number | null = null;
@@ -181,6 +186,8 @@ function statsOf(steps: Step[]): TableStats {
       s.wins[w.player] = (s.wins[w.player] ?? 0) + 1;
       s.bestBy[w.player] = Math.max(s.bestBy[w.player] ?? 0, w.fan);
       if (!s.biggest || w.fan > s.biggest.fan) s.biggest = { player: w.player, fan: w.fan };
+      if (w.fan > 0 && (!s.smallest || w.fan < s.smallest.fan)) s.smallest = { player: w.player, fan: w.fan };
+      if (event.winners.length > 1) s.multiWins[w.player] = (s.multiWins[w.player] ?? 0) + 1;
     }
   }
   if (first !== null && last !== null) s.playMs = last - first;
@@ -208,10 +215,14 @@ export interface PlayStats {
   specialBy?: Record<string, Record<string, number>>;
   draws?: number;
   fanTotal?: number;
+  /** 最細一鋪（舊快取冇） */
+  smallest?: { player: string; fan: number } | null;
+  /** 雙響／三響入面食咗幾多次（舊快取冇） */
+  multiWins?: Record<string, number>;
 }
 
 export function emptyPlay(): PlayStats {
-  return { hands: 0, wins: {}, selfDraws: {}, dealIns: {}, falseWins: {}, best: {}, biggest: null, maxStreak: null, maxChain: null, roundMs: [], playMs: 0, pulls: {}, rounds: {}, specialBy: {} };
+  return { hands: 0, wins: {}, selfDraws: {}, dealIns: {}, falseWins: {}, best: {}, biggest: null, maxStreak: null, maxChain: null, roundMs: [], playMs: 0, pulls: {}, rounds: {}, specialBy: {}, smallest: null, multiWins: {} };
 }
 
 export function addPlay(a: PlayStats, b: Pick<PlayStats, keyof PlayStats> | TableStats): PlayStats {
@@ -231,6 +242,9 @@ export function addPlay(a: PlayStats, b: Pick<PlayStats, keyof PlayStats> | Tabl
   add(out.dealIns, b.dealIns);
   add(out.falseWins, b.falseWins);
   if (b.biggest && (!out.biggest || b.biggest.fan > out.biggest.fan)) out.biggest = b.biggest;
+  if (b.smallest && (!out.smallest || b.smallest.fan < out.smallest.fan)) out.smallest = b.smallest;
+  out.multiWins = { ...(a.multiWins ?? {}) };
+  add(out.multiWins, b.multiWins ?? {});
   if (b.maxStreak && (!out.maxStreak || b.maxStreak.n > out.maxStreak.n)) out.maxStreak = b.maxStreak;
   if (b.maxChain && (!out.maxChain || b.maxChain.count > out.maxChain.count)) out.maxChain = b.maxChain;
   out.roundMs.push(...b.roundMs);
@@ -274,7 +288,7 @@ export function describe(event: TableEvent, name: (id: string) => string): strin
     case 'extend':
       return (event.rounds ?? 1) >= 4 ? '再打四圈' : '打多一個快圈';
     case 'reseat':
-      return `換位：${event.seats.map(name).join('、')}（東南西北）`;
+      return `執位：${event.seats.map(name).join('、')}（東南西北）`;
   }
 }
 
@@ -285,7 +299,13 @@ export function ago(at: number | null, now: number): string {
   const m = Math.round(s / 60);
   if (m < 60) return `${m} 分鐘前`;
   const h = Math.floor(m / 60);
-  return `${h} 小時前`;
+  if (h < 24) return `${h} 小時前`;
+  // 過咗 24 個鐘講日；30 日以上講月；12 個月以上講年
+  const d = Math.floor(h / 24);
+  if (d < 30) return `${d} 日前`;
+  const mo = Math.floor(d / 30.44);
+  if (mo < 12) return `${Math.max(1, mo)} 個月前`;
+  return `${Math.floor(d / 365.25)} 年前`;
 }
 
 /** 每鋪之後各人累計（找咗 + 枱面），第 0 個係開局 */

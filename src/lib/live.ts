@@ -125,6 +125,8 @@ const toSession = (id: string, d: DocumentData): Session => ({
   music: typeof d.music === 'string' ? d.music : undefined,
   people: Array.isArray(d.people) ? d.people.filter((x: DocumentData) => x && x.id).map((x: DocumentData) => ({ id: String(x.id), name: String(x.name ?? '玩家') })) : [],
   closeReq: d.closeReq ? { by: String(d.closeReq.by ?? ''), approvals: Array.isArray(d.closeReq.approvals) ? d.closeReq.approvals.map(String) : [] } : null,
+  endedAt: typeof d.endedAt === 'number' ? d.endedAt : null,
+  endedBy: d.endedBy ? String(d.endedBy) : undefined,
 });
 const toExpense = (id: string, d: DocumentData): ExpenseDoc => ({
   id, kind: d.kind === 'transfer' ? 'transfer' : 'expense', label: String(d.label ?? ''), payer: String(d.payer ?? ''),

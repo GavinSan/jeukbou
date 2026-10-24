@@ -20,6 +20,8 @@ import type { SessionResult } from '../lib/history.ts';
 import { money } from '../components/SettleScreen.tsx';
 import { PlayerSheet } from '../components/BoardView.tsx';
 import { PointsLadder, TierChip } from '../components/Tier.tsx';
+import TileFace, { ALL_TILES, tileName, tileOfIcon } from '../components/TileFace.tsx';
+import { variantOf } from '../lib/variants.ts';
 import { pointsFor, tierOf } from '../lib/stats.ts';
 
 const MODES: { key: JoinMode; label: string; note: string }[] = [
@@ -136,7 +138,7 @@ export function Invite({ g, canManage, onMode }: { g: Group; canManage: boolean;
   );
 }
 
-const ICONS = ['🀄', '🀅', '🎲', '🐉', '🐯', '🍵', '🏮', '🧧', '💰', '🔥', '🌸', '⭐', '🐼', '🍀', '🌙', '🎯'];
+const ICONS = ['🎲', '🐉', '🐯', '🍵', '🏮', '🧧', '💰', '🔥', '🌸', '⭐', '🐼', '🍀', '🌙', '🎯'];
 
 /** 冇寫簡介：由家規自動出一句（例如「用水：25 抽 1」） */
 export function autoDescription(g: Group): string {
@@ -151,6 +153,7 @@ function GroupHeader({ g, memberCount }: { g: Group; memberCount: number }) {
       <GroupIcon icon={g.icon} name={g.name} size={52} />
       <span className="grow">
         <span className="group-head-tags">
+          <span className="tag variant-tag">🀄 {variantOf(g.variant).name}</span>
           <span className={`tag ${g.visibility === 'public' ? 'new' : 'instant'}`}>{g.visibility === 'public' ? '公開' : '私人'}</span>
           <span className="muted small">{memberCount} 個成員</span>
         </span>
@@ -240,6 +243,14 @@ function GroupSettingsSheet({ g, canEdit, memberCount, onClose, water }: { g: Gr
             <input type="file" accept="image/*" className="visually-hidden" aria-label="上載 icon 相" onChange={async (e) => { const f = e.target.files?.[0]; e.target.value = ''; if (f) { try { setIcon(await toAvatar(f)); } catch (err) { setError(message(err)); } } }} />
           </label>
           {icon && <button type="button" className="textbtn" onClick={() => setIcon('')}>用名</button>}
+        </div>
+        <small className="muted">麻雀牌</small>
+        <div className="icon-pick tiles">
+          {ALL_TILES.map((t) => {
+            const v = `t:${t}`;
+            const on = icon === v || tileOfIcon(icon) === t;
+            return <button key={t} type="button" className="icon-opt tile" aria-pressed={on} aria-label={tileName(t)} onClick={() => setIcon(v)}><TileFace code={t} size={22} /></button>;
+          })}
         </div>
       </div>
       <label className="field">
@@ -571,6 +582,12 @@ export default function GroupPage({ user, groupId }: { user: User; groupId: stri
           </div>
         </section>
       )}
+
+      {history.sessions.length > 0 && (() => {
+        const first = Math.min(...history.sessions.map((x) => x.at));
+        const d = new Date(first);
+        return <p className="group-since">由 <b>{d.getFullYear()}年{d.getMonth() + 1}月{d.getDate()}日</b> 開始打 · 一共 <b>{history.sessions.length}</b> 個大局</p>;
+      })()}
 
       {canManage && (
         <section className="danger-zone">

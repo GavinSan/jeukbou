@@ -320,10 +320,10 @@ export function applyEvent(prev: TableState, ev: TableEvent, rules: Rules = DEFA
       mustSeat(ev.out);
       if (s.seats.includes(ev.in)) throw new RuleError(`${ev.in} 已在此枱`);
       if (rules.swapSettle === 'table') {
-        settleAllChains('換位找數');
+        settleAllChains('執位找數');
       } else {
         const involved = (c: Chain) => c.puller === ev.out || c.pulled === ev.out;
-        for (const c of s.chains) if (involved(c)) settle(c.pulled, c.puller, c.owed, '換位找數');
+        for (const c of s.chains) if (involved(c)) settle(c.pulled, c.puller, c.owed, '執位找數');
         s.chains = s.chains.filter((c) => !involved(c));
       }
       s.seats = s.seats.map((p) => (p === ev.out ? ev.in : p));
@@ -354,7 +354,7 @@ export function applyEvent(prev: TableState, ev: TableEvent, rules: Rules = DEFA
 
     case 'reseat': {
       const now = [...s.seats].sort().join('|');
-      if (ev.seats.length !== s.seats.length || [...ev.seats].sort().join('|') !== now) throw new RuleError('換位只可以同一班人重新排');
+      if (ev.seats.length !== s.seats.length || [...ev.seats].sort().join('|') !== now) throw new RuleError('執位只可以同一班人重新排');
       s.seats = [...ev.seats];
       // 莊照舊喺圈數對應嗰個位（例如東圈南位 = 第二個位），換咗人坐嗰個位就由佢做莊
       s.dealerSeat = s.dealerTurns % 4;

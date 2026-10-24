@@ -280,9 +280,9 @@ export function NameForm({ user, initial, onDone, onCancel }: { user: User; init
   return (
     <form className="stack" onSubmit={save}>
       <label className="field">
-        <span>顯示名稱</span>
+        <span>雀壇名</span>
         <input id="display-name" value={value} onChange={(e) => setValue(clampName(e.target.value))} autoComplete="nickname" />
-        <small className="muted">最多 6 個中文字或 12 個英文字母</small>
+        <small className="muted">江湖上嘅名：牌友圈、枱、Live 都用呢個。最多 6 個中文字或 12 個英文字母</small>
       </label>
       <div className="row">
         <button type="submit" className="btn" disabled={busy}>儲存</button>

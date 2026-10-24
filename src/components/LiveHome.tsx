@@ -53,15 +53,38 @@ export function LiveCardView({ groupName, icon, sessionName, href, tvHref, table
 
 type OnLive = (k: string, on: boolean, info?: { label: string }) => void;
 
-function LiveSession({ group, session, me, onLive, hidden }: { group: Group; session: Session; me: string; onLive: OnLive; hidden?: boolean }) {
+/** 置頂條（示範都用） */
+export function MyTableBar({ href, table, where, v }: { href: string; table: string; where: string; v: number }) {
+  return (
+    <Link to={href} className="my-table-now">
+      <span className="my-table-dot" aria-hidden="true" />
+      <span className="grow">
+        <b>你打緊：{table}</b>
+        <small>{where}</small>
+      </span>
+      <b className={`num ${v > 0 ? 'gain' : v < 0 ? 'loss' : ''}`}>{fmt(v)}</b>
+      <span className="my-table-go">入數 ›</span>
+    </Link>
+  );
+}
+
+function LiveSession({ group, session, me, onLive, hidden, mineOnly }: { group: Group; session: Session; me: string; onLive: OnLive; hidden?: boolean; mineOnly?: boolean }) {
   const live = useSessionLive(group.id, session.id, group, session);
   const open = live.tables.filter((t) => { const c = live.computed[t.id]; return c && !c.state.ended; });
   const recent = Math.max(session.createdAt?.toMillis() ?? 0, ...live.tables.map((t) => lastActivity(live.computed[t.id])));
   const isLive = !session.closed && !session.legacy && open.length > 0 && Date.now() - recent < LIVE_HOURS * 3600000;
   const key = `${group.id}/${session.id}`;
   const label = `${group.name}・${session.name}`;
-  useEffect(() => { onLive(key, isLive, { label }); return () => onLive(key, false); }, [key, isLive, onLive, label]);
+  useEffect(() => { if (mineOnly) return; onLive(key, isLive, { label }); return () => onLive(key, false); }, [key, isLive, onLive, label, mineOnly]);
   if (!isLive || hidden) return null;
+  if (mineOnly) {
+    // 置頂：自己坐緊嘅枱，一撳返去入數（唔小心閂咗 app 都唔使逐頁撳入去）
+    const t = open.find((x) => live.computed[x.id]!.state.seats.includes(me));
+    if (!t) return null;
+    const c = live.computed[t.id]!;
+    const v = c.state.settled[me] ?? 0;
+    return <MyTableBar href={`/g/${group.id}/s/${session.id}/t/${t.id}`} table={t.name} where={`${group.name}・${roundLabel(c)}`} v={v} />;
+  }
   const tables: LiveTableView[] = open.map((t) => {
     const c = live.computed[t.id]!;
     // 跟座位排；wind = 而家嘅門風（莊 = 東）
@@ -81,11 +104,17 @@ function LiveSession({ group, session, me, onLive, hidden }: { group: Group; ses
   );
 }
 
-function LiveGroup({ gid, me, onLive, hidden }: { gid: string; me: string; onLive: OnLive; hidden?: boolean }) {
+function LiveGroup({ gid, me, onLive, hidden, mineOnly }: { gid: string; me: string; onLive: OnLive; hidden?: boolean; mineOnly?: boolean }) {
   const group = useGroup(gid);
   const sessions = useRecentSessions(gid, 2);
   if (!group.data) return null;
-  return <>{sessions.data.filter((s) => !s.closed && !s.legacy).map((s) => <LiveSession key={s.id} group={group.data!} session={s} me={me} onLive={onLive} hidden={hidden} />)}</>;
+  return <>{sessions.data.filter((s) => !s.closed && !s.legacy).map((s) => <LiveSession key={s.id} group={group.data!} session={s} me={me} onLive={onLive} hidden={hidden} mineOnly={mineOnly} />)}</>;
+}
+
+const noop: OnLive = () => undefined;
+/** 主頁最頂：自己而家坐緊嘅枱（冇就乜都唔顯示） */
+export function MyTableNow({ groupIds, me }: { groupIds: string[]; me: string }) {
+  return <>{groupIds.map((g) => <LiveGroup key={g} gid={g} me={me} onLive={noop} mineOnly />)}</>;
 }
 
 /** 自己所有牌友圈入面打緊嘅大局；hidden = 唔顯示，淨係報返有邊幾個（電視直播轉台用） */

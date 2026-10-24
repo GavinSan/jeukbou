@@ -206,7 +206,7 @@ export default function App() {
       <main className="page">
         <TopBar />
         <section className="panel">
-          <h2>設定顯示名稱</h2>
+          <h2>起個雀壇名</h2>
           <p className="muted">枱面、龍虎榜和埋數會顯示此名稱，之後可修改。</p>
           <NameForm user={user} initial="" onDone={refresh} />
         </section>

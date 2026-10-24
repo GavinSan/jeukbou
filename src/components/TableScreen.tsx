@@ -6,7 +6,7 @@ import type { Line, TableEvent, TableState } from '../engine/table.ts';
 import type { Rules } from '../engine/rules.ts';
 import type { SwapRequest, TableDoc, LogEvent } from '../lib/data.ts';
 import type { Computed } from '../lib/score.ts';
-import { ago, describe, trendOf } from '../lib/score.ts';
+import { addPlay, ago, describe, emptyPlay, trendOf } from '../lib/score.ts';
 import { TrendChart } from './Charts.tsx';
 import Celebrate from './Celebrate.tsx';
 import { FanPicker } from './FanTable.tsx';
@@ -22,6 +22,7 @@ import Settings from './Settings.tsx';
 import { Link } from '../lib/router.tsx';
 import { ConfirmDelete, useConfirm, Hint, NumInput, Sheet, TopBar, fmt, message, useNow, clampName } from '../ui.tsx';
 import FanWheel from './FanWheel.tsx';
+import Awards, { PlayTable, kingTagsOf } from './Awards.tsx';
 import DiceRoll, { Die } from './Dice.tsx';
 import SeatDraw from './SeatDraw.tsx';
 import { CHASE_MAX_REPEAT, SPECIAL_ITEMS, SpecialArt, SpecialBurst, artOf, chaseAmount, suggestRepeat } from './Specials.tsx';
@@ -732,7 +733,7 @@ export default function TableScreen(props: TableScreenProps) {
             {props.onReseat && (
               <button type="button" className="act icon-act" onClick={() => { setError(''); setMore('reseat'); }}>
                 <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M4 12a8 8 0 0 1 13.7-5.6L20 9" /><path d="M20 4v5h-5" /><path d="M20 12a8 8 0 0 1-13.7 5.6L4 15" /><path d="M4 20v-5h5" /></svg>
-                <span>換位</span>
+                <span>執位</span>
               </button>
             )}
             {props.onSwap && (
@@ -908,6 +909,29 @@ export default function TableScreen(props: TableScreenProps) {
         </section>
       )}
 
+      {c.stats.hands > 0 && (() => {
+        // 呢張枱自己嘅數據同王（大局頁係全場；呢度淨係呢張枱）
+        const tp = addPlay(emptyPlay(), c.stats);
+        const mine = me && seats.includes(me) ? { w: tp.wins[me] ?? 0, s: tp.selfDraws[me] ?? 0, d: tp.dealIns[me] ?? 0, b: tp.best[me] ?? 0, tags: kingTagsOf(tp)[me] ?? [] } : null;
+        return (
+          <section className="stack table-stats">
+            <h2>呢張枱數據</h2>
+            {mine && (
+              <div className="my-line">
+                <b>你</b>
+                <span>食糊 <b className="num">{mine.w}</b></span>
+                <span>自摸 <b className="num gain">{mine.s}</b></span>
+                <span>出銃 <b className="num loss">{mine.d}</b></span>
+                <span>最大 <b className="num">{mine.b || '–'}</b>{mine.b ? ' 番' : ''}</span>
+                {mine.tags.map((k) => <span key={k.key} className={`king-tag ${k.cls}`}>{k.title}</span>)}
+              </div>
+            )}
+            <PlayTable play={tp} ids={seats} name={name} me={me} />
+            <Awards play={tp} name={name} />
+          </section>
+        );
+      })()}
+
       {entry && (
         <div className="dock" role="dialog" aria-label="入數" aria-modal="false">
           {entry.step === 'who' ? (
@@ -1061,7 +1085,7 @@ export default function TableScreen(props: TableScreenProps) {
               <div className="choices three">
                 {props.onSwap && !ended && !viewOnly && <button type="button" className="choice" onClick={() => { setSwapOut(''); setSwapIn(''); setGuestName(''); setMore('swap'); }}>換人<small>有人加入</small></button>}
                 {props.onDice && !ended && !viewOnly && <button type="button" className="choice" onClick={() => run(() => props.onDice!(), '')}>擲骰<small>三粒骰</small></button>}
-                {props.onReseat && !ended && !viewOnly && canReseat && <button type="button" className="choice" onClick={() => setMore('reseat')}>{c.steps.length === 0 ? '掉位' : '換位'}<small>抽風牌或自己揀</small></button>}
+                {props.onReseat && !ended && !viewOnly && canReseat && <button type="button" className="choice" onClick={() => setMore('reseat')}>{c.steps.length === 0 ? '掉位' : '執位'}<small>抽風牌或自己揀</small></button>}
                 <button type="button" className="choice" aria-pressed={pf.sound} onClick={() => { unlock(); setPref('sound', !pf.sound); if (!pf.sound) setTimeout(() => sfx.tap(), 30); }}>
                   聲效<small>{pf.sound ? '開' : '關'}</small>
                 </button>
@@ -1072,12 +1096,12 @@ export default function TableScreen(props: TableScreenProps) {
           )}
           {more === 'people' && (
             <>
-              <h2>換人・換位</h2>
+              <h2>換人・執位</h2>
               <div className="choices">
                 {props.onSwap && <button type="button" className="choice" onClick={() => { setSwapOut(''); setSwapIn(''); setGuestName(''); setMore('swap'); }}>換人<small>有人走、有人入</small></button>}
                 {props.onReseat && (
                   <button type="button" className="choice" disabled={!canReseat} onClick={() => setMore('reseat')}>
-                    {c.steps.length === 0 ? '掉位' : '換位'}<small>{canReseat ? '抽風牌或自己揀' : reseatNote}</small>
+                    {c.steps.length === 0 ? '掉位' : '執位'}<small>{canReseat ? '抽風牌或自己揀' : reseatNote}</small>
                   </button>
                 )}
               </div>
@@ -1324,7 +1348,7 @@ export default function TableScreen(props: TableScreenProps) {
             </>
           )}
           {more === 'reseat' && props.onReseat && (
-            <SeatDraw players={seats} name={name} busy={busy} title={c.steps.length ? '換位' : '掉位'} onCancel={() => setMore(null)} onConfirm={(s) => run(() => props.onReseat!(s), '已掉位')} />
+            <SeatDraw players={seats} name={name} busy={busy} title={c.steps.length ? '執位' : '掉位'} onCancel={() => setMore(null)} onConfirm={(s) => run(() => props.onReseat!(s), '已掉位')} />
           )}
           {error && <p className="error" role="alert">{error}</p>}
         </Sheet>
@@ -1350,8 +1374,52 @@ export default function TableScreen(props: TableScreenProps) {
             const cur = editing.current;
             const fanOf = (p: string) => ev.winners.find((w) => w.player === p)?.fan ?? 0;
             const setF = (v: number) => setEditing({ ...editing, event: { ...ev, winners: ev.winners.map((w) => (w.player === cur ? { ...w, fan: Math.max(0, Math.min(500, v)) } : w)) } });
+            // 改邊個食、邊個出銃（可以改做雙響／三響、自摸）
+            const st = c.steps.find((x) => x.seq === editing.seq);
+            const people = st?.result.state.seats ?? seats;
+            const isWin = (p: string) => ev.winners.some((w) => w.player === p);
+            const baseFan = Math.max(...ev.winners.map((w) => w.fan), 0) || 8;
+            const setWinners = (ws: typeof ev.winners, loser: string | null) => {
+              const next = { ...ev, winners: ws, loser };
+              setEditing({ ...editing, event: next, current: ws.some((w) => w.player === editing.current) ? editing.current : ws[0].player });
+            };
+            const toggleWinner = (p: string) => {
+              if (isWin(p)) {
+                if (ev.winners.length === 1) return;
+                setWinners(ev.winners.filter((w) => w.player !== p), ev.loser);
+                return;
+              }
+              if (p === ev.loser) return;
+              // 自摸只可以一個人食：加人就變返食出（要揀出銃）
+              if (ev.loser === null) { setWinners([{ player: p, fan: fanOf(ev.winners[0].player) || baseFan }], null); return; }
+              if (ev.winners.length >= 3) return;
+              setWinners([...ev.winners, { player: p, fan: baseFan }], ev.loser);
+            };
+            const pickLoser = (p: string | null) => {
+              if (p === null) { setWinners([ev.winners[0]], null); return; }
+              setWinners(ev.winners.filter((w) => w.player !== p).length ? ev.winners.filter((w) => w.player !== p) : [{ player: people.find((x) => x !== p)!, fan: baseFan }], p);
+            };
             return (
               <>
+                <div className="edit-who">
+                  <small className="muted">邊個食（可以揀多個 = 雙響／三響）</small>
+                  <div className="choices">
+                    {people.map((p) => (
+                      <button key={p} type="button" className="choice" aria-pressed={isWin(p)} disabled={p === ev.loser} onClick={() => toggleWinner(p)}>
+                        <span className="ellipsis">{name(p)}</span>{isWin(p) && <small>{fanOf(p)} 番</small>}
+                      </button>
+                    ))}
+                  </div>
+                  <small className="muted">邊個出銃</small>
+                  <div className="choices">
+                    <button type="button" className="choice" aria-pressed={ev.loser === null} onClick={() => pickLoser(null)}>自摸</button>
+                    {people.map((p) => (
+                      <button key={p} type="button" className="choice" aria-pressed={ev.loser === p} disabled={ev.loser === null ? false : isWin(p) && ev.winners.length === 1} onClick={() => pickLoser(p)}>
+                        <span className="ellipsis">{name(p)}</span>
+                      </button>
+                    ))}
+                  </div>
+                </div>
                 {ev.winners.length > 1 && (
                   <div className="choices">
                     {ev.winners.map((w) => (

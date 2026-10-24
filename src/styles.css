@@ -3003,3 +3003,141 @@ body.entering .page { padding-bottom: calc(66vh + 24px); }
 .tv-felt.quad .t-day b { font-size: 20px; }
 .tv-felt.quad { height: 390px !important; }
 .tile .t-tags + .t-day { margin-top: 4px; }
+/* 示範測試清單：分類 */
+.demo-cat { display: grid; gap: 6px; }
+.demo-cat-head { display: flex; align-items: center; gap: 8px; width: 100%; padding: 10px 4px 4px; border: none; background: none; color: var(--ink); font: inherit; font-size: 15px; text-align: left; cursor: pointer; }
+.demo-cat-head small { font-variant-numeric: tabular-nums; }
+/* 麻雀牌 icon（SVG） */
+.group-icon.tile-icon { background: color-mix(in srgb, var(--felt, #1E5B49) 16%, var(--surface)); box-shadow: none; }
+.group-icon.tile-icon .tile-face { display: block; filter: drop-shadow(0 1px 1px rgba(0, 0, 0, .25)); }
+.icon-pick.tiles { display: grid; grid-template-columns: repeat(auto-fill, minmax(38px, 1fr)); gap: 5px; max-height: 230px; overflow-y: auto; padding: 2px; }
+.icon-opt.tile { width: 100%; height: 46px; border-radius: 10px; }
+.icon-opt.tile .tile-face { display: block; }
+/* Live 背景：真麻雀牌跌落嚟（淡淡哋，唔搶眼） */
+.stage-fall.tiles span { width: auto; height: auto; border: none; background: none; opacity: .3; }
+.stage-fall.tiles .tile-face { width: calc(4.4 * var(--u, 1vmin)); height: auto; display: block; filter: drop-shadow(0 4px 6px rgba(0, 0, 0, .45)); }
+.tv.airplay .stage-fall.tiles span { opacity: .26; }
+
+/* ===== Live round 24：排名長駐、直播室長駐（留言＋枱上事件）、枱伸盡個格 ===== */
+.tv.airplay .tv-stage { flex: 1; min-height: 0; display: flex; gap: 1vmin; position: relative; z-index: 2; }
+.tv.airplay .tv-stage > .tv-body { flex: 1; min-width: 0; min-height: 0; padding: 0 !important; }
+.tv-rankdock { flex: none; width: clamp(170px, 16vw, 300px); display: flex; flex-direction: column; gap: 6px; padding: 10px 12px; border-radius: 14px; background: rgba(8, 14, 12, .55); border: 1px solid rgba(255, 255, 255, .1); color: #EAF2EE; overflow: hidden; -webkit-backdrop-filter: blur(6px); backdrop-filter: blur(6px); }
+.tv-rankdock-title { font-size: clamp(13px, 1.2vw, 18px); opacity: .8; }
+.tv-rankdock ol { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 2px; overflow-y: auto; min-height: 0; scrollbar-width: none; }
+.tv-rankdock li { display: flex; align-items: center; gap: 8px; padding: 3px 6px; border-radius: 8px; font-size: clamp(13px, 1.25vw, 20px); line-height: 1.3; }
+.tv-rankdock li.me { background: rgba(124, 242, 176, .14); }
+.tv-rankdock .tv-rank-no { width: 1.5em; flex: none; text-align: center; opacity: .65; font-variant-numeric: tabular-nums; }
+.tv-rankdock .num { font-family: var(--font-num); font-variant-numeric: tabular-nums; }
+.tv-rankdock .gain { color: #7CF2B0; } .tv-rankdock .loss { color: #FF9A9A; }
+@media (max-aspect-ratio: 1/1) {
+  .tv.airplay .tv-stage { flex-direction: column-reverse; }
+  .tv-rankdock { width: auto; flex-direction: row; align-items: center; padding: 6px 8px; }
+  .tv-rankdock-title { display: none; }
+  .tv-rankdock ol { flex-direction: row; overflow-x: auto; overflow-y: hidden; gap: 6px; }
+  .tv-rankdock li { flex: none; padding: 3px 9px; background: rgba(255, 255, 255, .07); border-radius: 999px; font-size: 13px; }
+  .tv-rankdock li.me { background: rgba(124, 242, 176, .2); }
+}
+.tv-feed { position: relative; z-index: 3; flex: none; display: flex; flex-direction: column; gap: 6px; padding-top: 6px; }
+.tv-feed-lines { height: calc(4 * 1.45 * clamp(13px, 1.45vw, 20px)); display: flex; flex-direction: column; justify-content: flex-end; overflow: hidden; -webkit-mask-image: linear-gradient(to bottom, transparent 0, rgba(0, 0, 0, .35) 30%, #000 75%); mask-image: linear-gradient(to bottom, transparent 0, rgba(0, 0, 0, .35) 30%, #000 75%); }
+.tv-feed-lines p { flex: none; margin: 0; display: flex; align-items: baseline; gap: 8px; min-width: 0; font-size: clamp(13px, 1.45vw, 20px); line-height: 1.45; color: #fff; white-space: nowrap; text-shadow: 0 1px 3px rgba(0, 0, 0, .9), 0 0 12px rgba(0, 0, 0, .55); animation: chatIn .4s ease-out both; }
+.tv-feed-lines p.event { color: rgba(234, 242, 238, .85); }
+.tv-feed-name { flex: none; padding: 0; border: none; background: none; color: #7CF2B0; font: inherit; font-weight: 800; cursor: pointer; text-shadow: inherit; }
+.tv-feed-icon { flex: none; }
+.tv-feed-table { flex: none; font-size: .78em; padding: 0 6px; border-radius: 6px; background: rgba(255, 255, 255, .14); }
+.tv-feed-text { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+.tv-compose { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; padding: 8px 10px; border-radius: 14px; background: rgba(8, 14, 12, .82); border: 1px solid rgba(255, 255, 255, .12); }
+.tv-compose .tv-chat-form { min-width: min(100%, 320px); }
+.tv-compose-opts { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; font-size: 13px; color: #EAF2EE; }
+.tv-check { display: inline-flex; align-items: center; gap: 6px; cursor: pointer; }
+.tv-compose .textbtn { color: #9FE8C0; }
+/* 枱伸盡個格：牌跟住伸，字跟住牌嘅大細（container query） */
+.scale-fit.fill .scale-fit-inner > .tv-felt-wrap { height: 100%; display: flex; flex-direction: column; }
+.scale-fit.fill .tv-felt.quad { height: auto !important; flex: 1; min-height: 0; }
+.tv-felt.quad .tile { container-type: size; }
+.tv-felt.quad .t-name { font-size: clamp(18px, min(11cqw, 14cqh), 64px); }
+.tv-felt.quad .t-name.long { font-size: clamp(15px, min(9cqw, 12cqh), 52px); }
+.tv-felt.quad .t-name.xlong { font-size: clamp(13px, min(7.5cqw, 10cqh), 44px); }
+.tv-felt.quad .t-score { font-size: clamp(36px, min(25cqw, 30cqh), 170px); }
+.tv-felt.quad .t-wind { font-size: clamp(16px, min(9cqw, 11cqh), 46px); }
+.tv-felt.quad .t-chips { font-size: clamp(14px, min(7cqw, 9cqh), 32px); }
+.tv-felt.quad .t-la { font-size: clamp(12px, min(6cqw, 8cqh), 26px); line-height: 1.6; }
+.tv-felt.quad .t-day { font-size: clamp(13px, min(6.5cqw, 8cqh), 30px); }
+.tv-felt.quad .t-day b { font-size: 1.35em; }
+.tv-felt.quad .float { font-size: clamp(28px, min(20cqw, 24cqh), 120px); }
+/* Live 食糊：留耐啲 */
+.party.long .party-text { animation: partyIn .6s cubic-bezier(.2, 1.6, .4, 1) both, partyOut .6s ease-in 4.2s forwards; }
+/* 風格：揀咗邊款要一眼睇到；未解鎖收埋 */
+.skin-current { margin: 0; font-size: 14px; }
+.skin-card { position: relative; }
+.skin-card.on { border-color: var(--gain) !important; border-width: 2.5px; box-shadow: 0 0 0 3px color-mix(in srgb, var(--gain) 30%, transparent), 0 6px 16px rgba(0, 0, 0, .12) !important; transform: translateY(-1px); }
+.skin-on-badge { position: absolute; top: -9px; right: 8px; padding: 1px 8px; border-radius: 999px; background: var(--gain); color: #fff; font-size: 11px; font-weight: 800; line-height: 18px; box-shadow: 0 2px 4px rgba(0, 0, 0, .2); }
+.skin-more { display: flex; align-items: center; gap: 8px; width: 100%; padding: 10px 12px; border-radius: 12px; border: 1.5px dashed var(--line); background: none; color: var(--muted); font: inherit; font-size: 14px; cursor: pointer; }
+.skin-more b { color: var(--ink); }
+.tv-skin { position: relative; }
+.tv-skin.on { outline: 2.5px solid #7CF2B0; outline-offset: 1px; }
+.tv-skin.on::after { content: '✓ 用緊'; position: absolute; top: -8px; right: 6px; padding: 0 7px; border-radius: 999px; background: #7CF2B0; color: #0B1A14; font-size: 10.5px; font-weight: 800; line-height: 17px; }
+/* 問題回報 */
+.feedback-row { display: flex; align-items: center; gap: 12px; width: 100%; text-align: left; font: inherit; color: var(--ink); cursor: pointer; }
+.feedback-icon { width: 36px; height: 36px; flex: none; display: inline-flex; align-items: center; justify-content: center; border-radius: 10px; background: var(--sunk); font-size: 18px; }
+.feedback-shot { display: flex; align-items: flex-end; gap: 10px; }
+.feedback-shot img { max-width: 60%; max-height: 220px; border-radius: 10px; border: 1px solid var(--line); object-fit: contain; }
+.feedback-pick { position: relative; align-self: flex-start; }
+.feedback-thumb { padding: 0; border: none; background: none; cursor: zoom-in; align-self: flex-start; }
+.feedback-thumb img { max-width: 220px; max-height: 160px; border-radius: 8px; border: 1px solid var(--line); object-fit: cover; }
+.feedback-big { position: fixed; inset: 0; z-index: 80; display: flex; align-items: center; justify-content: center; padding: 16px; border: none; background: rgba(0, 0, 0, .8); cursor: zoom-out; }
+.feedback-big img { max-width: 100%; max-height: 100%; border-radius: 10px; }
+/* 約局：三行字唔好逼埋一齊 */
+.home-meetup { padding-top: 14px; padding-bottom: 14px; }
+.home-meetup .grow { gap: 4px; }
+.home-meetup b { font-size: 16.5px; line-height: 1.3; }
+.home-meetup small { font-size: 14px; line-height: 1.4; }
+.meetup-note { font-size: 15px; line-height: 1.5; }
+.meetup-foot small { line-height: 1.5; }
+.variant-tag { background: color-mix(in srgb, var(--felt, #1E5B49) 14%, var(--surface)); color: var(--ink); }
+.group-since { margin: 8px 0 0; text-align: center; color: var(--muted); font-size: 13.5px; }
+.group-since b { color: var(--ink); font-weight: 700; }
+/* 大局：更多王 */
+.king-tag.big { background: linear-gradient(135deg, #8E5BD6, #5B2FA3); }
+.king-tag.small { background: linear-gradient(135deg, #3BA7B5, #227580); }
+.king-tag.streak { background: linear-gradient(135deg, #E5803A, #B5541A); }
+.king-tag.pull { background: linear-gradient(135deg, #3E74C9, #24508F); }
+.king-tag.multi { background: linear-gradient(135deg, #E0569A, #A82B67); }
+.king-tag.deal { background: linear-gradient(135deg, #C9433B, #8E2A20); }
+.king-tag.false { background: linear-gradient(135deg, #8A8F99, #5D626B); }
+.king-tag.sp { background: linear-gradient(135deg, #B58A2E, #7E5E17); }
+.rank-who .ellipsis { white-space: normal; display: flex; flex-wrap: wrap; align-items: center; row-gap: 3px; }
+/* 大局頂部動作 */
+.session-acts { display: flex; flex-wrap: wrap; gap: 8px; }
+.sact { flex: 1 1 0; min-width: 110px; display: inline-flex; align-items: center; justify-content: center; gap: 7px; padding: 11px 12px; border-radius: 14px; border: 1.5px solid var(--line); background: var(--surface); color: var(--ink); font: inherit; font-weight: 700; font-size: 15px; cursor: pointer; box-shadow: 0 2px 0 var(--line); }
+.sact:active { transform: translateY(1px); box-shadow: none; }
+.sact.end { border-color: color-mix(in srgb, #B3261E 45%, var(--line)); color: #B3261E; }
+.sact-end-mark { width: 24px; height: 24px; display: inline-flex; align-items: center; justify-content: center; border-radius: 50%; background: #B3261E; color: #fff; font-family: var(--font-kai); font-size: 14px; font-weight: 800; }
+/* 是日終結：日式「終」印 */
+.day-end { display: flex; align-items: center; gap: 14px; padding: 14px 16px; border-radius: 18px; background: linear-gradient(180deg, color-mix(in srgb, #F7F1E3 92%, var(--surface)), var(--surface)); border: 1px solid color-mix(in srgb, #B3261E 25%, var(--line)); }
+.day-end b { display: block; font-family: var(--font-kai); font-size: 20px; letter-spacing: .2em; }
+.day-end small { color: var(--muted); }
+.day-end-seal { flex: none; width: 64px; height: 64px; display: inline-flex; align-items: center; justify-content: center; border-radius: 50%; border: 3px solid #B3261E; color: #B3261E; font-family: 'Yuji Syuku', var(--font-kai), serif; font-size: 40px; font-weight: 900; line-height: 1; transform: rotate(-12deg); box-shadow: inset 0 0 0 3px color-mix(in srgb, #B3261E 20%, transparent); text-shadow: 0 0 1px #B3261E; animation: sealIn .55s cubic-bezier(.2, 1.7, .4, 1) both; }
+@keyframes sealIn { from { transform: rotate(-30deg) scale(2.2); opacity: 0; } to { transform: rotate(-12deg) scale(1); opacity: 1; } }
+/* 全場數據摘要 */
+.day-sum { display: grid; grid-template-columns: repeat(auto-fit, minmax(92px, 1fr)); gap: 8px; }
+.day-sum span { display: flex; flex-direction: column; gap: 2px; padding: 10px 12px; border-radius: 12px; background: var(--surface); border: 1px solid var(--line); }
+.day-sum small { color: var(--muted); font-size: 12px; }
+.day-sum b { font-size: 18px; }
+/* 自己張枱：閃一閃 */
+.tcard-mine { box-shadow: 0 0 0 2.5px color-mix(in srgb, var(--gain) 70%, transparent), 0 8px 20px rgba(0, 0, 0, .08); animation: mineGlow 1.6s ease-out .5s 2; }
+@keyframes mineGlow { 0% { box-shadow: 0 0 0 2.5px color-mix(in srgb, var(--gain) 70%, transparent); } 50% { box-shadow: 0 0 0 8px color-mix(in srgb, var(--gain) 25%, transparent); } 100% { box-shadow: 0 0 0 2.5px color-mix(in srgb, var(--gain) 70%, transparent); } }
+/* 主頁置頂：你打緊嘅枱 */
+.my-table-now { display: flex; align-items: center; gap: 12px; padding: 14px 16px; border-radius: 18px; background: linear-gradient(135deg, var(--felt, #1E5B49), color-mix(in srgb, var(--felt, #1E5B49) 70%, #000)); color: #F4EFDF; text-decoration: none; box-shadow: 0 8px 20px rgba(0, 0, 0, .18); position: sticky; top: calc(8px + env(safe-area-inset-top)); z-index: 20; }
+.my-table-now b { display: block; font-size: 16px; }
+.my-table-now small { display: block; opacity: .8; font-size: 12.5px; }
+.my-table-now .num { font-family: var(--font-num); font-size: 22px; }
+.my-table-now .gain { color: #9FF0C4; } .my-table-now .loss { color: #FFB4A8; }
+.my-table-dot { width: 10px; height: 10px; flex: none; border-radius: 50%; background: #FF5A4E; box-shadow: 0 0 0 0 rgba(255, 90, 78, .6); animation: livePing 1.6s ease-out infinite; }
+.my-table-go { flex: none; padding: 6px 12px; border-radius: 999px; background: rgba(255, 255, 255, .16); font-weight: 800; font-size: 14px; }
+@keyframes livePing { 0% { box-shadow: 0 0 0 0 rgba(255, 90, 78, .6); } 100% { box-shadow: 0 0 0 10px rgba(255, 90, 78, 0); } }
+/* 枱底：呢張枱數據 */
+.table-stats .my-line { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 14px; padding: 10px 14px; border-radius: 14px; background: var(--surface); border: 1px solid var(--line); font-size: 14px; }
+.table-stats .my-line > b:first-child { padding: 1px 8px; border-radius: 999px; background: var(--gain-soft); color: var(--gain); }
+.table-stats .my-line .king-tag { margin-left: 0; }
+.edit-who { display: grid; gap: 6px; }
+.edit-who .choices { margin-bottom: 4px; }

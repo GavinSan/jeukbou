@@ -10,7 +10,6 @@ import { useGroup, useJoinRequests, useMyJoinRequest, useMyMember, useProfile } 
 import { Link, go } from '../lib/router.tsx';
 import { Sheet, TopBar, message, useConfirm } from '../ui.tsx';
 import { seenAt } from '../lib/notify.ts';
-import { useSuperAdmin } from '../lib/admin.ts';
 
 const Chevron = () => (
   <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" aria-hidden="true"><path d="M9 6l6 6-6 6" /></svg>
@@ -187,7 +186,6 @@ export default function GroupsPage({ user }: { user: User }) {
   const photo = profile.data.avatar ?? user.photoURL;
   const [adding, setAdding] = useState(() => new URLSearchParams(location.search).has('add'));
   const [q, setQ] = useState('');
-  const admin = useSuperAdmin(user.uid);
 
   return (
     <main className="page">
@@ -209,20 +207,6 @@ export default function GroupsPage({ user }: { user: User }) {
         )}
       </section>
       <PublicResults q={q.trim()} mine={groups} />
-      {admin && (
-        <section className="stack">
-          <h2 className="section-head">管理</h2>
-          <div className="list">
-            <Link to="/admin" className="listrow">
-              <span className="row-icon" aria-hidden="true">
-                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinejoin="round"><path d="M12 3l7.5 3v5.5c0 4.5-3.2 8.2-7.5 9.5-4.3-1.3-7.5-5-7.5-9.5V6z" /><path d="M9 12l2 2 4-4" strokeLinecap="round" /></svg>
-              </span>
-              <span className="grow exp-text"><span>超級管理員</span><small className="muted">所有牌友圈、用家、資料</small></span>
-              <span className="chev" aria-hidden="true">›</span>
-            </Link>
-          </div>
-        </section>
-      )}
       {adding && <AddSheet user={user} photo={photo} groups={groups} onClose={() => setAdding(false)} />}
     </main>
   );

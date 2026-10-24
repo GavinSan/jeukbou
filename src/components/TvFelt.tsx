@@ -5,6 +5,8 @@ import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import type { CSSProperties, ReactNode } from 'react';
 import type { Computed } from '../lib/score.ts';
 import { Chips, RollingNumber, fmt, tone } from '../ui.tsx';
+import TileFace from './TileFace.tsx';
+import type { TileCode } from './TileFace.tsx';
 
 const WIND = ['東', '南', '西', '北'];
 const CN = ['零', '一', '二', '三', '四', '五', '六', '七', '八', '九', '十'];
@@ -123,43 +125,50 @@ export function TvFelt({ c, names, title, me, day }: { c: Computed; names: Recor
   );
 }
 
-/** 將內容（固定闊度 base）放大縮細塞滿個格，唔變形 */
-export function ScaleFit({ base = 380, children }: { base?: number; children: ReactNode }) {
+/**
+ * 將內容放大縮細塞滿個格。
+ * 一般：固定闊度 base，唔變形。
+ * minW + minH（電視）：內容最少要咁大；揀最大嘅比例，之後內容伸到啱啱塞滿成個格（綠絨、牌跟住伸，字跟住大）
+ */
+export function ScaleFit({ base = 380, minW, minH, children }: { base?: number; minW?: number; minH?: number; children: ReactNode }) {
   const box = useRef<HTMLDivElement>(null);
   const inner = useRef<HTMLDivElement>(null);
-  const [k, setK] = useState(1);
+  const [d, setD] = useState<{ k: number; w: number; h?: number }>({ k: 1, w: minW ?? base });
   useLayoutEffect(() => {
     const b = box.current;
     const i = inner.current;
     if (!b || !i) return;
     const fit = () => {
+      if (minW && minH) {
+        const cw = b.clientWidth || minW;
+        const ch = b.clientHeight || minH;
+        const k = Math.max(0.2, Math.min(cw / minW, ch / minH));
+        setD({ k, w: cw / k, h: ch / k });
+        return;
+      }
       const h = i.offsetHeight || 1;
-      setK(Math.max(0.3, Math.min(b.clientWidth / base, b.clientHeight / h)));
+      setD({ k: Math.max(0.3, Math.min(b.clientWidth / base, b.clientHeight / h)), w: base });
     };
     fit();
     const ro = new ResizeObserver(fit);
     ro.observe(b);
-    ro.observe(i);
+    if (!(minW && minH)) ro.observe(i);
     return () => ro.disconnect();
-  }, [base]);
+  }, [base, minW, minH]);
   return (
-    <div className="scale-fit" ref={box}>
-      <div className="scale-fit-inner" ref={inner} style={{ width: base, transform: `translate(-50%, -50%) scale(${k})` }}>{children}</div>
+    <div className={`scale-fit${minW && minH ? ' fill' : ''}`} ref={box}>
+      <div className="scale-fit-inner" ref={inner} style={{ width: d.w, height: d.h, transform: `translate(-50%, -50%) scale(${d.k})` }}>{children}</div>
     </div>
   );
 }
 
-// ---------- 背景：慢慢飄落嘅麻雀牌 ----------
-const ANIM_KEY = 'jeukbou-tv-anim';
-export const tvAnimOn = () => { try { return localStorage.getItem(ANIM_KEY) !== '0'; } catch { return true; } };
-export const setTvAnim = (on: boolean) => { try { localStorage.setItem(ANIM_KEY, on ? '1' : '0'); } catch { /* 唔緊要 */ } };
-const FALL = ['中', '發', '東', '南', '西', '北', '一', '九', '萬', '筒', '索', '白', '春', '梅', '五', '八', '蘭', '三'];
-
+// 背景跌落嚟嘅牌：萬、筒、索各幾隻，加字牌同花，全部係真牌面
+const FALL: TileCode[] = ['1m', '5p', 'E', '9s', 'C', '3m', 'f1', '7p', 'F', '2s', 'N', '8m', 'P', '4p', 'f6', '6s', 'S', '9m', '1p', 'W', '5s', 'f3'];
 export function FallingTiles() {
   return (
-    <div className="stage-fall" aria-hidden="true">
+    <div className="stage-fall tiles" aria-hidden="true">
       {FALL.map((t, i) => (
-        <span key={i} style={{ '--x': `${(i * 37) % 100}%`, '--d': `${16 + ((i * 7) % 10)}s`, '--delay': `${-((i * 3.3) % 16)}s`, '--r': `${((i * 53) % 60) - 30}deg`, '--s': `${0.8 + ((i * 13) % 6) / 10}` } as CSSProperties}>{t}</span>
+        <span key={i} style={{ '--x': `${(i * 37) % 100}%`, '--d': `${18 + ((i * 7) % 11)}s`, '--delay': `${-((i * 3.1) % 18)}s`, '--r': `${((i * 53) % 70) - 35}deg`, '--s': `${0.75 + ((i * 13) % 7) / 10}` } as CSSProperties}><TileFace code={t} size={40} /></span>
       ))}
     </div>
   );

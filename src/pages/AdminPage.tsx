@@ -2,9 +2,9 @@
 // 手機同電腦都用到：闊屏左邊係分頁，窄屏上面係分頁
 import { useEffect, useMemo, useState } from 'react';
 import type { User } from 'firebase/auth';
-import { deleteGroup, deleteSession, setJoinMode } from '../lib/data.ts';
-import type { JoinMode } from '../lib/data.ts';
-import { useSuperAdmin } from '../lib/admin.ts';
+import { deleteFeedback, deleteGroup, deleteSession, loadFeedback, setJoinMode } from '../lib/data.ts';
+import type { FeedbackDoc, JoinMode } from '../lib/data.ts';
+import { useIsSuperAdmin } from '../lib/admin.ts';
 import {
   addToGroup, childCollections, listCollection, loadAllGroups, loadAllUsers, readDoc, removeDoc, removeFromGroup,
   renameGroup, renameUser, reopenSession, sendReset, setOwner, writeDoc,
@@ -18,8 +18,8 @@ import type { Skin, SkinMode } from '../lib/prefs.ts';
 import { useSkinConfig } from '../lib/live.ts';
 import { ConfirmDelete, Loading, TopBar, message, useConfirm } from '../ui.tsx';
 
-type Tab = 'overview' | 'groups' | 'users' | 'skins' | 'push' | 'test' | 'data';
-const TABS: [Tab, string][] = [['overview', '總覽'], ['groups', '牌友圈'], ['users', '用家'], ['skins', '風格'], ['push', '發通知'], ['test', '測試'], ['data', '資料']];
+type Tab = 'overview' | 'groups' | 'users' | 'feedback' | 'skins' | 'push' | 'test' | 'data';
+const TABS: [Tab, string][] = [['overview', '總覽'], ['groups', '牌友圈'], ['users', '用家'], ['feedback', '回報'], ['skins', '風格'], ['push', '發通知'], ['test', '測試'], ['data', '資料']];
 
 type Broadcast = (m: { title: string; body: string; target: string }) => Promise<{ people: number; ok: number }>;
 
@@ -71,7 +71,7 @@ function useAdminData(on: boolean, tick: number) {
 }
 
 export default function AdminPage({ user }: { user: User }) {
-  const admin = useSuperAdmin(user.uid);
+  const admin = useIsSuperAdmin(user.uid);
   const [tick, setTick] = useState(0);
   const { groups, users, error } = useAdminData(admin, tick);
   if (!admin) {
@@ -112,6 +112,7 @@ export function AdminView({ me, groups, users, error, onRefresh, onBroadcast, li
               {tab === 'push' && (onBroadcast ? <PushComposer groups={groups} onSend={onBroadcast} /> : <p className="muted">未接駁。</p>)}
               {tab === 'skins' && (live ? <SkinAdmin users={users} /> : <p className="muted">示範模式唔接駁風格設定。</p>)}
               {tab === 'test' && <TestTools live={live} />}
+              {tab === 'feedback' && (live ? <FeedbackList /> : <p className="muted">示範模式唔接駁問題回報。</p>)}
               {tab === 'data' && <DataBrowser path={dataPath} setPath={setDataPath} />}
             </>
           )}
@@ -522,6 +523,34 @@ function TestTools({ live }: { live: boolean }) {
       </div>
       <h2 className="section-head">示範模式</h2>
       <Link to="/demo/cases" className="listrow list"><span className="grow">示範模式（測試用）</span><span className="muted small">假資料，唔會改真數</span><span className="chev" aria-hidden="true">›</span></Link>
+    </div>
+  );
+}
+
+/** 用家嘅問題回報同建議（最新 50 個） */
+function FeedbackList() {
+  const [list, setList] = useState<FeedbackDoc[] | null>(null);
+  const [error, setError] = useState('');
+  const [big, setBig] = useState('');
+  useEffect(() => { loadFeedback().then(setList).catch((e) => setError(message(e))); }, []);
+  if (error) return <p className="error">{error}</p>;
+  if (!list) return <Loading />;
+  if (!list.length) return <p className="muted">未有人回報。</p>;
+  return (
+    <div className="stack feedback-list">
+      {list.map((f) => (
+        <article key={f.id} className="panel stack tight">
+          <div className="row">
+            <b className="grow">{f.kind === 'idea' ? '💡' : '🐞'} {f.name}</b>
+            <small className="muted">{f.at ? new Date(f.at).toLocaleString('zh-HK', { month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit' }) : ''}</small>
+          </div>
+          <p className="selectable" style={{ whiteSpace: 'pre-wrap', margin: 0 }}>{f.text}</p>
+          {f.image && <button type="button" className="feedback-thumb" onClick={() => setBig(f.image!)}><img src={f.image} alt="截圖" /></button>}
+          <small className="muted selectable">{f.email} · {f.page} · {f.ua.slice(0, 80)}</small>
+          <button type="button" className="textbtn loss" onClick={async () => { try { await deleteFeedback(f.id); setList((l) => l?.filter((x) => x.id !== f.id) ?? null); } catch (e) { setError(message(e)); } }}>刪除</button>
+        </article>
+      ))}
+      {big && <button type="button" className="feedback-big" onClick={() => setBig('')}><img src={big} alt="截圖（大）" /></button>}
     </div>
   );
 }

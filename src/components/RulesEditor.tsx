@@ -129,8 +129,8 @@ export default function RulesEditor({ initial, canEdit, onSave, scopeNote }: {
         <Row title="圈數" note="0 = 不限，按完場才結束">
           <Num value={r.rounds} onChange={(v) => set({ rounds: v })} label="圈數" disabled={d} />
         </Row>
-        <Row title="幾時可以換位" note={r.reseat === 'any' ? '隨時（莊照舊喺嗰個位）' : r.reseat === 'round' ? '每打完一圈' : '打完預定圈數先換'}>
-          <div className="seg" role="group" aria-label="幾時可以換位">
+        <Row title="幾時可以執位" note={r.reseat === 'any' ? '隨時（莊照舊喺嗰個位）' : r.reseat === 'round' ? '每打完一圈' : '打完預定圈數先換'}>
+          <div className="seg" role="group" aria-label="幾時可以執位">
             {([['any', '隨時'], ['round', '每圈'], ['four', '打完圈']] as const).map(([v, t]) => (
               <button key={v} type="button" aria-pressed={(r.reseat ?? 'round') === v} disabled={d} onClick={() => set({ reseat: v })}>{t}</button>
             ))}

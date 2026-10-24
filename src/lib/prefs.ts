@@ -11,6 +11,8 @@ export interface Prefs {
   notify: boolean;
   /** 介面風格 */
   skin: Skin;
+  /** 超級管理員：「使用超級管理員身份」開咗先有最大權限；閂咗就同普通用家一樣（試用家睇到乜） */
+  adminMode: boolean;
 }
 
 export type Skin = 'classic' | 'teahouse' | 'chachaan' | 'neon' | 'glass' | 'clay' | 'brutal' | 'paper' | 'pixel' | 'palace' | 'jade' | 'porcelain' | 'obsidian' | 'sapphire' | 'ruby' | 'amethyst' | 'rosegold' | 'marble';
@@ -42,7 +44,7 @@ export const SKINS: { key: Skin; name: string; note: string; colors: string[]; d
 const RENAMED: Record<string, Skin> = { ocean: 'glass', sakura: 'clay', matcha: 'chachaan', midnight: 'pixel', amber: 'paper', violet: 'amethyst', imperial: 'ruby', minimal: 'paper' };
 
 const KEY = 'jeukbou-prefs';
-const DEFAULTS: Prefs = { hints: false, sound: true, vibe: true, notify: false, skin: 'classic' };
+const DEFAULTS: Prefs = { hints: false, sound: true, vibe: true, notify: false, skin: 'classic', adminMode: true };
 const listeners = new Set<() => void>();
 
 function load(): Prefs {

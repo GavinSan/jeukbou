@@ -77,7 +77,7 @@ export default function Login({ refresh, joining }: { refresh: () => void; joini
         <form className="stack" onSubmit={withEmail}>
           {mode === 'up' && (
             <label className="field">
-              <span>顯示名稱</span>
+              <span>雀壇名</span>
               <input id="name" value={name} onChange={(e) => setName(clampName(e.target.value))} autoComplete="nickname" required />
             </label>
           )}
