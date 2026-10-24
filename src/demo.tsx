@@ -35,7 +35,7 @@ import { LiveTv, bySeat, tvTablesOf } from './pages/LivePage.tsx';
 import type { TvTable } from './pages/LivePage.tsx';
 import { WaterBox } from './pages/GroupPage.tsx';
 import { Sheet } from './ui.tsx';
-import { LiveCardView } from './components/LiveHome.tsx';
+import { LiveCardView, MyTableBar } from './components/LiveHome.tsx';
 import type { ChatMsg } from './lib/live.ts';
 import type { PayItem } from './lib/pay.ts';
 import { Invite, JoinRequestsView, MemberList, ladderOf, memberStatsOf } from './pages/GroupPage.tsx';
@@ -239,6 +239,7 @@ export default function Demo() {
     { id: 'e2', kind: 'expense', label: '飲品', payer: 'guest-vincent', amount: 23.92, sharedBy: [], all: true, note: '奶茶', names: { 'guest-vincent': 'Vincent' }, by: 'demo', at: null },
   ]);
   const [demoDraw, setDemoDraw] = useState<Draw | null>(null);
+  const [dayEnd, setDayEnd] = useState<number | null>(null);
   const [chats, setChats] = useState<Record<string, ChatMsg[]>>(() => ({
     a: [
       { id: '1', by: 'athena', name: 'Athena', text: 'Gavin 今晚好旺喎 🔥', at: Date.now() - 600000 },
@@ -294,48 +295,49 @@ export default function Demo() {
   }, [events, rules, tables, testTables]);
 
   if (path === '/demo/cases') {
-    const C: [string, string, string][] = [
-      ['/demo/home', '主頁', '戰績、3 個 Live 牌友圈、日曆、加主畫面提示、補資料提示'],
-      ['/demo/groups', '牌友圈列表', '搜尋、公開牌友圈、加入碼'],
-      ['/demo/group', '牌友圈頁', '約局（去／唔去、📣 問有冇人打、局主唔去由下一個接手）、⚙︎ 設定睇抽水、成員、邀請'],
-      ['/demo', '大局', '5 張枱、一齊執位（高分先揀、輪到你會彈）、夠拉通知設定、電視直播'],
-      ['/demo/t/0', '枱：一般', '入數、番數表、特別事項（返回）、換人、撤回、紀錄分段'],
-      ['/demo/t/1', '枱：有流局', '流局（唔使確認）、拉同枱面'],
-      ['/demo/t/2', '枱：大番數', '40 番、找數'],
-      ['/demo/t/3', '枱：未開始', '掉位、擲骰'],
-      ['/demo/t/4', '枱：打完四圈', '再打四圈、快圈、完場'],
-      ['/demo/t/5', '枱：夠三拉', '決定找唔找數'],
-      ['/demo/t/6', '枱：雙響、特別事項、詐糊、自摸', '紀錄寫實際食幾多番'],
-      ['/demo/t/7', '枱：拉 3 家 3 次', '三個「找唔找」提示一齊出'],
-      ['/demo/t/8', '枱：拉 3 家 6 次', '第 3 拉唔找，第 6 拉再問三家；夠拉會彈示範通知'],
-      ['/demo/t/9', '枱：已完場', '重開：繼續之前拉住嘅數，或者由零開始'],
-      ['/demo/t/0?view=1', '枱：唔喺呢張枱', '只可以睇，入唔到數、擲唔到骰'],
-      ['/demo/settle', '埋數', '開支、Group、轉賬、已轉'],
-      ['/demo/pay', '找數', '同一班人合埋一張卡（撳開分人分日）、催找數'],
-      ['/demo/board', '龍虎榜', '走勢（所有人、highlight 自己）、排行表、數據'],
-      ['/demo/rank', '段位', '段位進度、成就'],
-      ['/demo/live', '電視直播', '一版睇晒全部枱、東南西北、冧莊、直播室（撳名禁言）、食糊彩炮聲效、轉台'],
-      ['/demo/rules', '家規', '番數表、抽水、拉'],
-      ['/demo/install', '加主畫面教學', 'iPhone Safari、其他瀏覽器、Android'],
-      ['/demo/skins', '風格', '18 款風格，各有光暗同質感（9 款 👑 豪華）'],
-      ['/demo/admin', '超級管理員', '用戶、牌友圈、發通知'],
-      ['/demo/legacy', '舊紀錄', '匯入嘅舊數'],
-      ['/demo/players', '對應玩家', '舊紀錄名配對成員、一鍵配對'],
+    const C: { cat: string; items: [string, string, string][] }[] = [
+      { cat: '主頁同牌友圈', items: [
+        ['/demo/home', '主頁', '戰績、3 個 Live 牌友圈、日曆、加主畫面提示、補資料提示'],
+        ['/demo/groups', '牌友圈列表', '搜尋、公開牌友圈、加入碼'],
+        ['/demo/group', '牌友圈頁', '約局（去／唔去、📣 問有冇人打、局主唔去由下一個接手）、⚙︎ 設定睇抽水、成員、邀請'],
+        ['/demo/install', '加主畫面教學', 'iPhone Safari、其他瀏覽器、Android'],
+      ] },
+      { cat: '大局', items: [
+        ['/demo', '大局', '5 張枱、一齊執位（高分先揀、輪到你會彈）、夠拉通知設定、電視直播'],
+      ] },
+      { cat: '枱（入數）', items: [
+        ['/demo/t/0', '枱：一般', '入數、番數表、特別事項（返回）、換人、撤回、紀錄分段'],
+        ['/demo/t/1', '枱：有流局', '流局（唔使確認）、拉同枱面'],
+        ['/demo/t/2', '枱：大番數', '40 番、找數'],
+        ['/demo/t/3', '枱：未開始', '掉位、擲骰'],
+        ['/demo/t/4', '枱：打完四圈', '再打四圈、快圈、完場'],
+        ['/demo/t/5', '枱：夠三拉', '決定找唔找數'],
+        ['/demo/t/6', '枱：雙響、特別事項、詐糊、自摸', '紀錄寫實際食幾多番'],
+        ['/demo/t/7', '枱：拉 3 家 3 次', '三個「找唔找」提示一齊出'],
+        ['/demo/t/8', '枱：拉 3 家 6 次', '第 3 拉唔找，第 6 拉再問三家；夠拉會彈示範通知'],
+        ['/demo/t/9', '枱：已完場', '重開：繼續之前拉住嘅數，或者由零開始'],
+        ['/demo/t/0?view=1', '枱：唔喺呢張枱', '只可以睇，入唔到數、擲唔到骰'],
+      ] },
+      { cat: '埋數同找數', items: [
+        ['/demo/settle', '埋數', '開支、Group、轉賬、已轉'],
+        ['/demo/pay', '找數', '同一班人合埋一張卡（撳開分人分日）、催找數'],
+        ['/demo/board', '龍虎榜', '走勢（所有人、highlight 自己）、排行表、數據'],
+      ] },
+      { cat: '電視直播', items: [
+        ['/demo/live', '電視直播', '一版睇晒全部枱、東南西北、冧莊、直播室（撳名禁言）、食糊彩炮聲效、轉台'],
+      ] },
+      { cat: '段位、風格、家規', items: [
+        ['/demo/rank', '段位', '段位進度、成就'],
+        ['/demo/skins', '風格', '18 款風格，各有光暗同質感（9 款 👑 豪華）'],
+        ['/demo/rules', '家規', '番數表、抽水、拉'],
+      ] },
+      { cat: '管理同舊紀錄', items: [
+        ['/demo/admin', '超級管理員', '用戶、牌友圈、發通知'],
+        ['/demo/legacy', '舊紀錄', '匯入嘅舊數'],
+        ['/demo/players', '對應玩家', '舊紀錄名配對成員、一鍵配對'],
+      ] },
     ];
-    return (
-      <main className="page">
-        <TopBar title="示範：測試清單" />
-        <p className="muted small">全部係假資料，撳嚟撳去都唔會改到真嘅數。重新載入就會還原。右上角「退出示範」返去真 app。</p>
-        <div className="list">
-          {C.map(([href, t, d]) => (
-            <Link key={href} to={href} className="listrow">
-              <span className="grow"><b>{t}</b><small className="muted" style={{ display: 'block' }}>{d}</small></span>
-              <span className="chev" aria-hidden="true">›</span>
-            </Link>
-          ))}
-        </div>
-      </main>
-    );
+    return <DemoCases groups={C} />;
   }
   if (path === '/demo/rules') {
     return (
@@ -356,7 +358,10 @@ export default function Demo() {
   const liveM = path === '/demo/live' ? { c: 'a' } : match('/demo/live/:c', path);
   if (liveM) {
     const c = OTHER_LIVE[liveM.c] ? liveM.c : 'a';
-    const tv = c === 'a' ? tvTablesOf(tables, computed) : OTHER_LIVE[c].tables;
+    // ?n=3：淨係顯示頭幾張枱（試三張枱嘅排版）
+    const nOnly = Number(new URLSearchParams(location.search).get('n')) || 0;
+    const tvAll = c === 'a' ? tvTablesOf(tables, computed) : OTHER_LIVE[c].tables;
+    const tv = nOnly ? tvAll.slice(0, nOnly) : tvAll;
     const acc = new Map<string, { id: string; name: string; v: number }>();
     for (const t of tv) for (const pl of t.players) { const r = acc.get(pl.id) ?? { id: pl.id, name: pl.name, v: 0 }; r.v += pl.v; acc.set(pl.id, r); }
     const channels = [{ key: 'a', label: '不打不相識・10月18日 屋企局', href: '/demo/live' }, ...Object.entries(OTHER_LIVE).map(([k, x]) => ({ key: k, label: `${x.name}・${x.session}`, href: `/demo/live/${k}` }))];
@@ -390,6 +395,7 @@ export default function Demo() {
           mine={mySessions(DEMO_GROUPS, 'gavin')}
           loading={false}
           resume={<ResumeRow href="/demo" name="10月18日 屋企局" />}
+          pinned={<MyTableBar href="/demo/t/0" table="第壹枱" where="不打不相識・南圈東位 第 5 鋪" v={computed[tables[0]?.id ?? '']?.state.settled.gavin ?? 0} />}
           live={(() => {
             const tv = tvTablesOf(tables, computed).slice(0, 3);
             const card = (t: TvTable) => ({ id: t.id, name: t.name, round: t.round, players: bySeat(t.players), dealer: t.dealer, streak: t.streak });
@@ -734,6 +740,8 @@ export default function Demo() {
       pullPush={{ value: demoPull, onChange: async (v) => setDemoPull(v) }}
       candidates={[{ id: 'kit', name: 'Kit' }, { id: 'jo', name: 'Jo' }]}
       me="gavin"
+      endedAt={dayEnd}
+      onEndDay={async (on) => setDayEnd(on ? Date.now() : null)}
       regroup={{
         draw: demoDraw,
         canForce: true,
@@ -789,5 +797,44 @@ export default function Demo() {
         },
       }}
     />
+  );
+}
+
+/** 示範測試清單：分類、可以收埋、搜尋（記住上次開咗邊幾類） */
+function DemoCases({ groups }: { groups: { cat: string; items: [string, string, string][] }[] }) {
+  const [q, setQ] = useState('');
+  const [open, setOpen] = useState<Record<string, boolean>>(() => { try { return JSON.parse(localStorage.getItem('jeukbou-demo-open') ?? '{}'); } catch { return {}; } });
+  const toggle = (c: string) => setOpen((o) => { const n = { ...o, [c]: !(o[c] ?? true) }; try { localStorage.setItem('jeukbou-demo-open', JSON.stringify(n)); } catch { /* 唔緊要 */ } return n; });
+  const k = q.trim().toLowerCase();
+  const hit = (r: [string, string, string]) => !k || `${r[1]} ${r[2]} ${r[0]}`.toLowerCase().includes(k);
+  return (
+    <main className="page">
+      <TopBar title="示範：測試清單" />
+      <p className="muted small">全部係假資料，撳嚟撳去都唔會改到真嘅數。重新載入就會還原。右上角「退出示範」返去真 app。</p>
+      <input className="input" type="search" value={q} onChange={(e) => setQ(e.target.value)} placeholder="搵功能，例如：雙響、Live、找數" aria-label="搵測試" />
+      {groups.map((g) => {
+        const items = g.items.filter(hit);
+        if (!items.length) return null;
+        const isOpen = k ? true : open[g.cat] ?? true;
+        return (
+          <section key={g.cat} className="demo-cat">
+            <button type="button" className="demo-cat-head" aria-expanded={isOpen} onClick={() => toggle(g.cat)}>
+              <b className="grow">{g.cat}</b><small className="muted">{items.length}</small>
+              <svg className={`chev-svg${isOpen ? ' up' : ''}`} width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M6 9l6 6 6-6" /></svg>
+            </button>
+            {isOpen && (
+              <div className="list">
+                {items.map(([href, t, d]) => (
+                  <Link key={href} to={href} className="listrow">
+                    <span className="grow"><b>{t}</b><small className="muted" style={{ display: 'block' }}>{d}</small></span>
+                    <span className="chev" aria-hidden="true">›</span>
+                  </Link>
+                ))}
+              </div>
+            )}
+          </section>
+        );
+      })}
+    </main>
   );
 }

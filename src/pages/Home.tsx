@@ -11,7 +11,7 @@ import { Avatar, TopBar, fmt } from '../ui.tsx';
 import { navContext } from '../lib/nav.ts';
 import { TIERS, badgesOf, sessionPoints, statsOf, tierOf, useMyHistory, useTierSync } from '../lib/stats.ts';
 import type { MySession } from '../lib/stats.ts';
-import LiveNow from '../components/LiveHome.tsx';
+import LiveNow, { MyTableNow } from '../components/LiveHome.tsx';
 import { CountUp, Progress, TierTile } from '../components/Tier.tsx';
 import { TrendChart } from '../components/Charts.tsx';
 
@@ -146,8 +146,10 @@ export function ResumeRow({ href, name }: { href: string; name: string }) {
   );
 }
 
-export function DashboardView({ name, photo, joined, groupCount, mine, loading, resume, nudge, live, sessionHref, rankHref = '/rank', settingsHref = '/settings' }: {
+export function DashboardView({ name, photo, joined, groupCount, mine, loading, resume, nudge, live, pinned, sessionHref, rankHref = '/rank', settingsHref = '/settings' }: {
   name: string; photo: string | null; joined: string; groupCount: number; mine: MySession[]; loading: boolean; resume?: ReactNode; nudge?: ReactNode; live?: ReactNode;
+  /** 置頂：自己而家坐緊嘅枱 */
+  pinned?: ReactNode;
   sessionHref: (s: MySession) => string;
   rankHref?: string;
   /** 撳自己個名／頭像去設定 */
@@ -162,6 +164,7 @@ export function DashboardView({ name, photo, joined, groupCount, mine, loading, 
   return (
     <main className="page dash">
       <TopBar />
+      {pinned}
 
       <section className="hero">
         <div className="hero-top">
@@ -293,6 +296,7 @@ export default function Home({ user }: { user: User; refresh?: () => void }) {
       resume={last.g && last.s ? <Resume g={last.g} s={last.s} t={last.t} /> : null}
       nudge={<><InstallCard /><NotifyCard uid={user.uid} /><ProfileNudge uid={user.uid} profile={profile.loading ? null : profile.data} /></>}
       live={<><LiveNow groupIds={groups} me={user.uid} onLive={onLive} /><HomeMeetups groupIds={groups} me={user.uid} /></>}
+      pinned={<MyTableNow groupIds={groups} me={user.uid} />}
       sessionHref={(s) => `/g/${s.gid}/s/${s.sid}`}
     />
   );

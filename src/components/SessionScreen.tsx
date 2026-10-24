@@ -10,7 +10,8 @@ import type { DrawTable } from './RegroupDraw.tsx';
 import { Link } from '../lib/router.tsx';
 import type { Computed } from '../lib/score.ts';
 import { addPlay, ago, describe, emptyPlay, netOf, trendOf } from '../lib/score.ts';
-import Awards, { PlayTable, kingsOf, paceOf } from './Awards.tsx';
+import Awards, { PlayTable, kingTagsOf, paceOf } from './Awards.tsx';
+import type { KingTag } from './Awards.tsx';
 import { Sparkline } from './Charts.tsx';
 import { Avatar, Chips, ConfirmDelete, CopyLink, Hint, RollingNumber, fmt, Sheet, TopBar, message, tone, useNow, clampName } from '../ui.tsx';
 import type { Candidate } from './TableScreen.tsx';
@@ -43,6 +44,9 @@ export interface SessionScreenProps {
   me?: string | null;
   /** 已埋數但撳咗「開枱」：去今日大局（冇就開新大局） */
   onClosedAdd?: () => void;
+  /** 是日終結：幾時撳咗（冇 = 未終結）；冇枱打緊先撳得 */
+  endedAt?: number | null;
+  onEndDay?: (on: boolean) => Promise<void>;
   /** 幾張枱一齊執位（抽牌）：任何坐緊嘅人提議；場主／局主可以直接開始 */
   regroup?: {
     draw: Draw | null;
@@ -69,7 +73,7 @@ function quickTags(c: Computed): string[] {
   return out;
 }
 
-export default function SessionScreen({ title, back, tables, computed, tableHref, invite, liveHref, rulesHref, settleHref, onDeleteSession, water: waterCtl, pullPush, closedNote, notice, candidates = [], onAddTable, me = null, onClosedAdd, regroup: rg }: SessionScreenProps) {
+export default function SessionScreen({ title, back, tables, computed, tableHref, invite, liveHref, rulesHref, settleHref, onDeleteSession, water: waterCtl, pullPush, closedNote, notice, candidates = [], onAddTable, me = null, onClosedAdd, regroup: rg, endedAt = null, onEndDay }: SessionScreenProps) {
   const now = useNow();
   const [adding, setAdding] = useState(false);
   const [delSession, setDelSession] = useState(false);
@@ -156,7 +160,29 @@ export default function SessionScreen({ title, back, tables, computed, tableHref
   // 全場數據：幾張枱加埋
   const play = useMemo(() => tables.reduce((acc, t) => (computed[t.id] ? addPlay(acc, computed[t.id]!.stats) : acc), emptyPlay()), [tables, computed]);
   const allNames = useMemo(() => Object.assign({}, ...tables.map((t) => t.names)) as Record<string, string>, [tables]);
-  const kings = useMemo(() => kingsOf(play), [play]);
+  const kingTags = useMemo(() => kingTagsOf(play), [play]);
+  const tagsOf = (id: string, max = 99): KingTag[] => (kingTags[id] ?? []).slice(0, max);
+  // 打咗幾耐：第一張枱第一鋪 → 是日終結（未終結就到而家／最後一鋪）
+  const span = useMemo(() => {
+    const ats = tables.flatMap((t) => (computed[t.id]?.steps ?? []).map((st) => st.at).filter((x): x is number => typeof x === 'number'));
+    if (!ats.length) return null;
+    return { start: Math.min(...ats), last: Math.max(...ats) };
+  }, [tables, computed]);
+  const endAt = endedAt ?? (openTables.length ? now : span?.last ?? null);
+  const playedMs = span && endAt ? Math.max(0, endAt - span.start) : 0;
+  const durTxt = playedMs ? `${Math.floor(playedMs / 3600000) ? `${Math.floor(playedMs / 3600000)} 小時 ` : ''}${Math.round((playedMs % 3600000) / 60000)} 分鐘` : '';
+  // 枱：新嘅喺上面
+  const shown = useMemo(() => [...tables].sort((a, b) => b.order - a.order), [tables]);
+  // 自己坐緊嘅枱：一入嚟就碌去嗰張，閃一閃
+  const myTable = me ? openTables.find((t) => computed[t.id]!.state.seats.includes(me))?.id ?? null : null;
+  const flown = useRef(false);
+  useEffect(() => {
+    if (!myTable || flown.current || tables.length < 2) return;
+    flown.current = true;
+    const t = setTimeout(() => document.getElementById(`tcard-${myTable}`)?.scrollIntoView({ behavior: 'smooth', block: 'center' }), 350);
+    return () => clearTimeout(t);
+  }, [myTable, tables.length]);
+  const [ending, setEnding] = useState(false);
   const people = new Set(tables.flatMap((t) => Object.keys(computed[t.id]?.state.settled ?? {}).length ? Object.keys(computed[t.id]!.state.settled) : t.seats)).size;
 
   function toggle(p: Candidate) {
@@ -192,6 +218,42 @@ export default function SessionScreen({ title, back, tables, computed, tableHref
           </Link>}
         </span> : undefined}
       />
+
+      {/* 頂部：加枱、執位、是日終結（冇枱打緊先有） */}
+      {(onAddTable || onEndDay) && (
+        <div className="session-acts">
+          {onAddTable && (
+            <button type="button" className="sact" onClick={() => { setAdding(true); setPicked([]); setError(''); }}>
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" aria-hidden="true"><rect x="4" y="4" width="16" height="16" rx="3" /><path d="M12 8.5v7M8.5 12h7" /></svg>
+              加一張枱
+            </button>
+          )}
+          {rg && !draw && openTables.length >= 1 && (rg.canForce || seatedMe) && (
+            <button type="button" className="sact" onClick={() => { setError(''); setDrawSetup(true); }}>
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M4 7h11l-3-3M20 17H9l3 3" /></svg>
+              {openTables.length > 1 ? `${openTables.length} 張枱執位` : '執位'}
+            </button>
+          )}
+          {onEndDay && !openTables.length && tables.length > 0 && !endedAt && (
+            <button type="button" className="sact end" disabled={ending} onClick={async () => { setEnding(true); try { await onEndDay(true); } catch (err) { setError(message(err)); } finally { setEnding(false); } }}>
+              <span className="sact-end-mark" aria-hidden="true">終</span>
+              是日終結
+            </button>
+          )}
+        </div>
+      )}
+
+      {error && !adding && <p className="error" role="alert">{error}</p>}
+      {endedAt && (
+        <div className="day-end" role="status">
+          <span className="day-end-seal" aria-hidden="true">終</span>
+          <span className="grow">
+            <b>是日終結</b>
+            <small>{new Date(endedAt).toLocaleString('zh-HK', { month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit' })}{durTxt ? `・打咗 ${durTxt}` : ''}</small>
+          </span>
+          {onEndDay && <button type="button" className="textbtn" onClick={() => onEndDay(false).catch((err) => setError(message(err)))}>取消</button>}
+        </div>
+      )}
 
       {notice}
       {closedNote}
@@ -239,7 +301,7 @@ export default function SessionScreen({ title, back, tables, computed, tableHref
       )}
 
       <section className="stack">
-        {tables.map((t) => {
+        {shown.map((t) => {
           const c = computed[t.id];
           const name = (id: string) => t.names[id] ?? '玩家';
           const last = c?.steps[c.steps.length - 1];
@@ -247,7 +309,7 @@ export default function SessionScreen({ title, back, tables, computed, tableHref
           for (const ch of c?.state.chains ?? []) owe[ch.pulled] = (owe[ch.pulled] ?? 0) + ch.owed;
           const seats = c?.state.seats ?? t.seats;
           return (
-            <Link key={t.id} to={tableHref(t.id)} className="tcard">
+            <Link key={t.id} to={tableHref(t.id)} className={`tcard${t.id === myTable ? ' tcard-mine' : ''}`} id={`tcard-${t.id}`}>
               <div className="tcard-head">
                 <h3>{t.name}</h3>
                 <span className="muted small">{!c ? '' : c.state.ended ? '已完場' : `${c.info.roundWind}圈${WINDS[c.state.dealerTurns % 4]}位 第 ${c.info.hand} 鋪`}</span>
@@ -263,8 +325,7 @@ export default function SessionScreen({ title, back, tables, computed, tableHref
                         <span className="prow-text">
                           {name(id)}
                           {dealer && <span className="prow-dealer">莊</span>}
-                          {kings.win === id && <span className="king-tag win" title="全場食糊最多">食糊王</span>}
-                          {kings.self === id && <span className="king-tag self" title="全場自摸最多">自摸王</span>}
+                          {tagsOf(id, 2).map((k) => <span key={k.key} className={`king-tag ${k.cls}`}>{k.title}</span>)}
                         </span>
                         {owe[id] ? <Chips amount={owe[id]} /> : null}
                       </span>
@@ -293,8 +354,6 @@ export default function SessionScreen({ title, back, tables, computed, tableHref
             </Link>
           );
         })}
-        {onAddTable && <button type="button" className="btn plain" onClick={() => { setAdding(true); setPicked([]); setError(''); }}>加一張枱</button>}
-        {rg && !draw && openTables.length >= 1 && (rg.canForce || seatedMe) && <button type="button" className="btn plain" onClick={() => { setError(''); setDrawSetup(true); }}>{openTables.length} 張枱一齊執位</button>}
         {rg && draw && (
           <button type="button" className={`link-card draw-live${myTurn ? ' my-turn' : ''}`} onClick={() => setBoardOpen(true)}>
             <span className="draw-live-dot" aria-hidden="true" />
@@ -315,7 +374,7 @@ export default function SessionScreen({ title, back, tables, computed, tableHref
               <div key={r.id} className="listrow">
                 <span className="num rank">{i + 1}</span>
                 <Avatar name={r.name} size="sm" />
-                <span className="grow rank-who"><span className="ellipsis">{r.name}{kings.win === r.id && <span className="king-tag win">食糊王</span>}{kings.self === r.id && <span className="king-tag self">自摸王</span>}</span><small className="muted">{r.table}</small></span>
+                <span className="grow rank-who"><span className="ellipsis">{r.name}{tagsOf(r.id).map((k) => <span key={k.key} className={`king-tag ${k.cls}`}>{k.title}</span>)}</span><small className="muted">{r.table}</small></span>
                 <Sparkline values={r.spark} />
                 <RollingNumber value={r.net} className={`num ${tone(r.net)} big-num`} />
               </div>
@@ -327,6 +386,14 @@ export default function SessionScreen({ title, back, tables, computed, tableHref
       {play.hands > 0 && (
         <section className="stack">
           <h2 className="section-head">全場數據</h2>
+          <div className="day-sum">
+            {durTxt && <span><small>打咗</small><b>{durTxt}</b></span>}
+            <span><small>鋪數</small><b className="num">{play.hands}</b></span>
+            <span><small>全場總番</small><b className="num">{play.fanTotal ?? 0}</b></span>
+            <span><small>食糊</small><b className="num">{Object.values(play.wins).reduce((a, b) => a + b, 0)}</b></span>
+            <span><small>流局</small><b className="num">{play.draws ?? 0}</b></span>
+            <span><small>抽水</small><b className="num">{water}</b></span>
+          </div>
           <PlayTable play={play} ids={ranking.map((r) => r.id)} name={(id) => allNames[id] ?? '玩家'} me={me} />
           <Awards play={play} name={(id) => allNames[id] ?? '玩家'} />
         </section>

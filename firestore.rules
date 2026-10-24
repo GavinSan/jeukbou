@@ -79,6 +79,26 @@ service cloud.firestore {
       }
     }
 
+    // 問題回報／建議：自己寫（可以附一張細相）；淨係超級管理員睇。
+    // 防洗版：每次要同時更新 feedbackLast/{自己}，同上一次相隔最少 60 秒
+    match /feedback/{f} {
+      function fbLast() {
+        return /databases/$(database)/documents/feedbackLast/$(request.auth.uid);
+      }
+      allow create: if signedIn() && request.resource.data.uid == request.auth.uid
+        && request.resource.data.keys().hasOnly(['uid', 'name', 'email', 'text', 'image', 'page', 'ua', 'at', 'kind'])
+        && request.resource.data.text is string && request.resource.data.text.size() > 0 && request.resource.data.text.size() <= 2000
+        && (request.resource.data.get('image', null) == null || (request.resource.data.image is string && request.resource.data.image.size() < 400000))
+        && request.resource.data.at == request.time
+        && getAfter(fbLast()).data.at == request.time
+        && (!exists(fbLast()) || get(fbLast()).data.at < request.time - duration.value(60, 's'));
+      allow read, update, delete: if false;
+    }
+    match /feedbackLast/{u} {
+      allow read: if signedIn() && request.auth.uid == u;
+      allow create, update: if signedIn() && request.auth.uid == u && request.resource.data.keys().hasOnly(['at']) && request.resource.data.at == request.time;
+    }
+
     // 加入碼：知道個碼先讀到（唔可以列出所有碼）；淨係局主開或者刪
     match /codes/{code} {
       allow get: if signedIn();
@@ -189,7 +209,9 @@ service cloud.firestore {
           // 已轉／未轉：局主、場主改得晒；其他人淨係改到自己份（俾錢或者收錢嗰邊有自己）
           && (!request.resource.data.diff(resource.data).affectedKeys().hasAny(['paid', 'lastPaid']) || (paidOk() && paidConfirmOk()))
           // 直播室禁言：場主、局主（同超級管理員）先改得
-          && (!request.resource.data.diff(resource.data).affectedKeys().hasAny(['chatBlock']) || isOwner(g) || resource.data.createdBy == request.auth.uid);
+          && (!request.resource.data.diff(resource.data).affectedKeys().hasAny(['chatBlock']) || isOwner(g) || resource.data.createdBy == request.auth.uid)
+          // 夠拉通知：淨係局主、場主（同超級管理員）揀得
+          && (!request.resource.data.diff(resource.data).affectedKeys().hasAny(['pullPush']) || isOwner(g) || resource.data.createdBy == request.auth.uid);
         allow delete: if can(g, 'records');
 
         // 直播室留言：同圈成員睇同留；自己或者局主刪。

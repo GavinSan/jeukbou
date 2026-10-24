@@ -12,14 +12,36 @@ interface Award {
   cls: string;
 }
 
+/** 獨領風騷先算（同數就冇） */
+const lead = (rec: Record<string, number>) => {
+  const e = Object.entries(rec).filter(([, v]) => v > 0).sort((a, b) => b[1] - a[1]);
+  if (!e.length || (e[1] && e[1][1] === e[0][1])) return null;
+  return e[0][0];
+};
+
 /** 全場食糊王、自摸王（同數就冇） */
 export function kingsOf(play: PlayStats): { win: string | null; self: string | null } {
-  const lead = (rec: Record<string, number>) => {
-    const e = Object.entries(rec).filter(([, v]) => v > 0).sort((a, b) => b[1] - a[1]);
-    if (!e.length || (e[1] && e[1][1] === e[0][1])) return null;
-    return e[0][0];
-  };
   return { win: lead(play.wins), self: lead(play.selfDraws) };
+}
+
+/** 一個王銜頭：good = 正面（之後計雀力分用；出銃王、詐糊王唔算） */
+export interface KingTag { key: string; title: string; cls: string; good: boolean }
+
+/** 全場所有王（大局層面）：每人有咩銜頭 */
+export function kingTagsOf(play: PlayStats): Record<string, KingTag[]> {
+  const out: Record<string, KingTag[]> = {};
+  const give = (id: string | null | undefined, t: KingTag) => { if (id) (out[id] ??= []).push(t); };
+  give(lead(play.wins), { key: 'win', title: '食糊王', cls: 'win', good: true });
+  give(lead(play.selfDraws), { key: 'self', title: '自摸王', cls: 'self', good: true });
+  give(play.biggest?.player, { key: 'big', title: '最大王', cls: 'big', good: true });
+  if (play.smallest && play.smallest.player !== play.biggest?.player) give(play.smallest.player, { key: 'small', title: '最細王', cls: 'small', good: true });
+  if (play.maxStreak && play.maxStreak.n > 0) give(play.maxStreak.player, { key: 'streak', title: '連莊王', cls: 'streak', good: true });
+  give(lead(play.pulls ?? {}), { key: 'pull', title: '拉王', cls: 'pull', good: true });
+  give(lead(play.multiWins ?? {}), { key: 'multi', title: '響王', cls: 'multi', good: true });
+  give(lead(play.dealIns), { key: 'deal', title: '出銃王', cls: 'deal', good: false });
+  give(lead(play.falseWins), { key: 'false', title: '詐糊王', cls: 'false', good: false });
+  for (const [art, , title] of SPECIAL_KINGS) give(lead(play.specialBy?.[art] ?? {}), { key: `sp-${art}`, title, cls: 'sp', good: art !== 'forgot' && art !== 'chase' });
+  return out;
 }
 
 /** 每圈幾耐：「18 分/圈」 */
@@ -42,10 +64,13 @@ export function awardsOf(play: PlayStats, name: (id: string) => string): Award[]
   if (sd) out.push({ key: 'self', mark: '摸', title: '自摸王', who: name(sd[0]), value: `${sd[1]} 次`, cls: 'aw-green' });
   const di = topOf(play.dealIns);
   if (di) out.push({ key: 'deal', mark: '銃', title: '出銃王', who: name(di[0]), value: `${di[1]} 次`, cls: 'aw-red' });
-  if (play.biggest) out.push({ key: 'big', mark: '大', title: '最大一鋪', who: name(play.biggest.player), value: `${play.biggest.fan} 番`, cls: 'aw-purple' });
+  if (play.biggest) out.push({ key: 'big', mark: '大', title: '最大王', who: name(play.biggest.player), value: `${play.biggest.fan} 番`, cls: 'aw-purple' });
+  if (play.smallest && play.smallest.player !== play.biggest?.player) out.push({ key: 'small', mark: '細', title: '最細王', who: name(play.smallest.player), value: `${play.smallest.fan} 番`, cls: 'aw-teal' });
+  const mw = topOf(play.multiWins ?? {});
+  if (mw) out.push({ key: 'multi', mark: '響', title: '響王', who: name(mw[0]), value: `${mw[1]} 次`, cls: 'aw-orange' });
   if (play.maxStreak && play.maxStreak.n > 0) out.push({ key: 'streak', mark: '莊', title: '連莊王', who: name(play.maxStreak.player), value: `連 ${play.maxStreak.n}`, cls: 'aw-orange' });
   const pl = topOf(play.pulls ?? {});
-  if (pl) out.push({ key: 'pull', mark: '拉', title: '拉最多', who: name(pl[0]), value: `${pl[1]} 次`, cls: 'aw-blue' });
+  if (pl) out.push({ key: 'pull', mark: '拉', title: '拉王', who: name(pl[0]), value: `${pl[1]} 次`, cls: 'aw-blue' });
   const fw = topOf(play.falseWins);
   if (fw) out.push({ key: 'false', mark: '詐', title: '詐糊王', who: name(fw[0]), value: `${fw[1]} 次`, cls: 'aw-pink' });
   for (const [art, mark, title] of SPECIAL_KINGS) {

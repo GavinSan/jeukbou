@@ -19,9 +19,11 @@ function tier(fan: number) {
   return { label: '好糊', paper: 70, rockets: 0, shake: false, gold: false, ms: 2200 };
 }
 
-export default function Celebrate({ fan, onDone, silent, who }: { fan: number; onDone: () => void; silent?: boolean; who?: string }) {
+export default function Celebrate({ fan, onDone, silent, who, long }: { fan: number; onDone: () => void; silent?: boolean; who?: string; long?: boolean }) {
   const ref = useRef<HTMLCanvasElement>(null);
-  const t = tier(fan);
+  const base = tier(fan);
+  // Live（電視）：留耐啲，等全場睇清楚
+  const t = long ? { ...base, ms: base.ms + 2600 } : base;
 
   useEffect(() => {
     const reduce = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
@@ -58,6 +60,8 @@ export default function Celebrate({ fan, onDone, silent, who }: { fan: number; o
     popper(true, t.paper / 2);
     popper(false, t.paper / 2);
     if (fan >= 50) setTimeout(() => { popper(true, t.paper / 3); popper(false, t.paper / 3); }, 450);
+    // Live：第二、三轟彩炮，留耐啲
+    if (long) { setTimeout(() => { popper(true, t.paper / 2); popper(false, t.paper / 2); }, 1400); setTimeout(() => { popper(true, t.paper / 3); popper(false, t.paper / 3); }, 2800); }
 
     // 煙花火箭
     for (let r = 0; r < t.rockets; r++) {
@@ -124,7 +128,7 @@ export default function Celebrate({ fan, onDone, silent, who }: { fan: number; o
   }, []);
 
   return (
-    <div className={`party tier-${t.label}`} aria-live="polite">
+    <div className={`party tier-${t.label}${long ? ' long' : ''}`} aria-live="polite">
       <canvas ref={ref} className="party-canvas" aria-hidden="true" />
       <div className="party-text">
         {who && <i className="party-who">{who}</i>}

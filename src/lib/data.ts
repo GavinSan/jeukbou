@@ -9,6 +9,9 @@ import {
   doc,
   getDoc,
   getDocs,
+  limit,
+  orderBy,
+  query,
   runTransaction,
   serverTimestamp,
   setDoc,
@@ -53,6 +56,8 @@ export interface Group {
   description?: string;
   /** public = 人哋搜尋得到（加唔加入仍然跟加入方式）；private = 要邀請 */
   visibility?: 'public' | 'private';
+  /** 麻雀打法（牌型）：開牌友圈時揀，之後唔改得；冇 = 港式台牌 */
+  variant?: string;
 }
 
 /** 成員權限：局主分配 */
@@ -108,6 +113,9 @@ export interface Session {
   name: string;
   createdBy: string;
   createdAt?: Timestamp | null;
+  /** 是日終結：幾時撳（毫秒）同邊個撳；之後再開枱就清返 */
+  endedAt?: number | null;
+  endedBy?: string;
   /** 開局嗰陣複製咗牌友圈嘅家規；舊大局冇就用牌友圈嘅 */
   rules?: RulesPatch;
   /** 中途改家規嘅紀錄：每鋪用當時嘅家規（at = 毫秒；第一條 at = 0 係開局時嘅家規） */
@@ -250,6 +258,36 @@ export async function sendChat(g: string, s: string, user: User, text: string): 
   b.set(doc(collection(fs(), 'groups', g, 'sessions', s, 'chat')), { by: user.uid, name: displayName(user), text: t, at: serverTimestamp() });
   b.set(doc(fs(), 'groups', g, 'sessions', s, 'chatLast', user.uid), { at: serverTimestamp() });
   await b.commit();
+}
+
+/** 問題回報／建議（可以附一張細相）：淨係超級管理員睇到；每分鐘最多一次 */
+export interface FeedbackDoc { id: string; uid: string; name: string; email: string; text: string; image?: string; page: string; ua: string; at: number | null; kind: 'bug' | 'idea' }
+export async function sendFeedback(user: User, input: { text: string; image?: string; kind: 'bug' | 'idea'; page: string }): Promise<void> {
+  const t = input.text.trim().slice(0, 2000);
+  if (!t) throw new Error('寫少少嘢先');
+  const b = writeBatch(fs());
+  b.set(doc(collection(fs(), 'feedback')), {
+    uid: user.uid, name: displayName(user), email: user.email ?? '', text: t, kind: input.kind,
+    ...(input.image ? { image: input.image } : {}),
+    page: input.page.slice(0, 200), ua: (typeof navigator === 'undefined' ? '' : navigator.userAgent).slice(0, 300), at: serverTimestamp(),
+  });
+  b.set(doc(fs(), 'feedbackLast', user.uid), { at: serverTimestamp() });
+  try { await b.commit(); } catch (err) {
+    if (err && typeof err === 'object' && 'code' in err && (err as { code: string }).code === 'permission-denied') throw new Error('送得太密，隔一分鐘再試');
+    throw err;
+  }
+}
+
+/** 超級管理員：最近嘅問題回報 */
+export async function loadFeedback(n = 50): Promise<FeedbackDoc[]> {
+  const snap = await getDocs(query(collection(fs(), 'feedback'), orderBy('at', 'desc'), limit(n)));
+  return snap.docs.map((d) => {
+    const x = d.data();
+    return { id: d.id, uid: x.uid, name: x.name ?? '', email: x.email ?? '', text: x.text ?? '', image: x.image, page: x.page ?? '', ua: x.ua ?? '', at: x.at?.toMillis?.() ?? null, kind: x.kind === 'idea' ? 'idea' : 'bug' };
+  });
+}
+export async function deleteFeedback(id: string): Promise<void> {
+  await deleteDoc(doc(fs(), 'feedback', id));
 }
 
 /** 直播室禁言（場主、局主、超級管理員）：until = 幾時解禁（毫秒）；0 = 即刻解禁 */
@@ -1115,6 +1153,11 @@ export async function setSessionWaterTo(g: string, s: string, uid: string): Prom
 }
 
 export type PullPush = 'off' | 'table' | 'session' | 'group';
+/** 是日終結（冇枱打緊先撳得）：記低時間，計「打咗幾耐」；on = false 就取消 */
+export async function setSessionEnded(g: string, s: string, user: User, on: boolean): Promise<void> {
+  await updateDoc(sessionDoc(g, s), on ? { endedAt: Date.now(), endedBy: user.uid } : { endedAt: deleteField(), endedBy: deleteField() });
+}
+
 export async function setSessionPullPush(g: string, s: string, v: PullPush): Promise<void> {
   await updateDoc(sessionDoc(g, s), { pullPush: v });
 }

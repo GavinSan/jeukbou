@@ -162,8 +162,8 @@ for (const scheme of ['light', 'dark']) {
       await page.getByRole('dialog').getByLabel('訪客名').fill('Jo');
       await page.getByRole('dialog').getByRole('button', { name: '換人', exact: true }).click();
       await page.waitForTimeout(800);
-      await page.locator('.ledger').scrollIntoViewIfNeeded();
-      await page.locator('.ledger').screenshot({ path: `${out}/ledger-seg.png` });
+      await page.locator('.ledger').first().scrollIntoViewIfNeeded();
+      await page.locator('.ledger').first().screenshot({ path: `${out}/ledger-seg.png` });
     });
     await step('reseat', async () => {
       await page.goto(`${base}/demo/t/3`, { waitUntil: 'networkidle' });
@@ -349,23 +349,33 @@ for (const scheme of ['light', 'dark']) {
       await page.goto(`${base}/demo/live`, { waitUntil: 'networkidle' });
       await page.waitForTimeout(800);
       await page.screenshot({ path: `${out}/tv-stage.png` });
-      await page.getByRole('button', { name: '打開直播室' }).click();
+      await page.getByRole('button', { name: '留言同直播室設定' }).click();
       await page.waitForTimeout(300);
-      await page.getByRole('textbox', { name: '留言' }).fill('呢鋪好緊張');
-      await page.getByRole('button', { name: '送出' }).click();
+      await page.getByRole('textbox', { name: '留言', exact: true }).fill('呢鋪好緊張');
+      await page.getByRole('button', { name: '送出' }).first().click();
       await page.waitForTimeout(300);
       await page.screenshot({ path: `${out}/tv-chat-open.png` });
-      await page.getByRole('button', { name: '收埋', exact: true }).first().click();
+      await page.getByRole('button', { name: '收埋', exact: true }).last().click();
+      await page.waitForTimeout(300);
+      await page.getByRole('button', { name: '收埋全場排名' }).click();
       await page.waitForTimeout(400);
       await page.screenshot({ path: `${out}/tv-chat-float.png` });
+      await page.getByRole('button', { name: '顯示全場排名' }).click();
+      await page.waitForTimeout(200);
       await page.getByRole('button', { name: '風格' }).click();
       await page.waitForTimeout(200);
       await page.getByRole('button', { name: /^茶樓/ }).click();
       await page.waitForTimeout(400);
       await page.screenshot({ path: `${out}/tv-theme.png` });
       await page.getByRole('button', { name: /跟 App/ }).click();
-      await page.getByRole('button', { name: '收埋', exact: true }).first().click();
+      await page.locator('.tv-side-close').click();
       await page.waitForTimeout(300);
+      // 三張枱（打橫電視）：睇吓用唔用得盡個畫面
+      await page.goto(`${base}/demo/live?n=3`, { waitUntil: 'networkidle' });
+      await page.waitForTimeout(600);
+      await page.screenshot({ path: `${out}/tv-stage-other.png` });
+      await page.goto(`${base}/demo/live`, { waitUntil: 'networkidle' });
+      await page.waitForTimeout(400);
       await page.setViewportSize({ width: 844, height: 390 });
       await page.waitForTimeout(400);
       await page.screenshot({ path: `${out}/tv-stage-phone.png` });
@@ -419,7 +429,7 @@ for (const scheme of ['light', 'dark']) {
       await page.goto(`${base}/demo/t/4`, { waitUntil: 'networkidle' });
       await page.waitForTimeout(1200);
       await page.screenshot({ path: `${out}/rounds-done.png` });
-      await page.getByRole('button', { name: '換位', exact: true }).click();
+      await page.getByRole('button', { name: '執位', exact: true }).click();
       await page.getByRole('tab', { name: '自己揀' }).click();
       const a = await page.locator('.pick-seat').nth(0).boundingBox();
       const b = await page.locator('.pick-seat').nth(3).boundingBox();
@@ -476,7 +486,7 @@ for (const scheme of ['light', 'dark']) {
       await page.goto(`${base}/demo/t/2`, { waitUntil: 'networkidle' });
       await page.waitForTimeout(1200);
       await page.getByRole('button', { name: /^TS，/ }).click();
-      await page.getByRole('button', { name: /^自摸/ }).click();
+      await page.locator('.dock').getByRole('button', { name: /^自摸/ }).click();
       await page.waitForTimeout(300);
       await page.getByRole('radio', { name: '當 1 番' }).click();
       await page.waitForTimeout(150);
@@ -527,7 +537,7 @@ for (const scheme of ['light', 'dark']) {
     await step('regroup', async () => {
       await page.goto(`${base}/demo`, { waitUntil: 'networkidle' });
       await page.waitForTimeout(800);
-      await page.getByRole('button', { name: /張枱一齊執位/ }).click();
+      await page.getByRole('button', { name: /張枱執位/ }).click();
       await page.waitForTimeout(300);
       await page.screenshot({ path: `${out}/regroup.png` });
       // 減一個人：顯示「差 X 人」；再喺「加人」加返

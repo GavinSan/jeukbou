@@ -3,7 +3,7 @@ import { rememberTable } from '../lib/nav.ts';
 import type { User } from 'firebase/auth';
 import SessionScreen from '../components/SessionScreen.tsx';
 import Incoming from '../components/Incoming.tsx';
-import { paidState, applyDraw, approveDraw, autoDeal, cancelDraw, canDo, addTable, deleteSession, findTodaySession, pickTile, setSessionNoWater, setSessionPullPush, startDraw, tableNameUpper } from '../lib/data.ts';
+import { paidState, applyDraw, approveDraw, autoDeal, cancelDraw, canDo, addTable, deleteSession, findTodaySession, pickTile, setSessionNoWater, setSessionEnded, setSessionPullPush, startDraw, tableNameUpper } from '../lib/data.ts';
 import { Link } from '../lib/router.tsx';
 import { useSuperAdmin } from '../lib/admin.ts';
 import { drawTurn } from '../lib/fns.ts';
@@ -56,7 +56,7 @@ export default function SessionPage({ user, groupId, sessionId }: { user: User; 
       liveHref={session.data.closed ? undefined : `/live/${groupId}/${sessionId}`}
       settleHref={`/g/${groupId}/s/${sessionId}/settle`}
       water={session.data.closed ? undefined : { on: !session.data.noWater, onToggle: (on) => setSessionNoWater(groupId, sessionId, !on) }}
-      pullPush={session.data.closed ? undefined : { value: session.data.pullPush ?? 'off', onChange: (v) => setSessionPullPush(groupId, sessionId, v) }}
+      pullPush={session.data.closed || !(group.data.ownerId === user.uid || session.data.createdBy === user.uid || admin) ? undefined : { value: session.data.pullPush ?? 'off', onChange: (v) => setSessionPullPush(groupId, sessionId, v) }}
       closedNote={session.data.closed
         ? (
           <Link to={`/g/${groupId}/s/${sessionId}/pay`} className="link-card closed-card">
@@ -120,7 +120,11 @@ export default function SessionPage({ user, groupId, sessionId }: { user: User; 
         const names: Record<string, string> = {};
         for (const p of people) names[p.id] = p.name;
         await addTable(groupId, sessionId, tables.data.length, { name: tableNameUpper(tables.data.length), seats: people.map((p) => p.id), names });
+        // 是日終結咗又開枱：當未終結
+        if (session.data?.endedAt) await setSessionEnded(groupId, sessionId, user, false);
       }}
+      endedAt={session.data.endedAt ?? null}
+      onEndDay={session.data.closed ? undefined : (on) => setSessionEnded(groupId, sessionId, user, on)}
     />
   );
 }

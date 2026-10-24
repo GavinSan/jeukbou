@@ -10,7 +10,8 @@ import { askNotify, notifySupported } from '../lib/notify.ts';
 import { pushConfigured, registerPush, unregisterPush } from '../lib/push.ts';
 import { signOut } from 'firebase/auth';
 import { auth } from '../firebase.ts';
-import { displayName, setAvatar, setPayEmail, setProfileDetails, syncMemberName } from '../lib/data.ts';
+import { displayName, sendFeedback, setAvatar, setPayEmail, setProfileDetails, syncMemberName } from '../lib/data.ts';
+import { shrinkImage } from '../lib/scan.ts';
 import { clearSnapCache, useProfile } from '../lib/live.ts';
 import { toAvatar } from '../lib/avatar.ts';
 
@@ -82,7 +83,7 @@ export function ProfileEditor() {
         photo={photo}
         busy={busy}
         onPick={(f) => { if (f) task(async () => setAvatar(user, await toAvatar(f), groups)); }}
-        right={!editing && <button type="button" className="btn plain small-btn" onClick={() => setEditing(true)}>改名</button>}
+        right={!editing && <button type="button" className="btn plain small-btn" onClick={() => setEditing(true)}>改雀壇名</button>}
       />
       {editing && (
         <NameForm
@@ -118,7 +119,7 @@ export function ProfileEditor() {
   );
 }
 
-/** 真名同生日：真名淨係超級管理員見到；生日（唔使年份）同圈牌友見到 */
+/** 資料（名、生日）：名淨係超級管理員見到；生日（唔使年份）同圈牌友見到 */
 function DetailsFields({ first, last, birthday, busy, onSave }: {
   first: string; last: string; birthday: string; busy: boolean; onSave: (d: { firstName: string; lastName: string; birthday: string }) => void;
 }) {
@@ -131,7 +132,7 @@ function DetailsFields({ first, last, birthday, busy, onSave }: {
   const changed = f.trim() !== first || l.trim() !== last || bday !== birthday;
   return (
     <div className="field details-fields">
-      <span>真名同生日</span>
+      <span>資料<small className="muted">　名淨係超級管理員見到；生日（唔使年份）同圈牌友見到，會幫你慶祝</small></span>
       <div className="row">
         <input className="input grow" value={f} onChange={(e) => setF(e.target.value.slice(0, 30))} placeholder="名（First name）" aria-label="名" autoComplete="given-name" />
         <input className="input grow" value={l} onChange={(e) => setL(e.target.value.slice(0, 30))} placeholder="姓（Last name）" aria-label="姓" autoComplete="family-name" />
@@ -174,33 +175,47 @@ export function SkinPicker({ access: forced }: { access?: SkinAccess }) {
   const live = useSkinAccess();
   const access = forced ?? live;
   const [note, setNote] = useState('');
+  const [showLocked, setShowLocked] = useState(false);
   const tierName = access.tier >= 0 ? TIER_NAMES[access.tier] : '';
+  const open = SKINS.filter((k) => !skinLock(k.key, access));
+  const locked = SKINS.filter((k) => skinLock(k.key, access));
+  const cur = SKINS.find((k) => k.key === p.skin);
+  const card = (k: (typeof SKINS)[number]) => {
+    const lock = skinLock(k.key, access);
+    const on = p.skin === k.key && !lock;
+    return (
+      <button
+        key={k.key}
+        type="button"
+        role="radio"
+        aria-checked={on}
+        aria-disabled={!!lock}
+        className={`skin-card${on ? ' on' : ''}${lock ? ' locked' : ''}${k.premium ? ` premium skin-${k.key}` : ''}`}
+        onClick={() => {
+          if (lock) { setNote(`${k.name}：${lock}${tierName && SKIN_TIER[k.key] ? `（你而家係「${tierName}」）` : ''}`); buzz('tap'); return; }
+          setNote(''); setPref('skin', k.key); sfx.tap();
+        }}
+      >
+        {on && <span className="skin-on-badge" aria-hidden="true">✓ 用緊</span>}
+        <span className="skin-sw" aria-hidden="true">{k.colors.map((c) => <i key={c} style={{ background: c }} />)}</span>
+        <b>{k.name}{k.premium && <span className="skin-crown" title="豪華風格">👑</span>}{lock && <span className="skin-lock" aria-label="未解鎖">🔒</span>}</b>
+        <small>{lock ?? k.note}</small>
+      </button>
+    );
+  };
   return (
     <>
-      <div className="skin-pick" role="radiogroup" aria-label="介面風格">
-        {SKINS.map((k) => {
-          const lock = skinLock(k.key, access);
-          const on = p.skin === k.key && !lock;
-          return (
-            <button
-              key={k.key}
-              type="button"
-              role="radio"
-              aria-checked={on}
-              aria-disabled={!!lock}
-              className={`skin-card${on ? ' on' : ''}${lock ? ' locked' : ''}${k.premium ? ` premium skin-${k.key}` : ''}`}
-              onClick={() => {
-                if (lock) { setNote(`${k.name}：${lock}${tierName && SKIN_TIER[k.key] ? `（你而家係「${tierName}」）` : ''}`); buzz('tap'); return; }
-                setNote(''); setPref('skin', k.key); sfx.tap();
-              }}
-            >
-              <span className="skin-sw" aria-hidden="true">{k.colors.map((c) => <i key={c} style={{ background: c }} />)}</span>
-              <b>{k.name}{k.premium && <span className="skin-crown" title="豪華風格">👑</span>}{lock && <span className="skin-lock" aria-label="未解鎖">🔒</span>}</b>
-              <small>{lock ?? k.note}</small>
-            </button>
-          );
-        })}
-      </div>
+      {cur && <p className="skin-current">而家用緊：<b>{cur.name}</b><span className="muted">　{cur.note}</span></p>}
+      <div className="skin-pick" role="radiogroup" aria-label="介面風格">{open.map(card)}</div>
+      {locked.length > 0 && (
+        <>
+          <button type="button" className="skin-more" aria-expanded={showLocked} onClick={() => setShowLocked((v) => !v)}>
+            <span className="grow">未解鎖 <b>{locked.length}</b> 款</span>
+            <svg className={`chev-svg${showLocked ? ' up' : ''}`} width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M6 9l6 6 6-6" /></svg>
+          </button>
+          {showLocked && <div className="skin-pick" role="group" aria-label="未解鎖風格">{locked.map(card)}</div>}
+        </>
+      )}
       {note && <p className="skin-note" role="status">{note}</p>}
     </>
   );
@@ -302,5 +317,84 @@ export function SettingsButton() {
       </button>
       {open && <Settings onClose={() => setOpen(false)} />}
     </>
+  );
+}
+
+/** 問題回報同建議：寫低邊度有問題，可以附一張截圖（縮細咗先送）；淨係超級管理員睇到 */
+export function FeedbackButton() {
+  const [open, setOpen] = useState(false);
+  return (
+    <>
+      <button type="button" className="listrow list feedback-row" onClick={() => setOpen(true)}>
+        <span className="feedback-icon" aria-hidden="true">🐞</span>
+        <span className="grow">問題回報同建議<small className="muted" style={{ display: 'block' }}>撞到 bug、想要新功能，寫低再附張截圖</small></span>
+        <span className="chev" aria-hidden="true">›</span>
+      </button>
+      {open && <FeedbackSheet onClose={() => setOpen(false)} />}
+    </>
+  );
+}
+
+function FeedbackSheet({ onClose }: { onClose: () => void }) {
+  const user = auth?.currentUser ?? null;
+  const [kind, setKind] = useState<'bug' | 'idea'>('bug');
+  const [text, setText] = useState('');
+  const [image, setImage] = useState('');
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState('');
+  const [done, setDone] = useState(false);
+  if (!user) return null;
+  async function pick(f: File | undefined) {
+    if (!f) return;
+    setError('');
+    try { setImage(`data:image/jpeg;base64,${await shrinkImage(f, 960)}`); } catch (err) { setError(message(err)); }
+  }
+  async function send() {
+    if (!user) return;
+    setBusy(true);
+    setError('');
+    try {
+      await sendFeedback(user, { text, image: image || undefined, kind, page: location.pathname });
+      setDone(true);
+    } catch (err) { setError(message(err)); } finally { setBusy(false); }
+  }
+  return (
+    <Sheet onClose={onClose} label="問題回報同建議">
+      <h2>問題回報同建議</h2>
+      {done ? (
+        <>
+          <p>收到，多謝你！🙏 我哋會盡快睇。</p>
+          <button type="button" className="btn" onClick={onClose}>好</button>
+        </>
+      ) : (
+        <>
+          <div className="seg wide" role="group" aria-label="類別">
+            <button type="button" aria-pressed={kind === 'bug'} onClick={() => setKind('bug')}>🐞 有問題</button>
+            <button type="button" aria-pressed={kind === 'idea'} onClick={() => setKind('idea')}>💡 建議</button>
+          </div>
+          <label className="field">
+            <span>{kind === 'bug' ? '邊度有問題？做緊咩嘅時候出現？' : '想加咩、改咩？'}</span>
+            <textarea className="input" rows={5} value={text} maxLength={2000} onChange={(e) => setText(e.target.value)} placeholder={kind === 'bug' ? '例如：喺枱度撳「流局」之後，個數冇變' : '例如：想 Live 顯示埋…'} />
+          </label>
+          <div className="field">
+            <span>截圖（可以唔附）</span>
+            {image ? (
+              <div className="feedback-shot">
+                <img src={image} alt="附上嘅截圖" />
+                <button type="button" className="textbtn" onClick={() => setImage('')}>移除</button>
+              </div>
+            ) : (
+              <label className="btn plain small-btn feedback-pick">
+                📷 揀相
+                <input type="file" accept="image/*" className="visually-hidden" aria-label="揀截圖" onChange={(e) => { const f = e.target.files?.[0]; e.target.value = ''; pick(f); }} />
+              </label>
+            )}
+          </div>
+          {error && <p className="error" role="alert">{error}</p>}
+          <button type="button" className="btn" disabled={busy || !text.trim()} onClick={send}>{busy ? '送緊…' : '送出'}</button>
+          <small className="muted">只有超級管理員會睇到；會一齊記低你用緊邊一頁同部機嘅型號，方便搵問題。</small>
+        </>
+      )}
+    </Sheet>
   );
 }

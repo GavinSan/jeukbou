@@ -19,14 +19,14 @@ export function go(path: string) {
   window.scrollTo(0, 0);
 }
 
-export function Link({ to, className, children, ariaLabel }: { to: string; className?: string; children: ReactNode; ariaLabel?: string }) {
+export function Link({ to, className, children, ariaLabel, id }: { to: string; className?: string; children: ReactNode; ariaLabel?: string; id?: string }) {
   const onClick = (e: MouseEvent<HTMLAnchorElement>) => {
     if (e.metaKey || e.ctrlKey || e.shiftKey || e.button !== 0) return;
     e.preventDefault();
     go(to);
   };
   return (
-    <a href={to} className={className} onClick={onClick} aria-label={ariaLabel}>
+    <a href={to} className={className} onClick={onClick} aria-label={ariaLabel} id={id}>
       {children}
     </a>
   );
