@@ -364,7 +364,7 @@ for (const scheme of ['light', 'dark']) {
       await page.waitForTimeout(400);
       await page.screenshot({ path: `${out}/tv-theme.png` });
       await page.getByRole('button', { name: /跟 App/ }).click();
-      await page.getByRole('button', { name: '風格' }).click();
+      await page.getByRole('button', { name: '收埋', exact: true }).first().click();
       await page.waitForTimeout(300);
       await page.setViewportSize({ width: 844, height: 390 });
       await page.waitForTimeout(400);
