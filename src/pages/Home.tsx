@@ -272,7 +272,7 @@ function ProfileNudge({ uid, profile }: { uid: string; profile: { payEmail: stri
 
 function joinedText(user: User): string {
   const t = user.metadata.creationTime ? new Date(user.metadata.creationTime) : null;
-  return t ? `${t.getFullYear()}年${t.getMonth() + 1}月加入` : '雀簿玩家';
+  return t ? `${t.getFullYear()}年${t.getMonth() + 1}月加入` : '玩家';
 }
 
 export default function Home({ user }: { user: User; refresh?: () => void }) {
