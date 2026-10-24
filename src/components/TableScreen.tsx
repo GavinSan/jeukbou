@@ -11,7 +11,7 @@ import { TrendChart } from './Charts.tsx';
 import Celebrate from './Celebrate.tsx';
 import { FanPicker } from './FanTable.tsx';
 import { AirPlaySheet } from './AirPlay.tsx';
-import { ScaleFit, TileBody, TvFelt, WindCube, startSeatOf } from './TvFelt.tsx';
+import { ScaleFit, TileBody, TvFelt } from './TvFelt.tsx';
 import type { ScanResult } from '../lib/scan.ts';
 import type { FanTable } from '../lib/fanTable.ts';
 import { money } from './SettleScreen.tsx';
@@ -28,8 +28,6 @@ import { CHASE_MAX_REPEAT, SPECIAL_ITEMS, SpecialArt, SpecialBurst, artOf, chase
 import type { Art } from './Specials.tsx';
 
 const WIND_NAMES = ['東', '南', '西', '北'];
-/** 圈風牌擺喺起莊嗰個人右手邊嘅角 */
-const CUBE_AT: Record<string, string> = { 's-bottom': 'br', 's-right': 'tr', 's-top': 'tl', 's-left': 'bl' };
 
 const SPOTS = ['s-bottom', 's-right', 's-top', 's-left'];
 // 快捷番數：每 10 一格，10 至 300
@@ -698,8 +696,6 @@ export default function TableScreen(props: TableScreenProps) {
           {(corner?.values ?? idleDice(table.id)).map((v, i) => <Die key={i} value={v} rolling={false} size={24} />)}
           {corner && <span className="felt-dice-sum">{corner.values.reduce((a, b) => a + b, 0)}</span>}
         </button>
-        {/* 圈風牌：擺喺起莊（東圈東位）嗰個人右手邊，唔跟莊郁；換位先搬 */}
-        {!ended && <WindCube wind={c.info.roundWind} className={`at-${CUBE_AT[spotOf(startSeatOf(c.state))]}`} />}
         <div className="felt-center">
           <span className="wind-tile">{ended ? '完' : c.info.roundWind}</span>
           <span className="small">{ended ? '已完場' : `${WIND_NAMES[c.state.dealerTurns % 4]}位 · 第 ${c.info.hand} 鋪`}</span>
@@ -873,7 +869,7 @@ export default function TableScreen(props: TableScreenProps) {
                                 }
                                 const bits: { k: string; t: string; cls: string }[] = [];
                                 if (water) bits.push({ k: 'g', t: `袋${fmt(gross)}`, cls: tone2(gross) }, { k: 'w', t: `水−${water}`, cls: 'lg-water' });
-                                if (posted && pend) bits.push({ k: 'p', t: `拉${fmt(pend)}`, cls: 'lg-la' });
+                                if (posted && pend && !(posted > 0 && pend < 0)) bits.push({ k: 'p', t: `拉${fmt(pend)}`, cls: 'lg-la' });
                                 if (!posted && pend > 0 && la > 0) bits.push({ k: 'e', t: `食${eat}`, cls: '' }, { k: 'l', t: `拉${la}`, cls: 'lg-la' });
                                 else if (!posted && pend > 0) bits.push({ k: 'e', t: `食${eat || pend}`, cls: '' });
                                 if (!posted && pend < 0) bits.push({ k: 'b', t: '未俾', cls: 'lg-la' });

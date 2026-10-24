@@ -93,7 +93,6 @@ export function TvFelt({ c, names, title, me }: { c: Computed; names: Record<str
   return (
     <div className="tv-felt-wrap">
       <div className="tv-felt-info">
-        <WindCube wind={ended ? '完' : c.info.roundWind} className="sm" />
         {title && <b className="tv-felt-name">{title}</b>}
         <span className="tv-felt-meta">{ended ? '已完場' : `${c.info.roundWind}圈${WIND[c.state.dealerTurns % 4]}位・第 ${c.info.hand} 鋪`}</span>
         <span className="tv-felt-water">水 {c.state.water}</span>

@@ -19,13 +19,13 @@ function tier(fan: number) {
   return { label: '好糊', paper: 70, rockets: 0, shake: false, gold: false, ms: 2200 };
 }
 
-export default function Celebrate({ fan, onDone }: { fan: number; onDone: () => void }) {
+export default function Celebrate({ fan, onDone, silent, who }: { fan: number; onDone: () => void; silent?: boolean; who?: string }) {
   const ref = useRef<HTMLCanvasElement>(null);
   const t = tier(fan);
 
   useEffect(() => {
     const reduce = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
-    if (t.rockets) sfx.firework(t.rockets >= 5 ? 4 : 2);
+    if (silent) { /* 聲效由外面播 */ } else if (t.rockets) sfx.firework(t.rockets >= 5 ? 4 : 2);
     else sfx.popper();
     if (t.shake) document.body.classList.add('shake');
     const done = setTimeout(() => { document.body.classList.remove('shake'); onDone(); }, reduce ? 1800 : t.ms);
@@ -127,6 +127,7 @@ export default function Celebrate({ fan, onDone }: { fan: number; onDone: () => 
     <div className={`party tier-${t.label}`} aria-live="polite">
       <canvas ref={ref} className="party-canvas" aria-hidden="true" />
       <div className="party-text">
+        {who && <i className="party-who">{who}</i>}
         <b className="num">{fan}</b><span>番</span>
         <em>{t.label}！</em>
       </div>

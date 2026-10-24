@@ -8,6 +8,10 @@ import { BadgeCats, CountUp, Progress, Ring, TierTile } from '../components/Tier
 import { TopBar, fmt } from '../ui.tsx';
 
 const signed = (n: number) => fmt(Math.round(n));
+/** 展開／收埋嘅細箭咀（SVG，唔用字符） */
+const Chevron = ({ up }: { up: boolean }) => (
+  <svg className={`chev-svg${up ? ' up' : ''}`} width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M6 9l6 6 6-6" /></svg>
+);
 
 /** 自己嘅數據（由主頁搬嚟）：圈數、勝率、總番數、最好一次；有詳細紀錄就加食糊／自摸／出銃／最大一鋪 */
 function MyStats({ st }: { st: Stats }) {
@@ -114,7 +118,7 @@ export function RankView({ mine, loading }: { mine: MySession[]; loading: boolea
             );
           })}
           <li className="tier-more">
-            <button type="button" className="textbtn" aria-expanded={allTiers} onClick={() => setAllTiers((v) => !v)}>{allTiers ? '收埋其他段位 ⌃' : `睇晒 ${TIERS.length} 個段位 ⌄`}</button>
+            <button type="button" className="textbtn" aria-expanded={allTiers} onClick={() => setAllTiers((v) => !v)}><span>{allTiers ? '收埋其他段位' : `睇晒 ${TIERS.length} 個段位`}</span><Chevron up={allTiers} /></button>
           </li>
         </ol>
       </section>
@@ -136,7 +140,7 @@ export function RankView({ mine, loading }: { mine: MySession[]; loading: boolea
         <button type="button" className="how-points-head" aria-expanded={howOpen} onClick={() => setHowOpen((v) => !v)}>
           <span className="how-points-icon" aria-hidden="true">?</span>
           <span className="grow"><b>點樣攞分</b><small>打大局、贏、做龍頭都有分；儲夠就升段位</small></span>
-          <span className="chev" aria-hidden="true">{howOpen ? '⌃' : '⌄'}</span>
+          <span className="how-points-chev"><Chevron up={howOpen} /></span>
         </button>
         {howOpen && (
           <dl className="how-points-list">

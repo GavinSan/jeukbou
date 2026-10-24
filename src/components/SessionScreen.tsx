@@ -69,7 +69,7 @@ function quickTags(c: Computed): string[] {
   return out;
 }
 
-export default function SessionScreen({ title, back, tables, computed, tableHref, invite, liveHref, rulesHref, onDeleteSession, water: waterCtl, pullPush, closedNote, notice, candidates = [], onAddTable, me = null, onClosedAdd, regroup: rg }: SessionScreenProps) {
+export default function SessionScreen({ title, back, tables, computed, tableHref, invite, liveHref, rulesHref, settleHref, onDeleteSession, water: waterCtl, pullPush, closedNote, notice, candidates = [], onAddTable, me = null, onClosedAdd, regroup: rg }: SessionScreenProps) {
   const now = useNow();
   const [adding, setAdding] = useState(false);
   const [delSession, setDelSession] = useState(false);
@@ -215,7 +215,14 @@ export default function SessionScreen({ title, back, tables, computed, tableHref
       {liveHref && (
         <Link to={liveHref} className="link-card live-link">
           <span className="live-pill"><i className="live-dot" aria-hidden="true" />LIVE</span>
-          <span className="grow"><b>電視直播</b><small>大字分數、全場排名、直播室、音樂；可以投去電視</small></span>
+          <span className="grow"><b>電視直播</b><small>大字分數、全場排名、直播室；可以投去電視</small></span>
+          <span className="chev" aria-hidden="true">›</span>
+        </Link>
+      )}
+      {settleHref && (
+        <Link to={`${settleHref}#expense`} className="link-card exp-link">
+          <span className="exp-link-icon" aria-hidden="true">🧾</span>
+          <span className="grow"><b>入開支</b><small>食飯、的士、場租…同麻雀數分開計，埋數時一齊找</small></span>
           <span className="chev" aria-hidden="true">›</span>
         </Link>
       )}

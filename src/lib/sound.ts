@@ -15,8 +15,12 @@ export function unlock() {
   ctx = new AC();
 }
 
+/** Live 自己有聲效掣：開咗就唔理 App 嘅「聲效」設定 */
+let force = false;
+export function forceSound(on: boolean) { force = on; }
+
 function ready(): AudioContext | null {
-  if (!soundOn() || !ctx || ctx.state !== 'running') return null;
+  if ((!soundOn() && !force) || !ctx || ctx.state !== 'running') return null;
   return ctx;
 }
 
@@ -104,7 +108,55 @@ function hiss(c: AudioContext, at: number, dur: number, opts: { type?: BiquadFil
 const jitter = (x: number, pct = 0.06) => x * (1 + (Math.random() * 2 - 1) * pct);
 const PENTA = [523.25, 587.33, 659.25, 783.99, 880, 1046.5, 1174.66, 1318.5];
 
+/** 讀出一句（用部機自己嘅廣東話語音；冇就用中文） */
+function say(text: string, opts: { pitch?: number; rate?: number } = {}) {
+  try {
+    const ss = window.speechSynthesis;
+    if (!ss) return;
+    const u = new SpeechSynthesisUtterance(text);
+    const voices = ss.getVoices();
+    const v = voices.find((x) => /zh[-_]HK|yue/i.test(x.lang)) ?? voices.find((x) => /^zh/i.test(x.lang));
+    if (v) u.voice = v;
+    u.lang = v?.lang ?? 'zh-HK';
+    u.pitch = opts.pitch ?? 0.6;
+    u.rate = opts.rate ?? 0.85;
+    u.volume = 1;
+    ss.cancel();
+    ss.speak(u);
+  } catch { /* 冇語音就算 */ }
+}
+
+/** iPhone 要撳過一下先讀得出：撳嘅時候讀一句空白 */
+export function primeVoice() {
+  try {
+    const ss = window.speechSynthesis;
+    if (!ss) return;
+    const u = new SpeechSynthesisUtterance(' ');
+    u.volume = 0;
+    ss.speak(u);
+  } catch { /* 唔緊要 */ }
+}
+
 export const sfx = {
+  /** Live 有人食糊：「噔……噹！」一下重鼓重銅管，跟住大聲讀「食！」；番數高仲有鑼 */
+  eat(fan = 0) {
+    const c = ready();
+    if (!c) return;
+    const t = c.currentTime;
+    // 吸氣咁升上去
+    hiss(c, t, 0.4, { type: 'bandpass', freq: 400, to: 3800, q: 1.4, gain: 0.22 });
+    tone(c, t, 110, 0.4, { type: 'sawtooth', gain: 0.05, to: 220, attack: 0.3 });
+    // 重拍：低音鼓 + 銅管和弦
+    const hit = t + 0.4;
+    tone(c, hit, 82, 0.6, { type: 'sine', gain: 0.6, to: 41 });
+    hiss(c, hit, 0.25, { type: 'lowpass', freq: 2200, to: 300, gain: 0.35 });
+    [146.83, 220, 293.66, 349.23].forEach((f) => tone(c, hit, f, 0.9, { type: 'sawtooth', gain: 0.045, attack: 0.01, to: f * 0.985 }));
+    if (fan >= 30) {
+      tone(c, hit + 0.55, 98, 2.2, { type: 'sine', gain: 0.32, attack: 0.01 });
+      hiss(c, hit + 0.55, 1, { type: 'bandpass', freq: 3000, to: 1200, q: 0.7, gain: 0.1 });
+    }
+    setTimeout(() => say('食！', { pitch: 0.55, rate: 0.8 }), 420);
+  },
   /** 推牌：食糊；每次略有不同，番數高就多一下「叮」 */
   win(fan = 0) {
     const c = ready();
